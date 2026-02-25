@@ -47,6 +47,14 @@ class UserCrudController extends CrudController
          * - CRUD::column('price')->type('number');
          * - CRUD::addColumn(['name' => 'price', 'type' => 'number']);
          */
+        $this->crud->addColumn([
+            'label'     => 'Roles',
+            'type'      => 'select_multiple',
+            'name'      => 'roles',
+            'entity'    => 'roles',
+            'attribute' => 'name',
+            'model'     => "Backpack\PermissionManager\app\Models\Role",
+        ]);
     }
 
     /**
@@ -71,6 +79,16 @@ class UserCrudController extends CrudController
          * - CRUD::field('price')->type('number');
          * - CRUD::addField(['name' => 'price', 'type' => 'number']));
          */
+        $this->crud->addField([
+            'label'             => "Roles",
+            'type'              => 'checklist',
+            'name'              => 'roles',
+            'entity'            => 'roles',
+            'attribute'         => 'name',
+            'model'             => "Backpack\PermissionManager\app\Models\Role",
+            'pivot'             => true,
+            'number_columns'    => 3, // Optional: makes it look cleaner
+        ]);
     }
 
     /**
@@ -81,16 +99,27 @@ class UserCrudController extends CrudController
      */
       protected function setupUpdateOperation()
       {
-          CRUD::field('name')->validationRules('required|min:5');
-          CRUD::field('email')->validationRules('required|email|unique:users,email,'.CRUD::getCurrentEntryId());
-          CRUD::field('password')->hint('Type a password to change it.');
+            CRUD::field('name')->validationRules('required|min:5');
+            CRUD::field('email')->validationRules('required|email|unique:users,email,'.CRUD::getCurrentEntryId());
+            CRUD::field('password')->hint('Type a password to change it.');
 
-          \App\Models\User::updating(function ($entry) {
-              if (request('password') == null) {
-                  $entry->password = $entry->getOriginal('password');
-              } else {
-                  $entry->password = \Hash::make(request('password'));
-              }
-          });
+            \App\Models\User::updating(function ($entry) {
+                if (request('password') == null) {
+                    $entry->password = $entry->getOriginal('password');
+                } else {
+                    $entry->password = \Hash::make(request('password'));
+                }
+            });
+
+            $this->crud->addField([
+                'label'             => "Roles",
+                'type'              => 'checklist',
+                'name'              => 'roles',
+                'entity'            => 'roles',
+                'attribute'         => 'name',
+                'model'             => "Backpack\PermissionManager\app\Models\Role",
+                'pivot'             => true,
+                'number_columns'    => 3, // Optional: makes it look cleaner
+            ]);
       }
 }
