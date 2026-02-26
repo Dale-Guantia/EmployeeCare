@@ -20,8 +20,9 @@ class CreateTicketsTable extends Migration
             $table->foreignId('department_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('division_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('status_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('issue_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('issue_id')->nullable()->constrained()->cascadeOnDelete();
             $table->string('custom_issue')->nullable();
+            $table->boolean('is_custom_issue')->default(false);
             $table->foreignId('priority_id')->nullable()->constrained()->cascadeOnDelete();
             $table->text('message');
             $table->string('attachments')->nullable();

@@ -25,14 +25,12 @@ class TicketRequest extends FormRequest
     public function rules()
     {
         return [
-            'issue_id' => 'required',
-            'message'=> 'required',
-            'attachments.*' => [
-                'nullable',
-                'file',
-                'max:2048', // file size in KB
-                'mimetypes:image/jpeg,image/png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // allow only some mimetypes
-            ],
+            'issue_id' => 'required_if:is_custom_issue,0|nullable',
+            'custom_issue' => 'required_if:is_custom_issue,1|nullable',
+            'message' => 'required',
+
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'file|max:2048|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx',
         ];
     }
 
@@ -56,7 +54,8 @@ class TicketRequest extends FormRequest
     public function messages()
     {
         return [
-            //
+            'attachments.*.mimes' => 'Allowed file types: jpg, jpeg, png, pdf, doc, docx, xls, xlsx.',
+            'attachments.*.max' => 'Each attachment must not exceed 2MB.',
         ];
     }
 }

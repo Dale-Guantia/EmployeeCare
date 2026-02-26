@@ -53,7 +53,22 @@ class IssueCrudController extends CrudController
             'attribute' => 'division_name',
             'model'     => "App\Models\Division",
         ]);
-        CRUD::column('priority_id');
+        CRUD::addColumn([
+            'name'      => 'priority_id',
+            'label'     => 'Priority',
+            'type'      => 'select',
+            'entity'    => 'priority',
+            'attribute' => 'priority_name',
+            'model'     => "App\Models\Priority",
+            'wrapper'   => [
+                'element' => 'span',
+                'class'   => 'badge',
+                'style'   => function ($crud, $column, $entry, $related_key) {
+                    $color = $entry->priority ? $entry->priority->priority_color : '#c2c2c2';
+                    return "background-color: {$color}; color: #000; padding: 5px 10px; border-radius: 4px; font-weight: bold;";
+                },
+            ],
+        ]);
         CRUD::column('issue_description');
 
         /**

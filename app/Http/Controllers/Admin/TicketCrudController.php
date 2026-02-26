@@ -32,19 +32,13 @@ class TicketCrudController extends CrudController
         CRUD::setEntityNameStrings('ticket', 'tickets');
     }
 
-    /**
-     * Define what happens when the List operation is loaded.
-     *
-     * @see  https://backpackforlaravel.com/docs/crud-operation-list-entries
-     * @return void
-     */
     protected function setupListOperation()
     {
         CRUD::column('reference_id')->label('Reference Id');
         CRUD::column('user_id')->label('Created by');
         CRUD::column('issue_id');
         CRUD::column('custom_issue');
-        CRUD::column('message');
+        CRUD::column('priority_id');
         CRUD::addColumn([
             'name'      => 'status_id',
             'label'     => 'Status',
@@ -62,36 +56,40 @@ class TicketCrudController extends CrudController
                 },
             ],
         ]);
-        CRUD::column('priority_id');
-
-        /**
-         * Columns can be defined using the fluent syntax or array syntax:
-         * - CRUD::column('price')->type('number');
-         * - CRUD::addColumn(['name' => 'price', 'type' => 'number']);
-         */
     }
 
-    /**
-     * Define what happens when the Create operation is loaded.
-     *
-     * @see https://backpackforlaravel.com/docs/crud-operation-create
-     * @return void
-     */
     protected function setupCreateOperation()
     {
         CRUD::setValidation(TicketRequest::class);
 
         CRUD::addField([
-            'label'     => "Select Issue/Problem",
-            'type'      => 'select', // Must stay 'select' for the free version
-            'name'      => 'issue_id',
-            'entity'    => 'issue',
-            'model'     => "App\Models\Issue",
-            'attribute' => 'issue_description',
+            'label'       => "Select Issue/Problem",
+            'type'        => 'select',
+            'name'        => 'issue_id',
+            'entity'      => 'issue',
+            'allows_null' => true,
+            'model'       => "App\Models\Issue",
+            'attribute'   => 'issue_description',
+
+            'wrapper' => [
+                'class' => 'form-group col-md-12 issue-select-wrapper'
+            ],
         ]);
-        CRUD::field('custom_issue');
+        CRUD::addField([
+            'name'    => 'custom_issue',
+            'label'   => "Type your issue here",
+            'type'    => 'text',
+            'wrapper' => [
+                'class' => 'form-group col-md-12 custom-issue-wrapper d-none'
+            ],
+        ]);
+        CRUD::addField([
+            'name'      => 'is_custom_issue',
+            'label'     => 'My issue is not on the list',
+            'type'      => 'checkbox',
+            'default'   => 0,
+        ]);
         CRUD::field('message');
-        CRUD::field('attachments');
         CRUD::addField([
             'name'      => 'attachments',
             'label'     => 'Attachments',
@@ -103,19 +101,50 @@ class TicketCrudController extends CrudController
         CRUD::field('division_id');
         CRUD::field('priority_id');
 
-        /**
-         * Fields can be defined using the fluent syntax or array syntax:
-         * - CRUD::field('price')->type('number');
-         * - CRUD::addField(['name' => 'price', 'type' => 'number']));
-         */
+        CRUD::addField([
+            'name'  => 'custom_toggle_script',
+            'type'  => 'custom_html',
+            'value' => '
+                <script>
+                    document.addEventListener("DOMContentLoaded", function () {
+
+                        function toggleIssueFields() {
+                            let wrapper = document.querySelector("[bp-field-name=\'is_custom_issue\']");
+                            if (!wrapper) return;
+
+                            let checkbox = wrapper.querySelector("input[type=\'checkbox\']");
+                            let issueSelect = document.querySelector(".issue-select-wrapper");
+                            let customIssue = document.querySelector(".custom-issue-wrapper");
+
+                            if (!checkbox || !issueSelect || !customIssue) return;
+
+                            if (checkbox.checked) {
+                                issueSelect.classList.add("d-none");
+                                customIssue.classList.remove("d-none");
+
+                                let select = document.querySelector("select[name=\'issue_id\']");
+                                if (select) select.value = "";
+                            } else {
+                                issueSelect.classList.remove("d-none");
+                                customIssue.classList.add("d-none");
+
+                                let custom = document.querySelector("input[name=\'custom_issue\']");
+                                if (custom) custom.value = "";
+                            }
+                        }
+                        setTimeout(toggleIssueFields, 500);
+
+                        document.addEventListener("change", function(e) {
+                            if (e.target.closest("[bp-field-name=\'is_custom_issue\']")) {
+                                toggleIssueFields();
+                            }
+                        });
+                    });
+                </script>
+            ',
+        ]);
     }
 
-    /**
-     * Define what happens when the Update operation is loaded.
-     *
-     * @see https://backpackforlaravel.com/docs/crud-operation-update
-     * @return void
-     */
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();

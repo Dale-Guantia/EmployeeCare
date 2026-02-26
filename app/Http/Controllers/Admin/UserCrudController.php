@@ -19,50 +19,41 @@ class UserCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 
-    /**
-     * Configure the CrudPanel object. Apply settings to all operations.
-     *
-     * @return void
-     */
-    public function setup()
-    {
-        CRUD::setModel(\App\Models\User::class);
-        CRUD::setRoute(config('backpack.base.route_prefix') . '/user');
-        CRUD::setEntityNameStrings('user', 'users');
-    }
+     public function setup()
+     {
+         CRUD::setModel(\App\Models\User::class);
+         CRUD::setRoute(config('backpack.base.route_prefix') . '/user');
+         CRUD::setEntityNameStrings('user', 'users');
+     }
 
-    /**
-     * Define what happens when the List operation is loaded.
-     *
-     * @see  https://backpackforlaravel.com/docs/crud-operation-list-entries
-     * @return void
-     */
     protected function setupListOperation()
     {
         CRUD::column('name');
         CRUD::column('email');
 
-        /**
-         * Columns can be defined using the fluent syntax or array syntax:
-         * - CRUD::column('price')->type('number');
-         * - CRUD::addColumn(['name' => 'price', 'type' => 'number']);
-         */
         $this->crud->addColumn([
-            'label'     => 'Roles',
+            'label'     => 'Role',
             'type'      => 'select_multiple',
             'name'      => 'roles',
             'entity'    => 'roles',
             'attribute' => 'name',
             'model'     => "Backpack\PermissionManager\app\Models\Role",
         ]);
+        $this->crud->addColumn([
+            'name'  => 'is_active',
+            'label' => 'Active',
+            'type'  => 'boolean',
+            'options' => [0 => 'Inactive', 1 => 'Active'],
+            'wrapper' => [
+                'element' => 'span',
+                'class' => function ($crud, $column, $entry) {
+                    return $entry->is_active
+                        ? 'badge badge-success'
+                        : 'badge badge-secondary';
+                },
+            ],
+        ]);
     }
-
-    /**
-     * Define what happens when the Create operation is loaded.
-     *
-     * @see https://backpackforlaravel.com/docs/crud-operation-create
-     * @return void
-     */
 
     protected function setupCreateOperation()
     {
@@ -74,11 +65,6 @@ class UserCrudController extends CrudController
             $entry->password = \Hash::make($entry->password);
         });
 
-        /**
-         * Fields can be defined using the fluent syntax or array syntax:
-         * - CRUD::field('price')->type('number');
-         * - CRUD::addField(['name' => 'price', 'type' => 'number']));
-         */
         $this->crud->addField([
             'label'             => "Roles",
             'type'              => 'checklist',
@@ -89,37 +75,52 @@ class UserCrudController extends CrudController
             'pivot'             => true,
             'number_columns'    => 3, // Optional: makes it look cleaner
         ]);
+
+        // The Active Switch
+        CRUD::addField([
+            'name'     => 'is_active',
+            'label'    => 'Inactive/Active',
+            'type'     => 'switch',
+            'color'    => 'primary', // The color of the switch when ON
+            'onLabel'  => '✓',      // Text/Icon inside the switch when ON
+            'offLabel' => '✕',      // Text/Icon inside the switch when OFF
+            'default'  => 1,        // Set as Active by default for new users
+        ]);
     }
 
-    /**
-     * Define what happens when the Update operation is loaded.
-     *
-     * @see https://backpackforlaravel.com/docs/crud-operation-update
-     * @return void
-     */
-      protected function setupUpdateOperation()
-      {
-            CRUD::field('name')->validationRules('required|min:5');
-            CRUD::field('email')->validationRules('required|email|unique:users,email,'.CRUD::getCurrentEntryId());
-            CRUD::field('password')->hint('Type a password to change it.');
+    protected function setupUpdateOperation()
+    {
+        CRUD::field('name')->validationRules('required|min:5');
+        CRUD::field('email')->validationRules('required|email|unique:users,email,'.CRUD::getCurrentEntryId());
+        CRUD::field('password')->hint('Type a password to change it.');
 
-            \App\Models\User::updating(function ($entry) {
-                if (request('password') == null) {
-                    $entry->password = $entry->getOriginal('password');
-                } else {
-                    $entry->password = \Hash::make(request('password'));
-                }
-            });
+        \App\Models\User::updating(function ($entry) {
+            if (request('password') == null) {
+                $entry->password = $entry->getOriginal('password');
+            } else {
+                $entry->password = \Hash::make(request('password'));
+            }
+        });
 
-            $this->crud->addField([
-                'label'             => "Roles",
-                'type'              => 'checklist',
-                'name'              => 'roles',
-                'entity'            => 'roles',
-                'attribute'         => 'name',
-                'model'             => "Backpack\PermissionManager\app\Models\Role",
-                'pivot'             => true,
-                'number_columns'    => 3, // Optional: makes it look cleaner
-            ]);
-      }
+        $this->crud->addField([
+            'label'             => "Roles",
+            'type'              => 'checklist',
+            'name'              => 'roles',
+            'entity'            => 'roles',
+            'attribute'         => 'name',
+            'model'             => "Backpack\PermissionManager\app\Models\Role",
+            'pivot'             => true,
+            'number_columns'    => 3, // Optional: makes it look cleaner
+        ]);
+
+        $this->crud->addField([
+            'name'     => 'is_active',
+            'label'    => 'Inactive/Active',
+            'type'     => 'switch',
+            'color'    => 'primary', // The color of the switch when ON
+            'onLabel'  => '✓',      // Text/Icon inside the switch when ON
+            'offLabel' => '✕',      // Text/Icon inside the switch when OFF
+            'default'  => 1,        // Set as Active by default for new users
+        ]);
+    }
 }
