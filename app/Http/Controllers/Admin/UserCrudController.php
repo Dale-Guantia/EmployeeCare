@@ -57,7 +57,7 @@ class UserCrudController extends CrudController
 
     protected function setupCreateOperation()
     {
-        CRUD::field('name')->validationRules('required|min:5');
+        CRUD::field('name')->validationRules('required');
         CRUD::field('email')->validationRules('required|email|unique:users,email');
         CRUD::field('password')->validationRules('required');
 
@@ -90,7 +90,7 @@ class UserCrudController extends CrudController
 
     protected function setupUpdateOperation()
     {
-        CRUD::field('name')->validationRules('required|min:5');
+        CRUD::field('name')->validationRules('required');
         CRUD::field('email')->validationRules('required|email|unique:users,email,'.CRUD::getCurrentEntryId());
         CRUD::field('password')->hint('Type a password to change it.');
 

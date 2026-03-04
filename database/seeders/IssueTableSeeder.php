@@ -129,14 +129,14 @@ class IssueTableSeeder extends Seeder
         ];
 
         $division_mapping = [
-            1 => $it_issues,
-            2 => $admin_issues,
-            3 => $payroll_issues,
-            4 => $records_issues,
-            5 => $claims_issues,
-            6 => $rsp_issues,
-            7 => $lnd_issues,
-            8 => $pm_issues,
+            2 => $it_issues,
+            3 => $admin_issues,
+            4 => $payroll_issues,
+            5 => $records_issues,
+            6 => $claims_issues,
+            7 => $rsp_issues,
+            8 => $lnd_issues,
+            9 => $pm_issues,
         ];
 
         foreach ($division_mapping as $division_id => $issues) {

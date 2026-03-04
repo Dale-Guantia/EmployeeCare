@@ -11,40 +11,104 @@ class RolesAndPermissionsSeeder extends Seeder
 {
     public function run()
     {
-        // 1. Reset cached roles and permissions
+        // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // 2. Create Permissions
-        // Based on your screenshot, you need these:
-        $permissions = [
-            'tickets', 'issues', 'priorities',
-            'departments', 'divisions', 'authentication', 'reports', 'survey_response'
+        /*
+        |--------------------------------------------------------------------------
+        | 1. Create CRUD Permissions
+        |--------------------------------------------------------------------------
+        */
+
+        $entities = [
+            'ticket',
+            'issue',
+            'department',
+            'division',
+            'priority',
+            'status',
+            'user',
+            'role',
+            'permission',
+            'report',
+            'survey_response'
         ];
 
-        foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+        $actions = ['view', 'create', 'update', 'delete'];
+
+        foreach ($entities as $entity) {
+            foreach ($actions as $action) {
+                Permission::firstOrCreate([
+                    'name' => "{$entity}.{$action}"
+                ]);
+            }
         }
 
-        // 3. Create Roles and Assign Permissions
+        /*
+        |--------------------------------------------------------------------------
+        | 2. Create Roles
+        |--------------------------------------------------------------------------
+        */
 
-        // Admin: Gets everything
-        $role = Role::create(['name' => 'admin']);
-        $role->givePermissionTo(Permission::all());
+        $admin = Role::firstOrCreate(['name' => 'admin']);
+        $deptHead = Role::firstOrCreate(['name' => 'dept_head']);
+        $divHead = Role::firstOrCreate(['name' => 'div_head']);
+        $hrStaff = Role::firstOrCreate(['name' => 'hr_staff']);
+        $employee = Role::firstOrCreate(['name' => 'employee']);
 
-        // Dept Head: Specific permissions
-        $role = Role::create(['name' => 'dept_head']);
-        $role->givePermissionTo(['tickets', 'issues', 'departments', 'divisions']);
+        /*
+        |--------------------------------------------------------------------------
+        | 3. Assign Permissions
+        |--------------------------------------------------------------------------
+        */
 
-        // Dept Head: Specific permissions
-        $role = Role::create(['name' => 'div_head']);
-        $role->givePermissionTo(['tickets', 'issues', 'departments', 'divisions']);
+        // ADMIN → Everything
+        $admin->givePermissionTo(Permission::all());
 
-        // Dept Head: Specific permissions
-        $role = Role::create(['name' => 'hr_staff']);
-        $role->givePermissionTo(['tickets']);
 
-        // Employee: Limited access
-        $role = Role::create(['name' => 'employee']);
-        $role->givePermissionTo(['tickets']);
+        // DEPARTMENT HEAD
+        $deptHead->givePermissionTo([
+            // Tickets
+            'ticket.view',
+            'ticket.create',
+            'ticket.update',
+
+            // Issues
+            'issue.view',
+            'issue.create',
+            'issue.update',
+
+            // Departments & Divisions
+            'department.view',
+            'division.view',
+        ]);
+
+
+        // DIVISION HEAD (same as dept_head but customizable later)
+        $divHead->givePermissionTo([
+            'ticket.view',
+            'ticket.create',
+            'ticket.update',
+
+            'issue.view',
+            'issue.create',
+            'issue.update',
+        ]);
+
+
+        // HR STAFF
+        $hrStaff->givePermissionTo([
+            'ticket.view',
+            'ticket.create',
+            'ticket.update',
+        ]);
+
+
+        // EMPLOYEE
+        $employee->givePermissionTo([
+            'ticket.view',
+            'ticket.create',
+            'ticket.update',
+        ]);
     }
 }

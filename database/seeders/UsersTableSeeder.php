@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Spatie\Permission\Traits\HasRoles;
 
 class UsersTableSeeder extends Seeder
 {
@@ -122,7 +123,9 @@ class UsersTableSeeder extends Seeder
             'division_id' => 2,
             'is_active' => 1,
             'email_verified_at' => now()
+
         ]);
+        $user_admin->assignRole('admin');
 
         $dept_head = User::create([
             // 'emp_no' => '',

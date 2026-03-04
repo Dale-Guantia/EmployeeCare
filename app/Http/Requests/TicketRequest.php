@@ -24,14 +24,21 @@ class TicketRequest extends FormRequest
      */
     public function rules()
     {
-        return [
+        $rules = [
             'issue_id' => 'required_if:is_custom_issue,0|nullable',
             'custom_issue' => 'required_if:is_custom_issue,1|nullable',
             'message' => 'required',
-
             'attachments' => 'nullable|array',
-            'attachments.*' => 'file|max:2048|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx',
+            'department_id' => 'required_if:is_custom_issue,1|nullable',
+            'division_id' => 'required_if:is_custom_issue,1|nullable'
         ];
+
+        // Only validate if it's actually an uploaded file
+        if ($this->hasFile('attachments')) {
+            $rules['attachments.*'] = 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:2048';
+        }
+
+        return $rules;
     }
 
     /**
@@ -54,8 +61,13 @@ class TicketRequest extends FormRequest
     public function messages()
     {
         return [
+            // Attachments
             'attachments.*.mimes' => 'Allowed file types: jpg, jpeg, png, pdf, doc, docx, xls, xlsx.',
-            'attachments.*.max' => 'Each attachment must not exceed 2MB.',
+            'attachments.*.max'   => 'Each attachment must not exceed 2MB.',
+
+            // Department & Division
+            'department_id.required_if' => 'Please select a Department when submitting a custom issue.',
+            'division_id.required_if'   => 'Please select a Division when submitting a custom issue.',
         ];
     }
 }

@@ -13,10 +13,7 @@ use App\Http\Controllers\Admin\Auth\LoginController;
 // Manually override the Register routes
 Route::group([
     'prefix'     => config('backpack.base.route_prefix', 'admin'),
-    'middleware' => array_merge(
-        (array) config('backpack.base.web_middleware', 'web'),
-        (array) config('backpack.base.guest_middleware', 'guest')
-    ),
+    'middleware' => 'web',
 ], function () {
     Route::get('register', 'App\Http\Controllers\Admin\Auth\RegisterController@showRegistrationForm')->name('backpack.auth.register');
     Route::post('register', 'App\Http\Controllers\Admin\Auth\RegisterController@register');
@@ -34,6 +31,10 @@ Route::group([
 
 });
 
+Route::get('api/department/{id}/divisions', function($id) {
+    return App\Models\Division::where('department_id', $id)->get(['id', 'division_name']);
+});
+
 Route::group([
     'prefix'     => config('backpack.base.route_prefix', 'admin'),
     'middleware' => array_merge(
@@ -41,12 +42,13 @@ Route::group([
         (array) config('backpack.base.middleware_key', 'admin')
     ),
     'namespace'  => 'App\Http\Controllers\Admin',
-], function () { // custom admin routes
-    Route::crud('user', 'UserCrudController');
-    Route::crud('priority', 'PriorityCrudController');
+], function () {
+
+    Route::crud('ticket', 'TicketCrudController');
+    Route::crud('issue', 'IssueCrudController');
     Route::crud('department', 'DepartmentCrudController');
     Route::crud('division', 'DivisionCrudController');
+    Route::crud('priority', 'PriorityCrudController');
     Route::crud('status', 'StatusCrudController');
-    Route::crud('issue', 'IssueCrudController');
-    Route::crud('ticket', 'TicketCrudController');
-}); // this should be the absolute last line of this file
+    Route::crud('user', 'UserCrudController');
+});
