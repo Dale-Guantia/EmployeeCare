@@ -29,6 +29,24 @@ class DivisionCrudController extends CrudController
         CRUD::setModel(\App\Models\Division::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/division');
         CRUD::setEntityNameStrings('division', 'divisions');
+
+        if (!backpack_user()->can('division.view')) {
+            abort(403);
+        }
+
+        // $this->crud->denyAccess(['create','update','delete']);
+
+        // if (backpack_user()->can('ticket.create')) {
+        //     $this->crud->allowAccess('create');
+        // }
+
+        // if (backpack_user()->can('ticket.update')) {
+        //     $this->crud->allowAccess('update');
+        // }
+
+        // if (backpack_user()->can('ticket.delete')) {
+        //     $this->crud->allowAccess('delete');
+        // }
     }
 
     /**

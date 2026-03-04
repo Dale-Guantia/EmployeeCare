@@ -29,6 +29,24 @@ class IssueCrudController extends CrudController
         CRUD::setModel(\App\Models\Issue::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/issue');
         CRUD::setEntityNameStrings('issue', 'issues');
+
+        if (!backpack_user()->can('issue.view')) {
+            abort(403);
+        }
+
+        // $this->crud->denyAccess(['create','update','delete']);
+
+        // if (backpack_user()->can('ticket.create')) {
+        //     $this->crud->allowAccess('create');
+        // }
+
+        // if (backpack_user()->can('ticket.update')) {
+        //     $this->crud->allowAccess('update');
+        // }
+
+        // if (backpack_user()->can('ticket.delete')) {
+        //     $this->crud->allowAccess('delete');
+        // }
     }
 
     /**

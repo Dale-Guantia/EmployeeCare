@@ -43,7 +43,6 @@ Route::group([
     ),
     'namespace'  => 'App\Http\Controllers\Admin',
 ], function () {
-
     Route::crud('ticket', 'TicketCrudController');
     Route::crud('issue', 'IssueCrudController');
     Route::crud('department', 'DepartmentCrudController');
@@ -52,3 +51,4 @@ Route::group([
     Route::crud('status', 'StatusCrudController');
     Route::crud('user', 'UserCrudController');
 });
+

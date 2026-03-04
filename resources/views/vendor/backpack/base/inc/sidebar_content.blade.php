@@ -35,6 +35,11 @@
         <i class="nav-icon la la-sort-amount-up"></i> Priorities
     </a>
 </li>
+<li class="nav-item">
+    <a class="nav-link" href="{{ backpack_url('status') }}">
+        <i class="nav-icon la la-flag"></i> Status
+    </a>
+</li>
 @endcan
 
 @can('user.view')

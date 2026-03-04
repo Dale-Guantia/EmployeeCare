@@ -24,6 +24,24 @@ class UserCrudController extends CrudController
          CRUD::setModel(\App\Models\User::class);
          CRUD::setRoute(config('backpack.base.route_prefix') . '/user');
          CRUD::setEntityNameStrings('user', 'users');
+
+        if (!backpack_user()->can('user.view')) {
+            abort(403);
+        }
+
+        // $this->crud->denyAccess(['create','update','delete']);
+
+        // if (backpack_user()->can('ticket.create')) {
+        //     $this->crud->allowAccess('create');
+        // }
+
+        // if (backpack_user()->can('ticket.update')) {
+        //     $this->crud->allowAccess('update');
+        // }
+
+        // if (backpack_user()->can('ticket.delete')) {
+        //     $this->crud->allowAccess('delete');
+        // }
      }
 
     protected function setupListOperation()

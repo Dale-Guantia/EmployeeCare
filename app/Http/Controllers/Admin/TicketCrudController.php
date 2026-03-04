@@ -31,6 +31,11 @@ class TicketCrudController extends CrudController
         CRUD::setModel(\App\Models\Ticket::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/ticket');
         CRUD::setEntityNameStrings('ticket', 'tickets');
+
+        if (!backpack_user()->can('ticket.view')) {
+            abort(403);
+        }
+
         $this->crud->denyAccess(['create','update','delete','show']);
 
         $user = backpack_user();
