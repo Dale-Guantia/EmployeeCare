@@ -40,6 +40,11 @@
         <i class="nav-icon la la-flag"></i> Status
     </a>
 </li>
+<li class="nav-item">
+    <a class="nav-link" href="{{ backpack_url('reports') }}">
+        <i class="nav-icon la la-chart-bar"></i> Reports
+    </a>
+</li>
 @endcan
 
 @can('user.view')

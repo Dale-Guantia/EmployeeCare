@@ -64,14 +64,34 @@ class Ticket extends Model
         // Triggered right before a record is saved to the database
         static::saving(function ($model) {
             if ($model->issue_id) {
-                // Find the selected issue
                 $issue = \App\Models\Issue::find($model->issue_id);
-
                 if ($issue) {
                     // Auto-fill the ticket fields from the issue's data
                     $model->department_id = $issue->department_id;
                     $model->division_id = $issue->division_id;
                     $model->priority_id = $issue->priority_id;
+                }
+            }
+
+            if ($model->isDirty('assigned_to')) {
+                if (!empty($model->assigned_to)) {
+                    $assignedStatus = \App\Models\Status::where('status_name', 'Pending')->first();
+                    if ($assignedStatus && !$model->isDirty('status_id')) {
+                        $model->status_id = $assignedStatus->id;
+                    }
+                } else {
+                    $unassignedStatus = \App\Models\Status::where('status_name', 'Unassigned')->first();
+                    if ($unassignedStatus && !$model->isDirty('status_id')) {
+                        $model->status_id = $unassignedStatus->id;
+                    }
+                }
+            }
+
+            if ($model->isDirty('status_id')) {
+                $resolvedStatus = \App\Models\Status::where('status_name', 'Resolved')->first();
+                if ($resolvedStatus && $model->status_id == $resolvedStatus->id) {
+                    $model->resolved_at = now();
+                    $model->resolved_by = backpack_user()->id; // Record who did it
                 }
             }
         });

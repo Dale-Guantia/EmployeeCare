@@ -23,9 +23,10 @@ class CreateUsersTable extends Migration
             $table->foreignId('department_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('division_id')->nullable()->constrained()->cascadeOnDelete();
             $table->boolean('is_active')->default(true);
-            $table->integer('resolved_tickets_count')->default(0);
+            $table->string('avatar_url')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->timestamp('last_login_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

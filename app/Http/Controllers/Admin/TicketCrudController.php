@@ -371,25 +371,52 @@ class TicketCrudController extends CrudController
                 }),
             ]);
         }
+        if ($user->hasAnyRole(['admin', 'dept_head', 'div_head'])) {
+            // Get the current ticket being edited
+            $entry = $this->crud->getCurrentEntry();
+
+            CRUD::addField([
+                'label'     => "Change Status",
+                'type'      => 'select',
+                'name'      => 'status_id',
+                'entity'    => 'status',
+                'model'     => "App\Models\Status",
+                'attribute' => 'status_name',
+            ]);
+        }
     }
 
     public function update()
     {
         $request = $this->crud->getRequest();
 
-        // 1. Handle "Quick Assign" (Staff)
+        // 1. Handle Resolve Ticket
+        if ($request->has('status_id') && !$request->has('message') && !$request->has('assigned_to')) {
+
+            $entry = $this->crud->getEntry($request->id);
+            $entry->status_id = $request->status_id;
+            $entry->save();
+
+            Alert::success('Ticket resolved successfully.')->flash();
+
+            return redirect($request->get('_http_referrer') ?? $this->crud->route);
+        }
+
+        // 2. Handle Quick Assign
         if ($request->has('assigned_to') && !$request->has('message')) {
+
             $entry = $this->crud->getEntry($request->id);
             $entry->assigned_to = $request->assigned_to;
             $entry->save();
 
             Alert::success('Staff assigned successfully.')->flash();
+
             return redirect($request->get('_http_referrer') ?? $this->crud->route);
         }
 
-        // 2. Handle "Office Reassignment" (Department/Division)
-        // We check for department_id while ensuring it's not the full edit form
+        // 3. Handle Office Reassignment
         if ($request->has('department_id') && !$request->has('message')) {
+
             $entry = $this->crud->getEntry($request->id);
 
             $entry->department_id = $request->department_id;
@@ -399,16 +426,19 @@ class TicketCrudController extends CrudController
             $entry->save();
 
             Alert::success('Ticket reassigned to new office successfully.')->flash();
+
             return redirect($this->crud->route);
         }
 
-        // Otherwise, proceed with standard Backpack update
+        // 4. Default Backpack Update
         return $this->traitUpdate();
     }
 
     protected function setupShowOperation()
     {
+        $this->crud->setShowContentClass('col-md-7');
         $user = backpack_user();
+        $resolvedId =\App\Models\Status::where('status_name','Resolved')->value('id');
 
         CRUD::column('reference_id')->label('Reference Id');
         CRUD::column('user_id')->type('select')->entity('user')->attribute('name')->label('Created by');
@@ -485,7 +515,7 @@ class TicketCrudController extends CrudController
         if ($user->hasAnyRole(['admin', 'dept_head', 'div_head'])) {
             CRUD::addColumn([
                 'name'     => 'quick_assign',
-                'label'    => 'Quick Assign Staff',
+                'label'    => 'Assign Staff',
                 'type'     => 'closure',
                 'function' => function($entry) {
                     $hrStaff = \App\Models\User::role('hr_staff')
@@ -509,7 +539,7 @@ class TicketCrudController extends CrudController
                             {$method}
                             <input type='hidden' name='_http_referrer' value='".url()->current()."'>
                             <div class='form-group mb-0'>
-                                <select name='assigned_to' class='form-control form-control-sm' style='width: 275px;'>
+                                <select name='assigned_to' class='form-control form-control-sm' style='width: 250px;'>
                                     {$options}
                                 </select>
                                 <button type='submit' class='btn btn-sm btn-success ml-1'>
@@ -522,6 +552,7 @@ class TicketCrudController extends CrudController
                 'escaped' => false, // Crucial: allows rendering the HTML form
             ]);
         }
+
         if ($user->hasAnyRole(['admin', 'dept_head', 'div_head']) && $this->crud->getCurrentEntry()->is_custom_issue == 1) {
             CRUD::addColumn([
                 'name'     => 'office_reassignment',
@@ -602,6 +633,72 @@ class TicketCrudController extends CrudController
                 'escaped' => false,
             ]);
         }
+
+        CRUD::addColumn([
+            'name'     => 'resolved_button',
+            'label'    => 'Action',
+            'type'     => 'closure',
+            'function' => function($entry) use ($resolvedId) {
+                // 1. Check if already resolved to disable the button
+                $isResolved = $entry->status_id == $resolvedId;
+
+                if ($isResolved) {
+                    return '<button class="btn btn-sm btn-secondary" disabled><i class="la la-check"></i> Resolved</button>';
+                }
+
+                $formUrl = url($this->crud->route.'/'.$entry->id);
+                $csrf = csrf_field();
+                $method = method_field('PUT');
+                $modalId = "resolveModal" . $entry->id;
+
+                return "
+                    <!-- Button to trigger modal -->
+                    <button type='button' class='btn btn-sm btn-success' data-toggle='modal' data-target='#{$modalId}'>
+                        <i class='la la-check-circle'></i> Resolve
+                    </button>
+
+                    <!-- Modal -->
+                    <div class='modal fade' id='{$modalId}' tabindex='-1' role='dialog' aria-labelledby='exampleModalLabel' aria-hidden='true'>
+                        <div class='modal-dialog' role='document'>
+                            <div class='modal-content'>
+                                <div class='modal-header bg-primary text-white'>
+                                    <h5 class='modal-title'>Confirm Resolution</h5>
+                                    <button type='button' class='close text-white' data-dismiss='modal' aria-label='Close'>
+                                        <span aria-hidden='true'>&times;</span>
+                                    </button>
+                                </div>
+                                <form action='{$formUrl}' method='POST'>
+                                    {$csrf}
+                                    {$method}
+                                    <input type='hidden' name='_http_referrer' value='".url()->current()."'>
+                                    <input type='hidden' name='status_id' value='{$resolvedId}'>
+
+                                    <div class='modal-body text-left'>
+                                        <p>Are you sure you want to mark Ticket <strong>{$entry->reference_id}</strong> as Resolved?</p>
+                                        <p class='text-muted small'>This will notify the user and close the ticket.</p>
+                                    </div>
+                                    <div class='modal-footer'>
+                                        <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
+                                        <button type='submit' class='btn btn-success'>Yes, Resolve it</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <script>
+                        (function() {
+                            var modal = document.getElementById('{$modalId}');
+                            if (modal) {
+                                // Move it to the body so it's on the same 'level' as the backdrop
+                                document.body.appendChild(modal);
+                            }
+                        })();
+                    </script>
+                ";
+            },
+            'escaped' => false,
+        ]);
+
         $this->crud->removeAllButtonsFromStack('line');
     }
 }

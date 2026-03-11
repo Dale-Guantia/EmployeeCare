@@ -9,6 +9,17 @@ use App\Http\Controllers\Admin\Auth\LoginController;
 // This route file is loaded automatically by Backpack\Base.
 // Routes you generate using Backpack\Generators will be placed here.
 
+// Route::group([
+//     'prefix'     => config('backpack.base.route_prefix', 'admin'),
+//     'middleware' => array_merge(
+//         (array) config('backpack.base.web_middleware', 'web'),
+//         (array) config('backpack.base.middleware_key', 'admin')
+//     ),
+// ], function () {
+//     // Add the full namespace here
+//     Route::get('survey', 'App\Http\Controllers\SurveyController@showForm')->name('public.survey');
+//     Route::post('survey', 'App\Http\Controllers\SurveyController@submitForm');
+// });
 
 // Manually override the Register routes
 Route::group([
@@ -50,5 +61,5 @@ Route::group([
     Route::crud('priority', 'PriorityCrudController');
     Route::crud('status', 'StatusCrudController');
     Route::crud('user', 'UserCrudController');
+    Route::get('reports', 'ReportsController@index')->name('page.reports.index');
 });
-

@@ -15,4 +15,9 @@ class Status extends Model
         'status_name',
         'status_color'
     ];
+
+    public function tickets()
+    {
+        return $this->hasMany(\App\Models\Ticket::class);
+    }
 }
