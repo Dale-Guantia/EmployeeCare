@@ -129,4 +129,8 @@ class Ticket extends Model
         // This connects the 'assigned_to' column to the Users table
         return $this->belongsTo(User::class, 'assigned_to');
     }
+    public function comments()
+    {
+        return $this->hasMany(TicketComment::class)->latest();
+    }
 }

@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Str;
-use Spatie\Permission\Traits\HasRoles;
 
 class UsersTableSeeder extends Seeder
 {
@@ -141,7 +140,7 @@ class UsersTableSeeder extends Seeder
         $admin_head = User::create([
             'emp_no' => '100561',
             'name' => 'Edwin B. Correa',
-            'username' => 'coreaedwin',
+            'username' => 'correaedwin',
             'password' => bcrypt('12341234'),
             'nickname' => 'EDWIN',
             'department_id' => 1,

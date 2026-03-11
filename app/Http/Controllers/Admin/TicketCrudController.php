@@ -90,7 +90,7 @@ class TicketCrudController extends CrudController
         CRUD::column('reference_id')->label('Reference Id');
         CRUD::column('user_id')->label('Created by');
         CRUD::column('issue_id');
-        CRUD::column('custom_issue');
+        // CRUD::column('custom_issue');
         CRUD::addColumn([
             'name'      => 'priority_id',
             'label'     => 'Priority',
@@ -436,7 +436,7 @@ class TicketCrudController extends CrudController
 
     protected function setupShowOperation()
     {
-        $this->crud->setShowContentClass('col-md-7');
+        $this->crud->setShowContentClass('col-md-8');
         $user = backpack_user();
         $resolvedId =\App\Models\Status::where('status_name','Resolved')->value('id');
 
