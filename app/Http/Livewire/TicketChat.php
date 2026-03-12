@@ -3,13 +3,17 @@
 namespace App\Http\Livewire;
 
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use App\Models\TicketComment;
-use App\Models\TicketRead;
+use Illuminate\Support\Facades\Storage;
 
 class TicketChat extends Component
 {
+    use WithFileUploads;
+
     public $ticketId;
     public $comment = '';
+    public $attachments = []; // Always use plural for multiple
 
     public function render()
     {
@@ -21,19 +25,36 @@ class TicketChat extends Component
         ]);
     }
 
+    public function removeUpload($index)
+    {
+        unset($this->attachments[$index]);
+        $this->attachments = array_values($this->attachments);
+    }
+
     public function sendComment()
     {
-        $this->validate(['comment' => 'required|min:1']);
+        $this->validate([
+            'comment' => 'required_without:attachments|nullable',
+            'attachments.*' => 'nullable|max:10240',
+        ]);
+
+        $paths = [];
+        if ($this->attachments) {
+            foreach ($this->attachments as $file) {
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $paths[] = $file->storeAs('attachments', $filename, 'public');
+            }
+        }
 
         TicketComment::create([
             'ticket_id' => $this->ticketId,
             'user_id' => auth()->id(),
-            'comment' => $this->comment,
+            'comment' => $this->comment ?? '',
+            'attachment' => $paths,
         ]);
 
-        $this->comment = ''; // Clear input
-
-        // This tells the JavaScript: "Hey, I just added a message, scroll down!"
+        $this->comment = '';
+        $this->attachments = [];
         $this->emit('commentSent');
     }
 }

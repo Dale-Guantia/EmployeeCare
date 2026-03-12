@@ -60,8 +60,10 @@
         </div>
 
         <!-- Right Column: The Chat Section (The Red Box) -->
-        <div class="col-md-4">
-            @livewire('ticket-chat', ['ticketId' => $entry->getKey()])
-        </div>
+        @if($entry instanceof \App\Models\Ticket)
+            <div class="col-md-4">
+                @livewire('ticket-chat', ['ticketId' => $entry->getKey()])
+            </div>
+        @endif
     </div>
 @endsection

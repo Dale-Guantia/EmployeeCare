@@ -12,7 +12,12 @@ class TicketComment extends Model
     protected $fillable = [
         'ticket_id',
         'user_id',
-        'comment'
+        'comment',
+        'attachment'
+    ];
+
+    protected $casts = [
+        'attachment' => 'array',
     ];
 
     public function user()

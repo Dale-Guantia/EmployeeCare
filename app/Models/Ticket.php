@@ -5,6 +5,7 @@ namespace App\Models;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Ticket extends Model
 {
@@ -103,7 +104,38 @@ class Ticket extends Model
         $disk = "public";
         $destination_path = "attachments";
 
-        $this->uploadMultipleFilesToDisk($value, $attribute_name, $disk, $destination_path);
+        // 1. Get the current files from the database (as an array)
+        $attribute_value = $this->{$attribute_name} ?? [];
+        if (is_string($attribute_value)) {
+            $attribute_value = json_decode($attribute_value, true) ?? [];
+        }
+
+        // 2. Handle files marked for deletion
+        // Backpack sends an array of files to be cleared in the request
+        $files_to_clear = request()->get('clear_'.$attribute_name) ?? [];
+        foreach ($files_to_clear as $key => $filename) {
+            Storage::disk($disk)->delete($filename);
+            $attribute_value = array_diff($attribute_value, [$filename]);
+        }
+
+        // 3. Handle new uploaded files
+        if (request()->hasFile($attribute_name)) {
+            foreach (request()->file($attribute_name) as $file) {
+                if ($file->isValid()) {
+                    // YOUR CUSTOM FORMAT: time() + original name
+                    $fileName = time() . '_' . $file->getClientOriginalName();
+
+                    // Store the file
+                    $path = $file->storeAs($destination_path, $fileName, $disk);
+
+                    // Add the new path to our array
+                    $attribute_value[] = $path;
+                }
+            }
+        }
+
+        // 4. Update the attribute (Backpack expects a JSON string or array depending on your cast)
+        $this->attributes[$attribute_name] = json_encode(array_values($attribute_value));
     }
 
     public function issue(){
