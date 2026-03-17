@@ -62,4 +62,11 @@ Route::group([
     Route::crud('status', 'StatusCrudController');
     Route::crud('user', 'UserCrudController');
     Route::get('reports', 'ReportsController@index')->name('page.reports.index');
+
+    Route::get('notifications/feed', 'NotificationController@feed')->name('notifications.feed');
+    Route::post('notifications/{id}/read', 'NotificationController@markAsRead')->name('notifications.read');
+    Route::post('notifications/read-all', 'NotificationController@markAllAsRead')->name('notifications.read_all');
+    Route::get('notifications', 'NotificationController@index')->name('notifications.index');
+    Route::delete('notifications/clear-all', 'NotificationController@clearAll')->name('notifications.clear_all');
+    Route::post('my-account/notification-settings', 'MyAccountController@updateNotificationSettings')->name('backpack.account.notifications');
 });

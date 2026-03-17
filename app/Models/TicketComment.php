@@ -24,4 +24,9 @@ class TicketComment extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function ticket()
+    {
+        return $this->belongsTo(Ticket::class);
+    }
 }

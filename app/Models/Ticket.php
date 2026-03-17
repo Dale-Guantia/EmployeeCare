@@ -6,6 +6,9 @@ use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use App\Services\TicketNotificationService;
+use \App\Models\Status;
+use \App\Models\Issue;
 
 class Ticket extends Model
 {
@@ -65,7 +68,7 @@ class Ticket extends Model
         // Triggered right before a record is saved to the database
         static::saving(function ($model) {
             if ($model->issue_id) {
-                $issue = \App\Models\Issue::find($model->issue_id);
+                $issue = Issue::find($model->issue_id);
                 if ($issue) {
                     // Auto-fill the ticket fields from the issue's data
                     $model->department_id = $issue->department_id;
@@ -76,12 +79,12 @@ class Ticket extends Model
 
             if ($model->isDirty('assigned_to')) {
                 if (!empty($model->assigned_to)) {
-                    $assignedStatus = \App\Models\Status::where('status_name', 'Pending')->first();
+                    $assignedStatus = Status::where('status_name', 'Pending')->first();
                     if ($assignedStatus && !$model->isDirty('status_id')) {
                         $model->status_id = $assignedStatus->id;
                     }
                 } else {
-                    $unassignedStatus = \App\Models\Status::where('status_name', 'Unassigned')->first();
+                    $unassignedStatus = Status::where('status_name', 'Unassigned')->first();
                     if ($unassignedStatus && !$model->isDirty('status_id')) {
                         $model->status_id = $unassignedStatus->id;
                     }
@@ -89,11 +92,40 @@ class Ticket extends Model
             }
 
             if ($model->isDirty('status_id')) {
-                $resolvedStatus = \App\Models\Status::where('status_name', 'Resolved')->first();
-                if ($resolvedStatus && $model->status_id == $resolvedStatus->id) {
+                $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
+                $reopenedStatusId = Status::where('status_name', 'Reopened')->value('id');
+
+                // When resolved
+                if ($resolvedStatusId && (int) $model->status_id === (int) $resolvedStatusId) {
                     $model->resolved_at = now();
-                    $model->resolved_by = backpack_user()->id; // Record who did it
+                    $model->resolved_by = backpack_auth()->check() ? backpack_user()->id : null;
+                    $model->reopened_at = null;
                 }
+
+                // When reopened
+                if ($reopenedStatusId && (int) $model->status_id === (int) $reopenedStatusId) {
+                    $model->reopened_at = now();
+                    $model->resolved_at = null;
+                    $model->resolved_by = null;
+                }
+            }
+        });
+
+        static::created(function ($ticket) {
+            $actor = backpack_auth()->check() ? backpack_user() : null;
+            app(TicketNotificationService::class)->notifyTicketCreated($ticket, $actor);
+        });
+
+        static::updated(function ($ticket) {
+            $actor = backpack_auth()->check() ? backpack_user() : null;
+
+            if ($ticket->wasChanged('assigned_to')) {
+                app(TicketNotificationService::class)->notifyTicketAssigned($ticket, $actor);
+            }
+
+            if ($ticket->wasChanged('status_id')) {
+                $ticket->loadMissing('status');
+                app(TicketNotificationService::class)->notifyTicketStatusChanged($ticket, $actor);
             }
         });
     }

@@ -27,6 +27,10 @@ class CreateUsersTable extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->timestamp('last_login_at')->nullable();
+            $table->boolean('notify_ticket_created')->default(true);
+            $table->boolean('notify_ticket_assigned')->default(true);
+            $table->boolean('notify_ticket_status_changed')->default(true);
+            $table->boolean('notify_ticket_commented')->default(true);
             $table->rememberToken();
             $table->timestamps();
         });

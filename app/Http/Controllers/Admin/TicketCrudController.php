@@ -7,6 +7,7 @@ use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Backpack\CRUD\app\Library\Widget;
 use Prologue\Alerts\Facades\Alert;
+use App\Models\Status;
 
 /**
  * Class TicketCrudController
@@ -61,6 +62,10 @@ class TicketCrudController extends CrudController
             if ($user->hasRole('hr_staff')) {
                 // HR Staff ONLY sees tickets assigned specifically to them
                 $query->orWhere('assigned_to', $user->id);
+                $this->crud->allowAccess(['create','show']);
+            }
+            if ($user->hasRole('employee')) {
+                $query;
                 $this->crud->allowAccess(['create','show']);
             }
         });
@@ -390,9 +395,30 @@ class TicketCrudController extends CrudController
     {
         $request = $this->crud->getRequest();
 
-        // 1. Handle Resolve Ticket
-        if ($request->has('status_id') && !$request->has('message') && !$request->has('assigned_to')) {
+        // 1. Handle Reopen Ticket
+        if ($request->has('reopen_ticket')) {
+            $entry = $this->crud->getEntry($request->id);
 
+            if ((int) backpack_user()->id !== (int) $entry->user_id) {
+                abort(403, 'Only the ticket creator can reopen this ticket.');
+            }
+
+            $reopenedId = Status::where('status_name', 'Reopened')->value('id');
+
+            if (!$reopenedId) {
+                abort(500, 'Reopened status not found.');
+            }
+
+            $entry->status_id = $reopenedId;
+            $entry->save();
+
+            Alert::success('Ticket reopened successfully.')->flash();
+
+            return redirect($request->get('_http_referrer') ?? $this->crud->route);
+        }
+
+        // 2. Handle Resolve Ticket
+        if ($request->has('status_id') && !$request->has('message') && !$request->has('assigned_to') && !$request->has('reopen_ticket')) {
             $entry = $this->crud->getEntry($request->id);
             $entry->status_id = $request->status_id;
             $entry->save();
@@ -402,9 +428,8 @@ class TicketCrudController extends CrudController
             return redirect($request->get('_http_referrer') ?? $this->crud->route);
         }
 
-        // 2. Handle Quick Assign
+        // 3. Handle Quick Assign
         if ($request->has('assigned_to') && !$request->has('message')) {
-
             $entry = $this->crud->getEntry($request->id);
             $entry->assigned_to = $request->assigned_to;
             $entry->save();
@@ -414,9 +439,8 @@ class TicketCrudController extends CrudController
             return redirect($request->get('_http_referrer') ?? $this->crud->route);
         }
 
-        // 3. Handle Office Reassignment
+        // 4. Handle Office Reassignment
         if ($request->has('department_id') && !$request->has('message')) {
-
             $entry = $this->crud->getEntry($request->id);
 
             $entry->department_id = $request->department_id;
@@ -430,7 +454,7 @@ class TicketCrudController extends CrudController
             return redirect($this->crud->route);
         }
 
-        // 4. Default Backpack Update
+        // 5. Default Backpack Update
         return $this->traitUpdate();
     }
 
@@ -438,7 +462,9 @@ class TicketCrudController extends CrudController
     {
         $this->crud->setShowContentClass('col-md-8');
         $user = backpack_user();
-        $resolvedId =\App\Models\Status::where('status_name','Resolved')->value('id');
+
+        $resolvedId = Status::where('status_name', 'Resolved')->value('id');
+        $reopenedId = Status::where('status_name', 'Reopened')->value('id');
 
         CRUD::column('reference_id')->label('Reference Id');
         CRUD::column('user_id')->type('select')->entity('user')->attribute('name')->label('Created by');
@@ -635,63 +661,125 @@ class TicketCrudController extends CrudController
         }
 
         CRUD::addColumn([
-            'name'     => 'resolved_button',
+            'name'     => 'ticket_actions',
             'label'    => 'Action',
             'type'     => 'closure',
-            'function' => function($entry) use ($resolvedId) {
-                // 1. Check if already resolved to disable the button
-                $isResolved = $entry->status_id == $resolvedId;
-
-                if ($isResolved) {
-                    return '<button class="btn btn-sm btn-secondary" disabled><i class="la la-check"></i> Resolved</button>';
-                }
-
+            'function' => function($entry) use ($resolvedId, $reopenedId, $user) {
                 $formUrl = url($this->crud->route.'/'.$entry->id);
                 $csrf = csrf_field();
                 $method = method_field('PUT');
-                $modalId = "resolveModal" . $entry->id;
 
-                return "
-                    <!-- Button to trigger modal -->
-                    <button type='button' class='btn btn-sm btn-success' data-toggle='modal' data-target='#{$modalId}'>
-                        <i class='la la-check-circle'></i> Resolve
-                    </button>
+                $buttons = '';
 
-                    <!-- Modal -->
-                    <div class='modal fade' id='{$modalId}' tabindex='-1' role='dialog' aria-labelledby='exampleModalLabel' aria-hidden='true'>
-                        <div class='modal-dialog' role='document'>
-                            <div class='modal-content'>
-                                <div class='modal-header bg-primary text-white'>
-                                    <h5 class='modal-title'>Confirm Resolution</h5>
-                                    <button type='button' class='close text-white' data-dismiss='modal' aria-label='Close'>
-                                        <span aria-hidden='true'>&times;</span>
-                                    </button>
+                /*
+                |--------------------------------------------------------------------------
+                | Resolve Button
+                |--------------------------------------------------------------------------
+                | Visible to admin / dept_head / div_head / hr_staff if ticket is not yet resolved
+                */
+
+                $canResolve = $user->hasAnyRole(['admin', 'dept_head', 'div_head', 'hr_staff']);
+                $isResolved = (int) $entry->status_id === (int) $resolvedId;
+
+                if ($canResolve && !$isResolved && $resolvedId) {
+                    $resolveModalId = "resolveModal{$entry->id}";
+
+                    $buttons .= "
+                        <button type='button' class='btn btn-sm btn-success mr-1' data-toggle='modal' data-target='#{$resolveModalId}'>
+                            <i class='la la-check-circle'></i> Resolve
+                        </button>
+
+                        <div class='modal fade' id='{$resolveModalId}' tabindex='-1' role='dialog' aria-hidden='true'>
+                            <div class='modal-dialog' role='document'>
+                                <div class='modal-content'>
+                                    <div class='modal-header bg-primary text-white'>
+                                        <h5 class='modal-title'>Confirm Resolution</h5>
+                                        <button type='button' class='close text-white' data-dismiss='modal' aria-label='Close'>
+                                            <span aria-hidden='true'>&times;</span>
+                                        </button>
+                                    </div>
+                                    <form action='{$formUrl}' method='POST'>
+                                        {$csrf}
+                                        {$method}
+                                        <input type='hidden' name='_http_referrer' value='".url()->current()."'>
+                                        <input type='hidden' name='status_id' value='{$resolvedId}'>
+
+                                        <div class='modal-body text-left'>
+                                            <p>Are you sure you want to mark Ticket <strong>{$entry->reference_id}</strong> as Resolved?</p>
+                                            <p class='text-muted small'>This will notify the user and close the ticket.</p>
+                                        </div>
+                                        <div class='modal-footer'>
+                                            <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
+                                            <button type='submit' class='btn btn-success'>Yes, Resolve it</button>
+                                        </div>
+                                    </form>
                                 </div>
-                                <form action='{$formUrl}' method='POST'>
-                                    {$csrf}
-                                    {$method}
-                                    <input type='hidden' name='_http_referrer' value='".url()->current()."'>
-                                    <input type='hidden' name='status_id' value='{$resolvedId}'>
-
-                                    <div class='modal-body text-left'>
-                                        <p>Are you sure you want to mark Ticket <strong>{$entry->reference_id}</strong> as Resolved?</p>
-                                        <p class='text-muted small'>This will notify the user and close the ticket.</p>
-                                    </div>
-                                    <div class='modal-footer'>
-                                        <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
-                                        <button type='submit' class='btn btn-success'>Yes, Resolve it</button>
-                                    </div>
-                                </form>
                             </div>
                         </div>
-                    </div>
+                    ";
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Reopen Button
+                |--------------------------------------------------------------------------
+                | Visible only to ticket creator, only when ticket is resolved
+                */
+
+                $isCreator = (int) $user->id === (int) $entry->user_id;
+                $canReopen = $isCreator && $isResolved && $reopenedId;
+
+                if ($canReopen) {
+                    $reopenModalId = "reopenModal{$entry->id}";
+
+                    $buttons .= "
+                        <button type='button' class='btn btn-sm btn-warning mr-1' data-toggle='modal' data-target='#{$reopenModalId}'>
+                            <i class='la la-undo'></i> Reopen
+                        </button>
+
+                        <div class='modal fade' id='{$reopenModalId}' tabindex='-1' role='dialog' aria-hidden='true'>
+                            <div class='modal-dialog' role='document'>
+                                <div class='modal-content'>
+                                    <div class='modal-header bg-warning text-dark'>
+                                        <h5 class='modal-title'>Confirm Reopen</h5>
+                                        <button type='button' class='close' data-dismiss='modal' aria-label='Close'>
+                                            <span aria-hidden='true'>&times;</span>
+                                        </button>
+                                    </div>
+                                    <form action='{$formUrl}' method='POST'>
+                                        {$csrf}
+                                        {$method}
+                                        <input type='hidden' name='_http_referrer' value='".url()->current()."'>
+                                        <input type='hidden' name='reopen_ticket' value='1'>
+
+                                        <div class='modal-body text-left'>
+                                            <p>Do you want to reopen Ticket <strong>{$entry->reference_id}</strong>?</p>
+                                            <p class='text-muted small'>Use this if your concern is not yet resolved or you have follow-up questions.</p>
+                                        </div>
+                                        <div class='modal-footer'>
+                                            <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
+                                            <button type='submit' class='btn btn-warning'>Yes, Reopen it</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    ";
+                }
+
+                if ($buttons === '') {
+                    return '<span class=\"text-muted\">-</span>';
+                }
+
+                return $buttons . "
                     <script>
                         (function() {
-                            var modal = document.getElementById('{$modalId}');
-                            if (modal) {
-                                // Move it to the body so it's on the same 'level' as the backdrop
-                                document.body.appendChild(modal);
-                            }
+                            ['resolveModal{$entry->id}', 'reopenModal{$entry->id}'].forEach(function(id) {
+                                var modal = document.getElementById(id);
+                                if (modal) {
+                                    document.body.appendChild(modal);
+                                }
+                            });
                         })();
                     </script>
                 ";

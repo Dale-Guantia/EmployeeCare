@@ -170,5 +170,92 @@
             </form>
         </div>
 
+        {{-- NOTIFICATIONS SETTINGS --}}
+        <div class="col-lg-10">
+            <form class="form" action="{{ route('backpack.account.notifications') }}" method="post">
+                {!! csrf_field() !!}
+
+                <div class="card padding-10">
+                    <div class="card-header">
+                        Notification Settings
+                    </div>
+
+                    <div class="card-body backpack-profile-form bold-labels">
+                        <div class="row">
+                            @if(backpack_user()->hasAnyRole(['admin', 'dept_head', 'div_head']))
+                                <div class="col-md-6 form-group">
+                                    <div class="custom-control custom-switch">
+                                        <input
+                                            type="checkbox"
+                                            class="custom-control-input"
+                                            id="notify_ticket_created"
+                                            name="notify_ticket_created"
+                                            {{ old('notify_ticket_created', $user->notify_ticket_created) ? 'checked' : '' }}
+                                        >
+                                        <label class="custom-control-label" for="notify_ticket_created">
+                                            Notify me when a ticket is created
+                                        </label>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <div class="col-md-6 form-group">
+                                <div class="custom-control custom-switch">
+                                    <input
+                                        type="checkbox"
+                                        class="custom-control-input"
+                                        id="notify_ticket_assigned"
+                                        name="notify_ticket_assigned"
+                                        {{ old('notify_ticket_assigned', $user->notify_ticket_assigned) ? 'checked' : '' }}
+                                    >
+                                    <label class="custom-control-label" for="notify_ticket_assigned">
+                                        Notify me when a ticket is assigned
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 form-group">
+                                <div class="custom-control custom-switch">
+                                    <input
+                                        type="checkbox"
+                                        class="custom-control-input"
+                                        id="notify_ticket_status_changed"
+                                        name="notify_ticket_status_changed"
+                                        {{ old('notify_ticket_status_changed', $user->notify_ticket_status_changed) ? 'checked' : '' }}
+                                    >
+                                    <label class="custom-control-label" for="notify_ticket_status_changed">
+                                        Notify me when ticket status changes
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 form-group">
+                                <div class="custom-control custom-switch">
+                                    <input
+                                        type="checkbox"
+                                        class="custom-control-input"
+                                        id="notify_ticket_commented"
+                                        name="notify_ticket_commented"
+                                        {{ old('notify_ticket_commented', $user->notify_ticket_commented) ? 'checked' : '' }}
+                                    >
+                                    <label class="custom-control-label" for="notify_ticket_commented">
+                                        Notify me when a ticket gets a new comment
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-success">
+                            <i class="la la-save"></i> Save
+                        </button>
+                        <a href="{{ backpack_url() }}" class="btn">
+                            {{ trans('backpack::base.cancel') }}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 @endsection

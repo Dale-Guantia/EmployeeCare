@@ -73,3 +73,9 @@
     </ul>
 </li>
 @endcan
+
+<li class="nav-item">
+    <a class="nav-link" href="{{ backpack_url('notifications') }}">
+        <i class="nav-icon la la-bell"></i> Notifications
+    </a>
+</li>

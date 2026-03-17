@@ -32,6 +32,10 @@ class User extends Authenticatable
         'email',
         'password',
         'last_login_at',
+        'notify_ticket_created',
+        'notify_ticket_assigned',
+        'notify_ticket_status_changed',
+        'notify_ticket_commented',
     ];
 
     /**
@@ -123,5 +127,35 @@ class User extends Authenticatable
     public function scopeActiveToday($query)
     {
         return $query->where('last_login_at', '>=', now()->startOfDay());
+    }
+
+    public function wantsNotification(string $type): bool
+    {
+        return (bool) ($this->{$type} ?? true);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
+    }
+
+    public function isDeptHead(): bool
+    {
+        return $this->hasRole('dept_head');
+    }
+
+    public function isDivHead(): bool
+    {
+        return $this->hasRole('div_head');
+    }
+
+    public function isHrStaff(): bool
+    {
+        return $this->hasRole('hr_staff');
+    }
+
+    public function isEmployee(): bool
+    {
+        return $this->hasRole('employee');
     }
 }
