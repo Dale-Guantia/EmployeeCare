@@ -45,6 +45,11 @@
         <i class="nav-icon la la-chart-bar"></i> Reports
     </a>
 </li>
+<li class="nav-item">
+    <a class="nav-link" href="{{ backpack_url('survey-reports') }}">
+        <i class="nav-icon la la-chart-bar"></i> Survey Reports
+    </a>
+</li>
 @endcan
 
 @can('user.view')

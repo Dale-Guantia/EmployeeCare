@@ -16,6 +16,7 @@ class CreateUsersTable extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('emp_no')->nullable(); //Add unique() if needed
+            $table->unsignedTinyInteger('role')->default(2); // default for "employee" role (1=admin, 2=employee)
             $table->string('name');
             $table->string('nickname')->nullable();
             $table->string('username')->nullable()->unique();

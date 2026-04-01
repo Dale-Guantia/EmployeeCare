@@ -1,59 +1,48 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\Admin\Auth\LoginController;
+use App\Http\Controllers\Admin\Auth\RegisterController;
+use App\Http\Controllers\Admin\MyAccountController;
+use App\Http\Controllers\Admin\ReportsController;
+use App\Http\Controllers\Admin\SurveyReportsController;
+use App\Http\Controllers\Admin\NotificationController;
 
-// --------------------------
-// Custom Backpack Routes
-// --------------------------
-// This route file is loaded automatically by Backpack\Base.
-// Routes you generate using Backpack\Generators will be placed here.
-
-// Route::group([
-//     'prefix'     => config('backpack.base.route_prefix', 'admin'),
-//     'middleware' => array_merge(
-//         (array) config('backpack.base.web_middleware', 'web'),
-//         (array) config('backpack.base.middleware_key', 'admin')
-//     ),
-// ], function () {
-//     // Add the full namespace here
-//     Route::get('survey', 'App\Http\Controllers\SurveyController@showForm')->name('public.survey');
-//     Route::post('survey', 'App\Http\Controllers\SurveyController@submitForm');
-// });
-
-// Manually override the Register routes
+// Register routes
 Route::group([
     'prefix'     => config('backpack.base.route_prefix', 'admin'),
-    'middleware' => 'web',
+    'middleware' => ['web'],
 ], function () {
-    Route::get('register', 'App\Http\Controllers\Admin\Auth\RegisterController@showRegistrationForm')->name('backpack.auth.register');
-    Route::post('register', 'App\Http\Controllers\Admin\Auth\RegisterController@register');
+    Route::get('register', [RegisterController::class, 'showRegistrationForm'])->name('backpack.auth.register');
+    Route::post('register', [RegisterController::class, 'register']);
 });
 
-// Manually override the Login routes
+// Login routes
 Route::group([
     'prefix'     => config('backpack.base.route_prefix', 'admin'),
-    'middleware' => 'web',
+    'middleware' => ['web'],
 ], function () {
-
     Route::get('login', [LoginController::class, 'showLoginForm'])->name('backpack.auth.login');
     Route::post('login', [LoginController::class, 'login']);
     Route::post('logout', [LoginController::class, 'logout'])->name('backpack.auth.logout');
-
 });
 
-Route::get('api/department/{id}/divisions', function($id) {
-    return App\Models\Division::where('department_id', $id)->get(['id', 'division_name']);
+// API route
+Route::get('api/department/{id}/divisions', function ($id) {
+    return \App\Models\Division::where('department_id', $id)->get(['id', 'division_name']);
 });
 
+// Protected Backpack admin routes
 Route::group([
     'prefix'     => config('backpack.base.route_prefix', 'admin'),
     'middleware' => array_merge(
         (array) config('backpack.base.web_middleware', 'web'),
         (array) config('backpack.base.middleware_key', 'admin')
     ),
-    'namespace'  => 'App\Http\Controllers\Admin',
+    'namespace' => 'App\Http\Controllers\Admin',
 ], function () {
+    // CRUD routes
     Route::crud('ticket', 'TicketCrudController');
     Route::crud('issue', 'IssueCrudController');
     Route::crud('department', 'DepartmentCrudController');
@@ -61,12 +50,26 @@ Route::group([
     Route::crud('priority', 'PriorityCrudController');
     Route::crud('status', 'StatusCrudController');
     Route::crud('user', 'UserCrudController');
-    Route::get('reports', 'ReportsController@index')->name('page.reports.index');
 
-    Route::get('notifications/feed', 'NotificationController@feed')->name('notifications.feed');
-    Route::post('notifications/{id}/read', 'NotificationController@markAsRead')->name('notifications.read');
-    Route::post('notifications/read-all', 'NotificationController@markAllAsRead')->name('notifications.read_all');
-    Route::get('notifications', 'NotificationController@index')->name('notifications.index');
-    Route::delete('notifications/clear-all', 'NotificationController@clearAll')->name('notifications.clear_all');
-    Route::post('my-account/notification-settings', 'MyAccountController@updateNotificationSettings')->name('backpack.account.notifications');
+    // Reports
+    Route::get('reports', [ReportsController::class, 'index'])->name('page.reports.index');
+    Route::post('reports/download-pdf', [ReportsController::class, 'downloadPdf'])->name('page.reports.download_pdf');
+
+    // Survey Reports
+    Route::get('survey-reports', [SurveyReportsController::class, 'index'])->name('page.survey_reports.index');
+    Route::post('survey-reports/download-pdf', [SurveyReportsController::class, 'downloadPdf'])->name('page.survey_reports.download_pdf');
+
+    // Notifications
+    Route::get('notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read_all');
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::delete('notifications/clear-all', [NotificationController::class, 'clearAll'])->name('notifications.clear_all');
+
+    // My Account
+    Route::get('my-account', [MyAccountController::class, 'getAccountInfoForm'])->name('backpack.account.info');
+    Route::post('my-account/info', [MyAccountController::class, 'postAccountInfoForm'])->name('backpack.account.info.store');
+    Route::post('my-account/password', [MyAccountController::class, 'postChangePasswordForm'])->name('backpack.account.password');
+    Route::post('my-account/notifications', [MyAccountController::class, 'postNotificationsForm'])->name('backpack.account.notifications');
+    Route::post('my-account/notification-settings', [MyAccountController::class, 'updateNotificationSettings'])->name('backpack.account.notification_settings');
 });

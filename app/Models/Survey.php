@@ -13,16 +13,12 @@ class Survey extends Model
 
     protected $fillable = [
         'user_id',
-        // 'sex',
-        // 'age',
-        // 'client_type',
         'issue_id',
         'submission_date',
         'timeliness_rating',
         'handling_rating',
         'quality_rating',
         'overall_rating',
-        // 'suggestions',
     ];
 
     public function staff()

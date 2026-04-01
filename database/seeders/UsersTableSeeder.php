@@ -104,11 +104,11 @@ class UsersTableSeeder extends Seeder
 
         $pm = [
             ['4420783', 'Cruz', 'Clifford', 'Antonio', '', 'CLIFFORD'],
-            ['2300769', 'Vierne', 'Iluminada', 'Tiongson', '', 'GINA']
+            // ['2300769', 'Vierne', 'Iluminada', 'Tiongson', '', 'GINA']
         ];
 
         $it = [
-            ['4416266', 'Duza', 'Myls', 'Salazar', '', 'MYLS'],
+            // ['4416266', 'Duza', 'Myls', 'Salazar', '', 'MYLS'],
             ['4422002', 'Guantia', 'Dale', 'Falcunit', '', 'DALE'],
             ['4416267', 'Valles', 'Darrel', 'Espejo', '', 'DARREL']
         ];
@@ -118,6 +118,7 @@ class UsersTableSeeder extends Seeder
             'username' => 'admin',
             'email' => 'admin@example.com',
             'password' => bcrypt('12341234'),
+            'role'=> 1,
             'department_id' => 1,
             'division_id' => 2,
             'is_active' => 1,
@@ -203,6 +204,28 @@ class UsersTableSeeder extends Seeder
             'is_active' => 1,
             'email_verified_at' => now()
         ]);
+        $pm_head = User::create([
+            'emp_no' => '2300769',
+            'name' => 'Iluminada T. Vierne',
+            'username' => 'vierneiluminada',
+            'password' => bcrypt('12341234'),
+            'nickname' => 'GINA',
+            'department_id' => 1,
+            'division_id' => 9,
+            'is_active' => 1,
+            'email_verified_at' => now()
+        ]);
+        $it_head = User::create([
+            'emp_no' => '4416266',
+            'name' => 'Myls S. Duza',
+            'username' => 'duzamyls',
+            'password' => bcrypt('12341234'),
+            'nickname' => 'MYLS',
+            'department_id' => 1,
+            'division_id' => 2,
+            'is_active' => 1,
+            'email_verified_at' => now()
+        ]);
         $employee = User::create([
             'name' => 'Employee',
             'username' => 'employee',
@@ -220,6 +243,8 @@ class UsersTableSeeder extends Seeder
         $claims_head->assignRole('div_head');
         $rsp_head->assignRole('div_head');
         $lnd_head->assignRole('div_head');
+        $pm_head->assignRole('div_head');
+        $it_head->assignRole('div_head');
         $employee->assignRole('employee');
 
         foreach ($admin as $userData) {

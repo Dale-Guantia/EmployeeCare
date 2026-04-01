@@ -1,11 +1,14 @@
 @extends(backpack_view('blank'))
 
-
 @section('header')
-    <section class="container-fluid">
-        <h2>
+    <section class="container-fluid d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">
             <span class="text-capitalize">{{ $title }}</span>
         </h2>
+
+        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#downloadReportModal">
+            <i class="la la-download"></i> Download Report
+        </button>
     </section>
 @endsection
 
@@ -185,6 +188,69 @@
     <!-- End of Tickets Per Division -->
 </div>
 
+<div class="modal fade" id="downloadReportModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <form method="POST" action="{{ route('page.reports.download_pdf') }}" target="_blank">
+            @csrf
+
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Date Range</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Start Date <span class="text-danger">*</span></label>
+                        <input
+                            type="date"
+                            name="start_date"
+                            class="form-control"
+                            value="{{ now()->startOfYear()->format('Y-m-d') }}"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label>End Date <span class="text-danger">*</span></label>
+                        <input
+                            type="date"
+                            name="end_date"
+                            class="form-control"
+                            value="{{ now()->format('Y-m-d') }}"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-check">
+                        <input
+                            type="checkbox"
+                            class="form-check-input"
+                            id="include_zero_activity"
+                            name="include_zero_activity"
+                            value="1"
+                        >
+                        <label class="form-check-label" for="include_zero_activity">
+                            Include records with zero activity
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">
+                        Generate Report
+                    </button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @push('after_styles')
@@ -211,6 +277,14 @@ div.dataTables_wrapper div.dataTables_length select {
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 
 <script>
+
+    $(document).ready(function () {
+        const modal = document.getElementById('downloadReportModal');
+        if (modal) {
+            document.body.appendChild(modal);
+        }
+    });
+
     $(document).ready(function () {
 
         let LatestTicketTable = $('#latestTicketsTable').DataTable({

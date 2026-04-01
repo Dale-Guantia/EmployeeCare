@@ -30,8 +30,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'user',
             'role',
             'permission',
-            'report',
-            'survey_response'
+            'reports',
+            'survey-reports'
         ];
 
         $actions = ['view', 'create', 'update', 'delete'];

@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use App\Services\TicketNotificationService;
-use \App\Models\Status;
-use \App\Models\Issue;
+use App\Models\Status;
+use App\Models\Issue;
+use Carbon\Carbon;
 
 class Ticket extends Model
 {
@@ -30,67 +31,67 @@ class Ticket extends Model
         'resolved_at',
         'reopened_at',
         'assigned_to',
-        'resolved_by'
+        'resolved_by',
     ];
 
     protected $casts = [
         'is_custom_issue' => 'boolean',
-        'attachments'=> 'array',
-        'resolved_at'=> 'date',
-        'reopened_at'=> 'date',
+        'attachments'     => 'array',
+        'resolved_at'     => 'datetime',
+        'reopened_at'     => 'datetime',
     ];
 
-    protected static function boot()
+    protected static function booted()
     {
-        parent::boot();
-
         static::creating(function ($model) {
-            // 1. Generate Reference ID (from our previous fix)
+            // 1. Generate unique Reference ID
             do {
-                // Generate the short ID
                 $reference = 'TKT-' . strtoupper(substr(uniqid(), -6));
-                // Check if it already exists in the database
             } while (self::where('reference_id', $reference)->exists());
 
             $model->reference_id = $reference;
 
-            // 2. Automatically assign the logged-in user's ID
-            if (backpack_auth()->check()) {
+            // 2. Automatically assign logged-in user
+            if (backpack_auth()->check() && empty($model->user_id)) {
                 $model->user_id = backpack_user()->id;
             }
 
-            // 3. Set default status to 3 (Unassigned)
+            // 3. Default status = Unassigned (ID 3 in your current setup)
             if (empty($model->status_id)) {
                 $model->status_id = 3;
             }
         });
 
-        // Triggered right before a record is saved to the database
         static::saving(function ($model) {
+            // Auto-fill ticket fields from selected issue
             if ($model->issue_id) {
                 $issue = Issue::find($model->issue_id);
+
                 if ($issue) {
-                    // Auto-fill the ticket fields from the issue's data
                     $model->department_id = $issue->department_id;
-                    $model->division_id = $issue->division_id;
-                    $model->priority_id = $issue->priority_id;
+                    $model->division_id   = $issue->division_id;
+                    $model->priority_id   = $issue->priority_id;
                 }
             }
 
+            // Auto-set status when assignee changes
             if ($model->isDirty('assigned_to')) {
                 if (!empty($model->assigned_to)) {
                     $assignedStatus = Status::where('status_name', 'Pending')->first();
+
                     if ($assignedStatus && !$model->isDirty('status_id')) {
                         $model->status_id = $assignedStatus->id;
                     }
                 } else {
                     $unassignedStatus = Status::where('status_name', 'Unassigned')->first();
+
                     if ($unassignedStatus && !$model->isDirty('status_id')) {
                         $model->status_id = $unassignedStatus->id;
                     }
                 }
             }
 
+            // Handle resolved / reopened timestamps
             if ($model->isDirty('status_id')) {
                 $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
                 $reopenedStatusId = Status::where('status_name', 'Reopened')->value('id');
@@ -107,6 +108,50 @@ class Ticket extends Model
                     $model->reopened_at = now();
                     $model->resolved_at = null;
                     $model->resolved_by = null;
+                }
+            }
+        });
+
+        static::updating(function ($ticket) {
+            $disk = 'public';
+
+            $oldFiles = $ticket->getOriginal('attachments');
+            $newFiles = $ticket->attachments ?? [];
+
+            if (is_string($oldFiles)) {
+                $oldFiles = json_decode($oldFiles, true);
+            }
+
+            if (is_string($newFiles)) {
+                $newFiles = json_decode($newFiles, true);
+            }
+
+            $oldFiles = is_array($oldFiles) ? array_values(array_filter($oldFiles)) : [];
+            $newFiles = is_array($newFiles) ? array_values(array_filter($newFiles)) : [];
+
+            $filesToDelete = array_diff($oldFiles, $newFiles);
+
+            foreach ($filesToDelete as $file) {
+                if (!empty($file) && Storage::disk($disk)->exists($file)) {
+                    Storage::disk($disk)->delete($file);
+                }
+            }
+        });
+
+        static::deleting(function ($ticket) {
+            $disk = 'public';
+
+            $files = $ticket->attachments ?? [];
+
+            if (is_string($files)) {
+                $files = json_decode($files, true);
+            }
+
+            $files = is_array($files) ? array_values(array_filter($files)) : [];
+
+            foreach ($files as $file) {
+                if (!empty($file) && Storage::disk($disk)->exists($file)) {
+                    Storage::disk($disk)->delete($file);
                 }
             }
         });
@@ -132,67 +177,151 @@ class Ticket extends Model
 
     public function setAttachmentsAttribute($value)
     {
-        $attribute_name = "attachments";
-        $disk = "public";
-        $destination_path = "attachments";
+        $attribute_name = 'attachments';
+        $disk = 'public';
+        $destination_path = 'attachments';
 
-        // 1. Get the current files from the database (as an array)
+        // Current files from model
         $attribute_value = $this->{$attribute_name} ?? [];
         if (is_string($attribute_value)) {
             $attribute_value = json_decode($attribute_value, true) ?? [];
         }
+        $attribute_value = is_array($attribute_value) ? $attribute_value : [];
 
-        // 2. Handle files marked for deletion
-        // Backpack sends an array of files to be cleared in the request
-        $files_to_clear = request()->get('clear_'.$attribute_name) ?? [];
-        foreach ($files_to_clear as $key => $filename) {
+        // Handle files marked for deletion by Backpack
+        $files_to_clear = request()->get('clear_' . $attribute_name) ?? [];
+        foreach ($files_to_clear as $filename) {
             Storage::disk($disk)->delete($filename);
             $attribute_value = array_diff($attribute_value, [$filename]);
         }
 
-        // 3. Handle new uploaded files
+        // Handle newly uploaded files
         if (request()->hasFile($attribute_name)) {
-            foreach (request()->file($attribute_name) as $file) {
-                if ($file->isValid()) {
-                    // YOUR CUSTOM FORMAT: time() + original name
+            foreach ((array) request()->file($attribute_name) as $file) {
+                if ($file && $file->isValid()) {
                     $fileName = time() . '_' . $file->getClientOriginalName();
-
-                    // Store the file
                     $path = $file->storeAs($destination_path, $fileName, $disk);
-
-                    // Add the new path to our array
                     $attribute_value[] = $path;
                 }
             }
         }
 
-        // 4. Update the attribute (Backpack expects a JSON string or array depending on your cast)
         $this->attributes[$attribute_name] = json_encode(array_values($attribute_value));
     }
 
-    public function issue(){
+    public function getOverdueBadgeAttribute()
+    {
+        if (!$this->created_at) {
+            return [
+                'text'  => '-',
+                'class' => 'badge badge-secondary',
+                'style' => 'background-color:#6c757d; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+            ];
+        }
+
+        $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
+        $createdAt = Carbon::parse($this->created_at);
+
+        // CASE A: Resolved ticket
+        if ((int) $this->status_id === (int) $resolvedStatusId) {
+            if (!$this->resolved_at) {
+                return [
+                    'text'  => 'Resolved',
+                    'class' => 'badge badge-success',
+                    'style' => 'background-color:#28a745; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                ];
+            }
+
+            $resolvedAt = Carbon::parse($this->resolved_at);
+            $hoursTaken = $createdAt->diffInHours($resolvedAt);
+
+            if ($hoursTaken > 72) {
+                $overdueMinutes = $createdAt->copy()->addHours(72)->diffInMinutes($resolvedAt);
+
+                $days = intdiv($overdueMinutes, 1440);
+                $hours = intdiv($overdueMinutes % 1440, 60);
+                $minutes = $overdueMinutes % 60;
+
+                return [
+                    'text'  => "Resolved overdue",
+                    'class' => 'badge badge-danger',
+                    'style' => 'background-color:#dc3545; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                ];
+            }
+
+            return [
+                'text'  => 'Resolved on time',
+                'class' => 'badge badge-success',
+                'style' => 'background-color:#28a745; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+            ];
+        }
+
+        // CASE B: Open / pending ticket
+        $deadline = $createdAt->copy()->addDays(3);
+        $now = now();
+
+        if ($createdAt->lt($now->copy()->subDays(3))) {
+            $overdueMinutes = $deadline->diffInMinutes($now);
+
+            $days = intdiv($overdueMinutes, 1440);
+            $hours = intdiv($overdueMinutes % 1440, 60);
+            $minutes = $overdueMinutes % 60;
+
+            return [
+                'text'  => "{$days}d {$hours}h {$minutes}m overdue",
+                'class' => 'badge badge-danger',
+                'style' => 'background-color:#dc3545; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+            ];
+        }
+
+        $remainingMinutes = $now->diffInMinutes($deadline);
+
+        $days = intdiv($remainingMinutes, 1440);
+        $hours = intdiv($remainingMinutes % 1440, 60);
+        $minutes = $remainingMinutes % 60;
+
+        return [
+            'text'  => "{$days}d {$hours}h {$minutes}m left",
+            'class' => 'badge badge-warning',
+            'style' => 'background-color:#ffc107; color:#000; padding:5px 10px; border-radius:4px; font-weight:bold;',
+        ];
+    }
+
+    public function issue()
+    {
         return $this->belongsTo(Issue::class, 'issue_id');
     }
-    public function user() {
+
+    public function user()
+    {
         return $this->belongsTo(User::class);
     }
-    public function status() {
+
+    public function status()
+    {
         return $this->belongsTo(Status::class, 'status_id');
     }
-    public function department() {
+
+    public function department()
+    {
         return $this->belongsTo(Department::class, 'department_id');
     }
-    public function division() {
+
+    public function division()
+    {
         return $this->belongsTo(Division::class, 'division_id');
     }
-    public function priority() {
+
+    public function priority()
+    {
         return $this->belongsTo(Priority::class, 'priority_id');
     }
+
     public function assignee()
     {
-        // This connects the 'assigned_to' column to the Users table
         return $this->belongsTo(User::class, 'assigned_to');
     }
+
     public function comments()
     {
         return $this->hasMany(TicketComment::class)->latest();

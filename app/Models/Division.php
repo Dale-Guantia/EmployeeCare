@@ -18,6 +18,11 @@ class Division extends Model
 
     public function department()
     {
-        return $this->belongsTo(\App\Models\Department::class, 'department_id');
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function tickets()
+    {
+        return $this->hasMany(Ticket::class, 'division_id');
     }
 }

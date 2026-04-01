@@ -110,7 +110,12 @@ class IssueCrudController extends CrudController
         CRUD::field('division_id');
         CRUD::field('priority_id');
         CRUD::field('issue_description');
-        CRUD::field('icon');
+        CRUD::addField([
+            'name'  => 'icon',
+            'label' => 'Icon',
+            'type'  => 'iconpicker',
+            'hint'  => 'Pick a Font Awesome icon. Example saved value: fas fa-balance-scale',
+        ]);
 
         /**
          * Fields can be defined using the fluent syntax or array syntax:

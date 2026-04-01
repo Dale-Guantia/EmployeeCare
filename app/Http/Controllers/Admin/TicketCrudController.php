@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Requests\TicketRequest;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
-use Backpack\CRUD\app\Library\Widget;
 use Prologue\Alerts\Facades\Alert;
 use App\Models\Status;
 
@@ -129,6 +128,17 @@ class TicketCrudController extends CrudController
                     return "background-color: {$color}; color: #000; padding: 5px 10px; border-radius: 4px; font-weight: bold;";
                 },
             ],
+        ]);
+        CRUD::addColumn([
+            'name'     => 'overdue_badge',
+            'label'    => 'Overdue',
+            'type'     => 'closure',
+            'function' => function ($entry) {
+                $badge = $entry->overdue_badge;
+
+                return '<span class="' . $badge['class'] . '" style="' . $badge['style'] . '">' . e($badge['text']) . '</span>';
+            },
+            'escaped' => false,
         ]);
     }
 
@@ -507,6 +517,17 @@ class TicketCrudController extends CrudController
                     return "background-color: {$color}; color: #000; padding: 5px 10px; border-radius: 4px; font-weight: bold;";
                 },
             ],
+        ]);
+        CRUD::addColumn([
+            'name'     => 'overdue_badge',
+            'label'    => 'Overdue',
+            'type'     => 'closure',
+            'function' => function ($entry) {
+                $badge = $entry->overdue_badge;
+
+                return '<span class="' . $badge['class'] . '" style="' . $badge['style'] . '">' . e($badge['text']) . '</span>';
+            },
+            'escaped' => false,
         ]);
         CRUD::addColumn([
             'name'     => 'attachments',

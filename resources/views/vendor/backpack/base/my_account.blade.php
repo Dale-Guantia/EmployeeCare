@@ -49,7 +49,7 @@
 
         {{-- UPDATE INFO FORM --}}
         <div class="col-lg-10">
-            <form class="form" action="{{ route('backpack.account.info.store') }}" method="post">
+            <form class="form" action="{{ route('backpack.account.info.store') }}" method="post" enctype="multipart/form-data">
 
                 {!! csrf_field() !!}
 
@@ -105,6 +105,45 @@
                                     {{ optional(backpack_user()->division)->division_name ?? 'No Division Assigned' }}
                                 </p>
                             </div>
+
+                            <div class="col-md-12 form-group">
+                                <label class="font-weight-bold">Profile Avatar</label>
+
+                                <div class="d-flex align-items-center mb-3">
+                                    <img
+                                        src="{{ $user->getAvatarUrl() }}"
+                                        alt="User Avatar"
+                                        style="width: 120px; height: 120px; object-fit: contain; background: #fff; border-radius: 50%; border: 1px solid #ddd;"
+                                    >
+                                </div>
+
+                                <input
+                                    class="form-control"
+                                    type="file"
+                                    name="avatar"
+                                    accept="image/*"
+                                >
+
+                                <small class="form-text text-muted">
+                                    Allowed: JPG, JPEG, PNG, WEBP. Max: 2MB.
+                                </small>
+
+                                @if(!empty($user->avatar_url))
+                                    <div class="form-check mt-2">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            name="remove_avatar"
+                                            id="remove_avatar"
+                                            value="1"
+                                        >
+                                        <label class="form-check-label" for="remove_avatar">
+                                            Remove current avatar
+                                        </label>
+                                    </div>
+                                @endif
+                            </div>
+
                         </div>
                     </div>
 

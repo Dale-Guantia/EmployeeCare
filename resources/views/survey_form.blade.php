@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
-    {{-- @laravelPWA --}}
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css"/>
 </head>
 <body>
     <style>
@@ -70,7 +70,6 @@
             min-height: 400px;
         }
         .question-slide {
-            padding: 50px 10px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -95,7 +94,7 @@
             align-items: center;
         }
         .emoji-icon {
-            font-size: 11.5rem;
+            font-size: 12rem;
         }
         .emoji-rating-text {
             margin-top: -35px;
@@ -130,36 +129,22 @@
             font-size: 1.5rem !important;
             border-radius: 12px;
         }
-        .staff-scroll-container {
-            position: relative;
-            width: 100%;
-            max-width: 1500px;
-            margin: 0 auto;
-            overflow: visible;
-            padding: 0;
-        }
-        .staff-scroll-panel {
+        #staff-grid-paginated {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(3, 1fr); /* 3 columns */
+            gap: 40px 30px;
             justify-items: center;
             align-items: start;
-            gap: 70px 50px;
-            overflow-y: scroll;
-            scroll-snap-type: y mandatory;
-            max-height: 450px;
             width: 100%;
-            overflow-x: visible;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
+            min-height: 400px; /* enough for 1 row */
+            padding: 10px;
         }
         .staff-item {
             text-align: center;
             transition: transform 0.25s, box-shadow 0.25s;
-            scroll-snap-align: start;
             display: inline-block;
             cursor: pointer;
-            flex-shrink: 0;
-            min-width: 340px;
+            width: 100%;
             max-width: 340px;
         }
         .staff-avatar {
@@ -227,7 +212,6 @@
             justify-items: center;
             width: 100%;
             min-height: 500px; /* Fixed height to prevent jumping */
-            padding: 10px;
         }
 
         .service-item {
@@ -417,32 +401,62 @@
                     </div>
                     {{-- END: SLIDE 1 --}}
 
-                    {{-- SLIDE 2: Staff Selection --}}
+                    {{-- SLIDE 2: Staff Selection (UPDATED GRID PAGINATION) --}}
                     <div class="carousel-item" id="staff-selection-slide">
                         <div class="question-slide">
                             <h3 style="padding: 50px; color: #0056b3;">Attended by / Inasikaso ni:</h3>
-                            <div class="staff-scroll-container">
-                                <div class="staff-scroll-panel">
-                                    @foreach($staffs as $staff)
-                                        <div class="text-center staff-item" data-division-id="{{ $staff->division_id }}">
-                                            <label>
-                                                <input type="radio" name="user_id" value="{{ $staff->id }}" id="staff-{{ $staff->id }}" data-division-id="{{ $staff->division_id }}" style="display:none;" required>
-                                                <picture>
-                                                    @if ($staff->getAvatarWebpUrl())
-                                                        <source srcset="{{ $staff->getAvatarWebpUrl() }}" type="image/webp">
-                                                    @endif
-                                                    <img src="{{ $staff->getAvatarUrl() }}"
-                                                        alt="{{ $staff->name }}'s profile picture"
-                                                        class="staff-avatar"
-                                                        loading="lazy">
-                                                </picture>
-                                            </label>
-                                            <span class="staff-name">{{ $staff->name }}</span>
-                                            <span class="staff-nickname">"{{ $staff->nickname }}"</span>
-                                        </div>
-                                    @endforeach
+
+                            <div class="service-carousel-wrapper">
+                                <button type="button" class="service-nav-btn prev-staff-btn" onclick="changeStaffPage(-1)">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+
+                                <div class="staff-container" style="width: 100%;">
+                                    <div id="staff-grid-paginated">
+                                        @foreach($staffs as $staff)
+                                            <div class="text-center staff-item"
+                                                data-division-id="{{ $staff->division_id }}"
+                                                style="display:none;">
+
+                                                <label>
+                                                    <input
+                                                        type="radio"
+                                                        name="user_id"
+                                                        value="{{ $staff->id }}"
+                                                        id="staff-{{ $staff->id }}"
+                                                        data-division-id="{{ $staff->division_id }}"
+                                                        style="display:none;"
+                                                        required
+                                                    >
+
+                                                    <picture>
+                                                        @if ($staff->getAvatarWebpUrl())
+                                                            <source srcset="{{ $staff->getAvatarWebpUrl() }}" type="image/webp">
+                                                        @endif
+
+                                                        <img
+                                                            src="{{ $staff->getAvatarUrl() }}"
+                                                            alt="{{ $staff->name }}'s profile picture"
+                                                            class="staff-avatar"
+                                                            loading="lazy"
+                                                        >
+                                                    </picture>
+                                                </label>
+
+                                                <span class="staff-name">{{ $staff->name }}</span>
+                                                <span class="staff-nickname">"{{ $staff->nickname }}"</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
                                 </div>
+
+                                <button type="button" class="service-nav-btn next-staff-btn" onclick="changeStaffPage(1)">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
                             </div>
+
+                            <div id="staff-page-indicator" class="text-center mt-2 text-muted fw-bold"></div>
+
                             <button type="button" class="btn btn-primary mt-3 go-back-btn-large" onclick="prevSlide()">Go Back</button>
                         </div>
                     </div>
@@ -450,12 +464,12 @@
 
                     {{-- SLIDE 3: Service Selection (UPDATED GRID PAGINATION) --}}
                     <div class="carousel-item service-slide">
-                        <div class="question-slide">
+                        <div class="question-slide" style="padding-top: 40px">
                             <h3 style="padding-bottom: 20px; color: crimson;">Service Received / Serbisyong Natanggap:</h3>
 
                             <div class="service-carousel-wrapper">
                                 <button type="button" class="service-nav-btn prev-service-btn" onclick="changeServicePage(-1)">
-                                    <i data-lucide="chevron-left"></i>
+                                    <i class="fas fa-chevron-left"></i>
                                 </button>
 
                                 <div class="service-container" style="width: 100%;">
@@ -469,7 +483,7 @@
                                                 style="display:none;"> <label>
                                                     <input type="radio" name="issue_id" value="{{ $service->id }}" style="display:none;" required>
                                                     <div class="service-icon-box" style="background-color: {{ $color }};">
-                                                        <i data-lucide="{{ Str::after($service->icon, 'lucide-') }}" class="w-14 h-14"></i>
+                                                        <i class="{{ $service->icon }}" style="font-size: 40px;"></i>
                                                     </div>
                                                     <span class="service-name">{{ $service->issue_description }}</span>
                                                 </label>
@@ -479,7 +493,7 @@
                                 </div>
 
                                 <button type="button" class="service-nav-btn next-service-btn" onclick="changeServicePage(1)">
-                                    <i data-lucide="chevron-right"></i>
+                                    <i class="fas fa-chevron-right"></i>
                                 </button>
                             </div>
 
@@ -492,12 +506,12 @@
 
                     {{-- SLIDE 4: TIMELINESS (Rating 1) --}}
                     <div class="carousel-item">
-                        <div class="question-slide">
+                        <div class="question-slide" style="padding-top: 40px">
                             <h2 style="color: orangered;">BILIS NG SERBISYO (TIMELINESS)</h2>
                             <p style="font-size: 27px;">Ang oras ng pagproseso ng inyong application/request ay akma o mas mabilis kaysa sa inaasahan.</p>
                             <p style="font-size: 27px;">(The time taken to process my application/request was reasonable or faster than expected.)</p>
                             <br>
-                            <div class="d-flex flex-wrap justify-content-center">
+                            <div class="d-flex flex-wrap justify-content-center gap-4">
                                 <label class="rating-option m-2 d-flex flex-column align-items-center" onclick="selectRating(this, 'timeliness_rating', 'Very Dissatisfied')">
                                     <input type="radio" name="timeliness_rating" value="Very Dissatisfied" style="display:none;" required>
                                     <span class="emoji-icon">😞</span>
@@ -526,12 +540,12 @@
 
                     {{-- SLIDE 5: CLIENT HANDLING (Rating 2) --}}
                     <div class="carousel-item">
-                        <div class="question-slide">
+                        <div class="question-slide" style="padding-top: 40px">
                             <h2 style="color: mediumvioletred;">PAKIKITUNGO SA KLIYENTE (CLIENT HANDLING)</h2>
                             <p>Magalang at propesyonal ang pakikitungo ng kawani na nagbigay ng serbisyo.</p>
                             <p>(The staff member was courteous and maintained a professional demeanor throughout the transaction.)</p>
                             <br>
-                            <div class="d-flex flex-wrap justify-content-center">
+                            <div class="d-flex flex-wrap justify-content-center gap-4">
                                 <label class="rating-option m-2 d-flex flex-column align-items-center" onclick="selectRating(this, 'handling_rating', 'Very Dissatisfied')">
                                     <input type="radio" name="handling_rating" value="Very Dissatisfied" style="display:none;" required>
                                     <span class="emoji-icon">😞</span>
@@ -560,12 +574,12 @@
 
                     {{-- SLIDE 6: QUALITY OF SERVICE --}}
                     <div class="carousel-item">
-                        <div class="question-slide">
-                            <h2 style="color: rgb(0, 182, 91);">KALIDAD NG SERBISYO (QUALITY OF SERVICE)</h2>
+                        <div class="question-slide" style="padding-top: 40px">
+                            <h2 style="color: rgb(10, 0, 156);">KALIDAD NG SERBISYO (QUALITY OF SERVICE)</h2>
                             <p>Ang serbisyo o dokumentong natanggap ko ay tumpak, kompleto, at walang kamalian.</p>
                             <p>(The service or document I received was accurate, complete, and free of errors.)</p>
                             <br>
-                            <div class="d-flex flex-wrap justify-content-center">
+                            <div class="d-flex flex-wrap justify-content-center gap-4">
                                 <!-- CHANGE: Set the 4th argument to FALSE here -->
                                 <label class="rating-option m-2 d-flex flex-column align-items-center" onclick="selectRating(this, 'quality_rating', 'Very Dissatisfied', false)">
                                     <input type="radio" name="quality_rating" value="Very Dissatisfied" style="display:none;" required>
@@ -594,12 +608,12 @@
 
                     {{-- SLIDE 7: OVERALL SATISFACTION --}}
                     <div class="carousel-item">
-                        <div class="question-slide">
-                            <h2 style="color: rgb(0, 182, 91);">OVERALL SATISFACTION</h2>
+                        <div class="question-slide" style="padding-top: 40px">
+                            <h2 style="color: rgb(0, 153, 76);">OVERALL SATISFACTION</h2>
                             <p>Lubos akong nasiyahan sa serbisyong aking natanggap.</p>
                             <p>(I am satified with the serivce that I received)</p>
                             <br>
-                            <div class="d-flex flex-wrap justify-content-center">
+                            <div class="d-flex flex-wrap justify-content-center gap-4">
                                 <label class="rating-option m-2 d-flex flex-column align-items-center" onclick="selectRating(this, 'overall_rating', 'Very Dissatisfied', true)">
                                     <input type="radio" name="overall_rating" value="Very Dissatisfied" style="display:none;" required>
                                     <span class="emoji-icon">😞</span>
@@ -670,9 +684,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <script>
-        lucide.createIcons();
         const surveyCarouselEl = document.getElementById('surveyCarousel');
         const surveyCarousel = new bootstrap.Carousel(surveyCarouselEl, {
             touch: false,
@@ -684,6 +696,10 @@
         const itemsPerPage = 8; // 4 columns * 2 rows
         let $currentServiceSet = $(); // Holds the filtered list of services
 
+        let staffPage = 0;
+        const staffItemsPerPage = 3; // 3 columns * 2 rows
+        let $currentStaffSet = $();
+
         function nextSlide() {
             surveyCarousel.next();
         }
@@ -693,9 +709,66 @@
             $('.rating-option').removeClass('active');
         }
 
+        let isSubmittingSurvey = false;
+
         function submitForm() {
+            if (isSubmittingSurvey) {
+                return;
+            }
+
+            isSubmittingSurvey = true;
+
             const form = document.querySelector('form');
+
+            const allRatingOptions = document.querySelectorAll('.rating-option');
+            allRatingOptions.forEach(option => {
+                option.style.pointerEvents = 'none';
+            });
+
             form.submit();
+        }
+
+        function renderStaffGrid() {
+            $('.staff-item').hide();
+
+            const start = staffPage * staffItemsPerPage;
+            const end = start + staffItemsPerPage;
+
+            const $visibleSlice = $currentStaffSet.slice(start, end);
+            $visibleSlice.fadeIn(200);
+
+            const totalPages = Math.ceil($currentStaffSet.length / staffItemsPerPage);
+
+            $('.prev-staff-btn')
+                .prop('disabled', staffPage === 0)
+                .toggleClass('disabled-visual', staffPage === 0);
+
+            const isLastPage = (staffPage + 1) >= totalPages || totalPages === 0;
+            $('.next-staff-btn')
+                .prop('disabled', isLastPage)
+                .toggleClass('disabled-visual', isLastPage);
+
+            if ($currentStaffSet.length > 0) {
+                $('#staff-page-indicator').text(`Page ${staffPage + 1} of ${totalPages}`);
+            } else {
+                $('#staff-page-indicator').text('');
+            }
+        }
+
+        function changeStaffPage(direction) {
+            const totalPages = Math.ceil($currentStaffSet.length / staffItemsPerPage);
+
+            staffPage += direction;
+
+            if (staffPage < 0) {
+                staffPage = 0;
+            }
+
+            if (staffPage >= totalPages) {
+                staffPage = totalPages - 1;
+            }
+
+            renderStaffGrid();
         }
 
         // --- SERVICE GRID PAGINATION FUNCTIONS ---
@@ -737,8 +810,12 @@
         }
 
         function selectRating(selectedLabel, inputName, value, isLastQuestion = false) {
-            var container = selectedLabel.closest('.d-flex');
-            var labels = container.querySelectorAll('label.rating-option');
+            if (isSubmittingSurvey) {
+                return;
+            }
+
+            const container = selectedLabel.closest('.d-flex');
+            const labels = container.querySelectorAll('label.rating-option');
 
             labels.forEach(function(label) {
                 label.classList.remove('active');
@@ -746,18 +823,19 @@
 
             selectedLabel.classList.add('active');
 
-            var input = selectedLabel.querySelector('input[type="radio"]');
+            const input = selectedLabel.querySelector('input[type="radio"]');
             if (input) {
                 input.checked = true;
             }
 
-            nextSlide();
-
             if (isLastQuestion) {
                 setTimeout(function() {
                     submitForm();
-                }, 400);
+                }, 300);
+                return;
             }
+
+            nextSlide();
         }
 
         function reActivateRating(slideElement) {
@@ -772,8 +850,6 @@
         }
 
         $(document).ready(function() {
-            // Initialize Icons
-            lucide.createIcons();
 
             // --- HEADER TOGGLE FUNCTION ---
             function toggleHeader(slideIndex) {
@@ -793,11 +869,16 @@
                 $(this).addClass('active');
 
                 if (selecteddivisionId === 'all') {
-                    $('.staff-item').show();
+                    $currentStaffSet = $('.staff-item');
                 } else {
-                    $('.staff-item').hide();
-                    $('.staff-item[data-division-id="' + selecteddivisionId + '"]').show();
+                    $currentStaffSet = $('.staff-item[data-division-id="' + selecteddivisionId + '"]');
                 }
+
+                $('input[name="user_id"]').prop('checked', false);
+                $('.staff-avatar').removeClass('selected');
+
+                staffPage = 0;
+                renderStaffGrid();
 
                 $('#staff-selection-slide').data('current-division-id', selecteddivisionId);
 
@@ -862,6 +943,12 @@
                 if ($relatedTarget.hasClass('service-slide')) {
                     if ($('input[name="user_id"]:checked').length > 0) {
                         renderServiceGrid();
+                    }
+                }
+
+                if ($relatedTarget.attr('id') === 'staff-selection-slide') {
+                    if ($currentStaffSet.length > 0) {
+                        renderStaffGrid();
                     }
                 }
 
