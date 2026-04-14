@@ -1,0 +1,26 @@
+{
+  "name": "HRDO Customer Satisfaction Survey",
+  "short_name": "HRDO Survey",
+  "description": "Customer Satisfaction Survey for the Human Resource Development Office",
+  "start_url": "/survey",
+  "scope": "/survey",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#ffffff",
+  "theme_color": "#0056b3",
+  "lang": "en-PH",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
