@@ -20,10 +20,10 @@
     <button id="installSurveyApp" type="button" style="display:none;">Install App</button>
 
     <video id="background-video" autoplay loop muted playsinline preload="auto">
-        <source src="{{ asset('storage/assets/blue.webm') }}" type="video/webm">
-        <source src="{{ asset('storage/assets/blue.mp4') }}" type="video/mp4">
-        <img src="{{ asset('storage/assets/blue.webp') }}" alt="Background">
-        <img src="{{ asset('storage/assets/blue.jpg') }}" alt="Background">
+        <source src="{{ asset('/assets/blue.webm') }}" type="video/webm">
+        <source src="{{ asset('/assets/blue.mp4') }}" type="video/mp4">
+        <img src="{{ asset('/assets/blue.webp') }}" alt="Background">
+        <img src="{{ asset('/assets/blue.jpg') }}" alt="Background">
         Your browser does not support the video tag.
     </video>
 
@@ -44,8 +44,8 @@
 
                             <div class="center-logo-container">
                                 <picture>
-                                    <source type="image/webp" srcset="{{ asset('storage/assets/logo-with-seal.webp') }}">
-                                    <img src="{{ asset('storage/assets/logo-with-seal.webp') }}" alt="HRDO Logo" loading="lazy">
+                                    <source type="image/webp" srcset="{{ asset('/assets/logo-with-seal.webp') }}">
+                                    <img src="{{ asset('/assets/logo-with-seal.webp') }}" alt="HRDO Logo" loading="lazy">
                                 </picture>
                             </div>
 
