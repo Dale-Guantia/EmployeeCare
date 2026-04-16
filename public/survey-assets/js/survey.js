@@ -5,42 +5,10 @@ const surveyCarousel = new bootstrap.Carousel(surveyCarouselEl, {
     wrap: false
 });
 
-// function showViewportDebug() {
-//     const oldDebug = document.getElementById('viewport-debug');
-//     if (oldDebug) oldDebug.remove();
-
-//     const debug = document.createElement('div');
-//     debug.id = 'viewport-debug';
-//     debug.style.position = 'fixed';
-//     debug.style.left = '10px';
-//     debug.style.bottom = '10px';
-//     debug.style.zIndex = '99999';
-//     debug.style.background = 'rgba(0, 0, 0, 0.75)';
-//     debug.style.color = '#fff';
-//     debug.style.padding = '8px 10px';
-//     debug.style.borderRadius = '8px';
-//     debug.style.fontSize = '12px';
-//     debug.style.lineHeight = '1.4';
-//     debug.style.fontFamily = 'Arial, sans-serif';
-//     debug.style.whiteSpace = 'pre-line';
-
-//     debug.textContent =
-//         'innerWidth: ' + window.innerWidth + '\n' +
-//         'innerHeight: ' + window.innerHeight + '\n' +
-//         'devicePixelRatio: ' + window.devicePixelRatio + '\n' +
-//         'screen.width: ' + screen.width + '\n' +
-//         'screen.height: ' + screen.height;
-
-//     document.body.appendChild(debug);
-// }
-
-// window.addEventListener('load', showViewportDebug);
-// window.addEventListener('resize', showViewportDebug);
-// window.addEventListener('orientationchange', showViewportDebug);
-
 let servicePage = 0;
 let staffPage = 0;
 let isSubmittingSurvey = false;
+let ratingTimeout = null; // Added to prevent double-click jumping
 
 let $currentServiceSet = $();
 let $currentStaffSet = $();
@@ -87,6 +55,7 @@ function submitForm() {
 
     document.querySelectorAll('.rating-option').forEach(option => {
         option.style.pointerEvents = 'none';
+        option.style.opacity = '0.7'; // Visual feedback that form is submitting
     });
 
     document.querySelector('form').submit();
@@ -185,16 +154,22 @@ function selectRating(selectedLabel, inputName, value, isLastQuestion = false) {
     const input = selectedLabel.querySelector(`input[name="${inputName}"]`);
     if (input) input.checked = true;
 
+    // BUG FIX 1: Clear any existing timeout. This prevents event bubbling
+    // (label click + input click) from triggering the next slide twice.
+    if (ratingTimeout) {
+        clearTimeout(ratingTimeout);
+    }
+
     if (isLastQuestion) {
-        setTimeout(() => {
+        ratingTimeout = setTimeout(() => {
             submitForm();
-        }, 250);
+        }, 300);
         return;
     }
 
-    setTimeout(() => {
+    ratingTimeout = setTimeout(() => {
         nextSlide();
-    }, 200);
+    }, 250);
 }
 
 function reactivateRating(slideElement) {
@@ -289,7 +264,7 @@ $(document).ready(function () {
     });
 
     $('.staff-item label').on('click', function (e) {
-        e.preventDefault();
+        e.preventDefault(); // Helps prevent double firing here too
 
         const $input = $(this).find('input[name="user_id"]');
         const $avatar = $(this).find('.staff-avatar');
@@ -342,18 +317,30 @@ $(document).ready(function () {
 
     setTimeout(() => {
         $('#success-message').fadeOut('slow');
-    }, 5000);
+    }, 3 * 60 * 1000);
 });
 
 document.addEventListener('DOMContentLoaded', function () {
     const QR_SLIDE_INDEX = 7;
     const urlParams = new URLSearchParams(window.location.search);
     const qrSlide = document.getElementById('qr-timeout-slide');
+    const successMessage = document.getElementById('success-message'); // BUG FIX 2: Look for the message
     let timeoutId;
 
-    if (urlParams.has('thank_you') && surveyCarouselEl) {
-        history.replaceState({}, document.title, window.location.pathname);
+    // BUG FIX 2: If the URL has 'thank_you' OR Laravel rendered the success message into the DOM,
+    // jump immediately to the QR slide so the user can actually see the message!
+    if ((urlParams.has('thank_you') || successMessage) && surveyCarouselEl) {
+        if (urlParams.has('thank_you')) {
+            history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // Remove transitions temporarily so the jump is instant on page load
+        document.querySelector('.carousel-inner').style.transition = 'none';
         surveyCarousel.to(QR_SLIDE_INDEX);
+
+        setTimeout(() => {
+             document.querySelector('.carousel-inner').style.transition = '';
+        }, 50);
     }
 
     if (surveyCarouselEl && qrSlide) {
@@ -363,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 timeoutId = setTimeout(() => {
                     window.location.reload();
-                }, 3 * 60 * 1000);
+                }, 5 * 60 * 1000);
             } else {
                 clearTimeout(timeoutId);
             }

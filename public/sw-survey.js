@@ -1,11 +1,11 @@
-const CACHE_NAME = 'survey-cache-v1';
+const CACHE_NAME = 'survey-cache-v2'; // Bumped version to force browser to re-cache
 
 const APP_SHELL = [
     '/survey',
-    '/offline-survey.html',
+    '/offline-survey.html', // Make sure this file actually exists in your public/ folder!
     '/manifest-survey.json',
-    '/icons/icon-192x192.png',
-    '/icons/icon-512x512.png',
+    '/assets/icons/icon-192x192.png',
+    '/assets/icons/icon-512x512.png',
     '/survey-assets/css/bootstrap.min.css',
     '/survey-assets/css/fontawesome.min.css',
     '/survey-assets/css/css2.css',
@@ -14,11 +14,11 @@ const APP_SHELL = [
     '/survey-assets/js/bootstrap.bundle.min.js',
     '/survey-assets/js/browser@4.js',
     '/survey-assets/js/survey.js',
-    '/storage/assets/logo-with-seal.webp',
-    '/storage/assets/blue.webp',
-    '/storage/assets/blue.jpg',
-    '/storage/assets/blue.webm',
-    '/storage/assets/blue.mp4'
+    '/assets/logo-with-seal.webp',
+    '/assets/blue.webp',
+    '/assets/blue.jpg',
+    '/assets/blue.webm',
+    '/assets/blue.mp4'
 ];
 
 self.addEventListener('install', event => {
@@ -82,8 +82,7 @@ self.addEventListener('fetch', event => {
     // Cache-first for local static assets
     if (
         url.pathname.startsWith('/survey-assets/') ||
-        url.pathname.startsWith('/storage/assets/') ||
-        url.pathname.startsWith('/icons/') ||
+        url.pathname.startsWith('/assets/') || // Fixed to match the APP_SHELL paths
         url.pathname === '/manifest-survey.json' ||
         url.pathname === '/offline-survey.html'
     ) {

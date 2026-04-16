@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="HRDO Survey">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <link rel="apple-touch-icon" href="{{ asset('icons/icon-192x192.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/icons/icon-192x192.png') }}">
     <link rel="stylesheet" href="{{ asset('survey-assets/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('survey-assets/css/fontawesome.min.css') }}">
     <link rel="stylesheet" href="{{ asset('survey-assets/css/css2.css') }}">
@@ -17,22 +17,22 @@
     <title>Customer Satisfaction Survey</title>
 </head>
 <body>
-    <button id="installSurveyApp" type="button" style="display:none;">Install App</button>
+    <button id="installSurveyApp" type="button" class="btn btn-warning" style="display:none;">Install App</button>
 
     <video id="background-video" autoplay loop muted playsinline preload="auto">
-        <source src="{{ asset('/assets/blue.webm') }}" type="video/webm">
-        <source src="{{ asset('/assets/blue.mp4') }}" type="video/mp4">
-        <img src="{{ asset('/assets/blue.webp') }}" alt="Background">
-        <img src="{{ asset('/assets/blue.jpg') }}" alt="Background">
+        <source src="{{ asset('assets/blue.webm') }}" type="video/webm">
+        <source src="{{ asset('assets/blue.mp4') }}" type="video/mp4">
+        <img src="{{ asset('assets/blue.webp') }}" alt="Background">
+        <img src="{{ asset('assets/blue.jpg') }}" alt="Background">
         Your browser does not support the video tag.
     </video>
 
     <div class="survey-shell">
         <header class="survey-header" id="surveyHeader">
-            <div class="center-logo-container">
+            <div class="center-logo-container d-flex justify-content-center w-100">
                 <picture>
-                    <source type="image/webp" srcset="{{ asset('/assets/logo-with-seal.webp') }}">
-                    <img src="{{ asset('/assets/logo-with-seal.webp') }}" alt="HRDO Logo" loading="lazy">
+                    <source type="image/webp" srcset="{{ asset('assets/logo-with-seal.webp') }}">
+                    <img src="{{ asset('assets/logo-with-seal.webp') }}" alt="HRDO Logo" loading="lazy">
                 </picture>
             </div>
 
@@ -79,7 +79,7 @@
                                     <div id="staff-grid-paginated">
                                         @foreach($staffs as $staff)
                                             <div class="text-center staff-item" data-division-id="{{ $staff->division_id }}" style="display:none;">
-                                                <label>
+                                                <label class="w-100" style="cursor: pointer;">
                                                     <input
                                                         type="radio"
                                                         name="user_id"
@@ -104,7 +104,7 @@
                                                     </picture>
                                                 </label>
 
-                                                <span class="staff-name">{{ $staff->name }}</span>
+                                                <span class="staff-name mt-2">{{ $staff->name }}</span>
                                                 <span class="staff-nickname">"{{ $staff->nickname }}"</span>
                                             </div>
                                         @endforeach
@@ -118,7 +118,7 @@
 
                             <div id="staff-page-indicator" class="page-indicator"></div>
 
-                            <button type="button" class="btn btn-primary go-back-btn-large" onclick="prevSlide()">Go Back</button>
+                            <button type="button" class="btn btn-outline-secondary go-back-btn-large" onclick="prevSlide()">Go Back</button>
                         </div>
                     </div>
 
@@ -143,7 +143,7 @@
                                                 data-service-id="{{ $service->id }}"
                                                 style="display:none;"
                                             >
-                                                <label>
+                                                <label class="w-100" style="cursor: pointer;">
                                                     <input type="radio" name="issue_id" value="{{ $service->id }}" class="visually-hidden" required>
 
                                                     <div class="service-icon-box" style="background-color: {{ $color }};">
@@ -164,7 +164,7 @@
 
                             <div id="service-page-indicator" class="page-indicator"></div>
 
-                            <button type="button" class="btn btn-primary go-back-btn-large" onclick="prevSlide()">Go Back</button>
+                            <button type="button" class="btn btn-outline-secondary go-back-btn-large" onclick="prevSlide()">Go Back</button>
                         </div>
                     </div>
 
@@ -172,8 +172,8 @@
                     <div class="carousel-item">
                         <div class="question-slide question-slide--rating">
                             <h2 class="question-heading question-heading--orange">BILIS NG SERBISYO (TIMELINESS)</h2>
-                            <p>Ang oras ng pagproseso ng inyong application/request ay akma o mas mabilis kaysa sa inaasahan.</p>
-                            <p>(The time taken to process my application/request was reasonable or faster than expected.)</p>
+                            <p class="mb-1">Ang oras ng pagproseso ng inyong application/request ay akma o mas mabilis kaysa sa inaasahan.</p>
+                            <p class="text-muted fst-italic" style="font-size: 0.95rem;">(The time taken to process my application/request was reasonable or faster than expected.)</p>
 
                             <div class="rating-row">
                                 <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Very Dissatisfied')">
@@ -201,7 +201,7 @@
                                 </label>
                             </div>
 
-                            <button type="button" class="btn btn-primary go-back-btn-large" onclick="prevSlide()">Go Back</button>
+                            <button type="button" class="btn btn-outline-secondary go-back-btn-large" onclick="prevSlide()">Go Back</button>
                         </div>
                     </div>
 
@@ -209,8 +209,8 @@
                     <div class="carousel-item">
                         <div class="question-slide question-slide--rating">
                             <h2 class="question-heading question-heading--pink">PAKIKITUNGO SA KLIYENTE (CLIENT HANDLING)</h2>
-                            <p>Magalang at propesyonal ang pakikitungo ng kawani na nagbigay ng serbisyo.</p>
-                            <p>(The staff member was courteous and maintained a professional demeanor throughout the transaction.)</p>
+                            <p class="mb-1">Magalang at propesyonal ang pakikitungo ng kawani na nagbigay ng serbisyo.</p>
+                            <p class="text-muted fst-italic" style="font-size: 0.95rem;">(The staff member was courteous and maintained a professional demeanor throughout the transaction.)</p>
 
                             <div class="rating-row">
                                 <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Very Dissatisfied')">
@@ -238,7 +238,7 @@
                                 </label>
                             </div>
 
-                            <button type="button" class="btn btn-primary go-back-btn-large" onclick="prevSlide()">Go Back</button>
+                            <button type="button" class="btn btn-outline-secondary go-back-btn-large" onclick="prevSlide()">Go Back</button>
                         </div>
                     </div>
 
@@ -246,8 +246,8 @@
                     <div class="carousel-item">
                         <div class="question-slide question-slide--rating">
                             <h2 class="question-heading question-heading--blue">KALIDAD NG SERBISYO (QUALITY OF SERVICE)</h2>
-                            <p>Ang serbisyo o dokumentong natanggap ko ay tumpak, kompleto, at walang kamalian.</p>
-                            <p>(The service or document I received was accurate, complete, and free of errors.)</p>
+                            <p class="mb-1">Ang serbisyo o dokumentong natanggap ko ay tumpak, kompleto, at walang kamalian.</p>
+                            <p class="text-muted fst-italic" style="font-size: 0.95rem;">(The service or document I received was accurate, complete, and free of errors.)</p>
 
                             <div class="rating-row">
                                 <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Very Dissatisfied', false)">
@@ -275,7 +275,7 @@
                                 </label>
                             </div>
 
-                            <button type="button" class="btn btn-primary go-back-btn-large" onclick="prevSlide()">Go Back</button>
+                            <button type="button" class="btn btn-outline-secondary go-back-btn-large" onclick="prevSlide()">Go Back</button>
                         </div>
                     </div>
 
@@ -283,8 +283,8 @@
                     <div class="carousel-item">
                         <div class="question-slide question-slide--rating">
                             <h2 class="question-heading question-heading--green">OVERALL SATISFACTION</h2>
-                            <p>Lubos akong nasiyahan sa serbisyong aking natanggap.</p>
-                            <p>(I am satisfied with the service that I received.)</p>
+                            <p class="mb-1">Lubos akong nasiyahan sa serbisyong aking natanggap.</p>
+                            <p class="text-muted fst-italic" style="font-size: 0.95rem;">(I am satisfied with the service that I received.)</p>
 
                             <div class="rating-row">
                                 <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Very Dissatisfied', true)">
@@ -312,7 +312,7 @@
                                 </label>
                             </div>
 
-                            <button type="button" class="btn btn-primary go-back-btn-large" onclick="prevSlide()">Go Back</button>
+                            <button type="button" class="btn btn-outline-secondary go-back-btn-large" onclick="prevSlide()">Go Back</button>
                         </div>
                     </div>
 
@@ -320,18 +320,20 @@
                     <div class="carousel-item" id="qr-timeout-slide">
                         <div class="question-slide question-slide--qr">
                             @if(session('success'))
-                                <div id="success-message" class="alert alert-success success-message" role="alert">
+                                <div id="success-message" class="alert alert-success success-message fw-bold px-3" role="alert">
                                     {{ session('success') }}
                                 </div>
                             @endif
 
-                            <h3 class="slide-title slide-title--blue">Scan the QR code to fill out the comments and suggestions form</h3>
+                            <h3 class="slide-title slide-title--blue mt-3">Scan the QR code to fill out the comments and suggestions form</h3>
 
-                            <div class="qr-code-container">
-                                {!! QrCode::backgroundColor(255, 255, 255, 0)->generate('https://forms.gle/Tvmm2WmjHGNqteUD9') !!}
+                            <div class="qr-code-container bg-white p-4 d-inline-block rounded-4 shadow-sm my-3">
+                                {!! \SimpleSoftwareIO\QrCode\Facades\QrCode::backgroundColor(255, 255, 255, 0)->size(220)->generate('https://forms.gle/Tvmm2WmjHGNqteUD9') !!}
                             </div>
 
-                            <button type="button" class="btn btn-primary go-back-btn-large" onclick="window.location.reload()">Rate Again</button>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-primary go-back-btn-large px-5" onclick="window.location.reload()">Rate Again</button>
+                            </div>
                         </div>
                     </div>
 
