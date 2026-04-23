@@ -1,4 +1,4 @@
-# LARAVEL HELPDESK (EMPLOYEE CARE) WITH LARAVEL BACKPACK
+# LARAVEL HELPDESK (EMPLOYEE CARE) WITH BACKPACK
 
 This project aims to provide a web-based helpdesk system using Laravel 8 and Backpack 5.0. A helpdesk is a system that allows users to submit questions, request assistance, or report issues related to an organization’s services.
 
