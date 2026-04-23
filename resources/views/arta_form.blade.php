@@ -17,8 +17,6 @@
     <title>ARTA Client Satisfaction Form</title>
 </head>
 <body>
-    {{-- <button id="installSurveyApp" class="btn btn-warning" type="button" style="display:none; position:fixed; top:10px; right:10px; z-index:999;">Install App</button> --}}
-
     <video id="background-video" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; min-width: 100%; min-height: 100%; z-index: -1; object-fit: cover;">
         <source src="{{ asset('assets/blue.webm') }}" type="video/webm">
         <source src="{{ asset('assets/blue.mp4') }}" type="video/mp4">
@@ -42,8 +40,7 @@
                                     <img src="{{ asset('assets/logo-with-seal.webp') }}" alt="HRDO Logo" loading="lazy" style="max-width: 150px;">
                                 </picture>
                             </div>
-                            <h4 style="color: red">ANTI-RED TAPE AUTHORITY CLIENT SATISFACTION FORM</h4>
-                            {{-- <h2 class="slide-title">HELP US SERVE YOU BETTER!</h2> --}}
+                            <h4 class="slide-title" style="color: red">ANTI-RED TAPE AUTHORITY CLIENT SATISFACTION FORM</h4>
                             <div class="instructions text-center mb-4 border-0 bg-transparent p-0">
                                 <p class="text-muted" style="font-size: 1rem; line-height: 1.5;">This Client Satisfaction Measurement (CSM) tracks the customer experience of government offices. Your feedback on your <strong>recently concluded transaction</strong> will help this office provide a better service. Personal information shared will be kept confidential and you always have the option not to answer this form.</p>
                             </div>
@@ -246,7 +243,7 @@
                         </div>
                     </div>
 
-                    {{-- Slides 10-18: SQD Questions Array (Cleaned up rating markup) --}}
+                    {{-- Slides 10-18: SQD Questions Array --}}
                     @foreach(\App\Models\ArtaSurvey::SQD_QUESTIONS as $sqd_no => $question_text)
                     <div class="carousel-item">
                         <div class="question-slide">
@@ -256,34 +253,34 @@
                             <h3 class="slide-title" style="font-size: 1.4rem;">{{ $question_text }}</h3>
 
                             <div class="rating-row">
-                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Strongly Disagree', {{ $loop->last ? 'true' : 'false' }})">
-                                    <input type="radio" name="{{ $sqd_no}}" value="Strongly Disagree" class="visually-hidden">
-                                    <span class="emoji-icon">😔</span>
-                                    <span class="emoji-rating-text">Strongly Disagree</span>
-                                </label>
-                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Disagree', {{ $loop->last ? 'true' : 'false' }})">
-                                    <input type="radio" name="{{ $sqd_no}}" value="Disagree" class="visually-hidden">
-                                    <span class="emoji-icon">☹️</span>
-                                    <span class="emoji-rating-text">Disagree</span>
-                                </label>
-                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Neither', {{ $loop->last ? 'true' : 'false' }})">
-                                    <input type="radio" name="{{ $sqd_no}}" value="Neither" class="visually-hidden">
-                                    <span class="emoji-icon">😐</span>
-                                    <span class="emoji-rating-text">Neither Agree nor Disagree</span>
+                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Strongly Agree', {{ $loop->last ? 'true' : 'false' }})">
+                                    <input type="radio" name="{{ $sqd_no}}" value="Strongly Agree" class="visually-hidden">
+                                    <span class="emoji-icon">😁</span>
+                                    <span class="emoji-rating-text">Strongly Agree</span>
                                 </label>
                                 <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Agree', {{ $loop->last ? 'true' : 'false' }})">
                                     <input type="radio" name="{{ $sqd_no}}" value="Agree" class="visually-hidden">
                                     <span class="emoji-icon">🙂</span>
                                     <span class="emoji-rating-text">Agree</span>
                                 </label>
-                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Strongly Agree', {{ $loop->last ? 'true' : 'false' }})">
-                                    <input type="radio" name="{{ $sqd_no}}" value="Strongly Agree" class="visually-hidden">
-                                    <span class="emoji-icon">😁</span>
-                                    <span class="emoji-rating-text">Strongly Agree</span>
+                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Neither', {{ $loop->last ? 'true' : 'false' }})">
+                                    <input type="radio" name="{{ $sqd_no}}" value="Neither" class="visually-hidden">
+                                    <span class="emoji-icon">😐</span>
+                                    <span class="emoji-rating-text">Neither Agree nor Disagree</span>
+                                </label>
+                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Disagree', {{ $loop->last ? 'true' : 'false' }})">
+                                    <input type="radio" name="{{ $sqd_no}}" value="Disagree" class="visually-hidden">
+                                    <span class="emoji-icon">☹️</span>
+                                    <span class="emoji-rating-text">Disagree</span>
+                                </label>
+                                <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'Strongly Disagree', {{ $loop->last ? 'true' : 'false' }})">
+                                    <input type="radio" name="{{ $sqd_no}}" value="Strongly Disagree" class="visually-hidden">
+                                    <span class="emoji-icon">😔</span>
+                                    <span class="emoji-rating-text">Strongly Disagree</span>
                                 </label>
                                 <label class="rating-option" onclick="selectRating(this, '{{ $sqd_no}}', 'N/A', {{ $loop->last ? 'true' : 'false' }})">
                                     <input type="radio" name="{{ $sqd_no}}" value="N/A" class="visually-hidden">
-                                    <span class="emoji-icon" style="font-weight: 800; font-family: sans-serif; font-size: 3rem; color: #999;">N/A</span>
+                                    <span class="na-text">N/A</span>
                                     <span class="emoji-rating-text">Not Applicable</span>
                                 </label>
                             </div>
@@ -291,7 +288,7 @@
                             <div class="nav-buttons">
                                 <button type="button" class="btn btn-outline-secondary go-back-btn-large" onclick="prevSlide()">Back</button>
                                 @if(!$loop->last)
-                                    <button type="button" class="btn btn-primary go-back-btn-large" onclick="nextSlide()">Skip / Next</button>
+                                    <button type="button" class="btn btn-primary go-back-btn-large" onclick="nextSlide()">Next</button>
                                 @else
                                     <button type="button" class="btn btn-success go-back-btn-large" onclick="submitForm()">Submit Form</button>
                                 @endif

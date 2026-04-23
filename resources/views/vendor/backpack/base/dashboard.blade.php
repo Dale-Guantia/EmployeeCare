@@ -146,50 +146,59 @@ $colors = $statusData->pluck('status_color');
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">Latest Tickets</div>
-                        <table class="table table-bordered">
-                            <thead>
-                            <tr>
-                                <th>Reference ID</th>
-                                <th>Created by</th>
-                                <th>Issue</th>
-                                <th>Custom Issue</th>
-                                <th>Message</th>
-                                <th>Status</th>
-                                <th>Priority</th>
-                                <th>Date</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($latestTickets as $ticket)
+
+                    {{-- ADDED: table-responsive wrapper and card-body p-0 for flush edges --}}
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+
+                            {{-- ADDED: text-nowrap to prevent ugly word stacking on mobile --}}
+                            <table class="table table-bordered text-nowrap mb-0">
+                                <thead>
                                 <tr>
-                                    <td>{{ $ticket->reference_id ?? 'N/A'}}</td>
-                                    <td>{{ $ticket->user->name ?? 'N/A'}}</td>
-                                    <td>{{ $ticket->issue->issue_description ?? 'N/A'}}</td>
-                                    <td>{{ $ticket->custom_issue ?? 'N/A'}}</td>
-                                    <td>{{ $ticket->message ?? 'N/A'}}</td>
-                                    <td>
-                                        @if($ticket->status)
-                                            <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #444;">
-                                                {{ $ticket->status->status_name }}
-                                            </span>
-                                        @else
-                                            <span>N/A</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($ticket->priority)
-                                            <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #444;">
-                                                {{ $ticket->priority->priority_name }}
-                                            </span>
-                                        @else
-                                            <span>N/A</span>
-                                        @endif
-                                    </td>
-                                    <td>{{ optional($ticket->created_at)->format('m/d/Y - g:i A') ?? 'N/A' }}</td>
+                                    <th>Reference ID</th>
+                                    <th>Created by</th>
+                                    <th>Issue</th>
+                                    <th>Custom Issue</th>
+                                    <th>Message</th>
+                                    <th>Status</th>
+                                    <th>Priority</th>
+                                    <th>Date</th>
                                 </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    @foreach($latestTickets as $ticket)
+                                    <tr>
+                                        <td>{{ $ticket->reference_id ?? 'N/A'}}</td>
+                                        <td>{{ $ticket->user->name ?? 'N/A'}}</td>
+                                        <td>{{ $ticket->issue->issue_description ?? 'N/A'}}</td>
+                                        <td>{{ $ticket->custom_issue ?? 'N/A'}}</td>
+                                        <td>{{ $ticket->message ?? 'N/A'}}</td>
+                                        <td>
+                                            @if($ticket->status)
+                                                <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #444;">
+                                                    {{ $ticket->status->status_name }}
+                                                </span>
+                                            @else
+                                                <span>N/A</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($ticket->priority)
+                                                <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #444;">
+                                                    {{ $ticket->priority->priority_name }}
+                                                </span>
+                                            @else
+                                                <span>N/A</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ optional($ticket->created_at)->format('m/d/Y - g:i A') ?? 'N/A' }}</td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>

@@ -7,6 +7,8 @@ use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
+use App\Models\Ticket;
+use App\Observers\TicketObserver;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -32,6 +34,6 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        //
+        Ticket::observe(TicketObserver::class);
     }
 }

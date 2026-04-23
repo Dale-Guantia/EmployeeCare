@@ -31,6 +31,7 @@ class User extends Authenticatable
         'resolved_tickets_count',
         'email',
         'password',
+        'skills',
         'last_login_at',
         'notify_ticket_created',
         'notify_ticket_assigned',
@@ -58,6 +59,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'is_active' => 'boolean',
         'last_login_at' => 'datetime',
+        'skills' => 'array',
     ];
 
     // Inside app/Models/User.php

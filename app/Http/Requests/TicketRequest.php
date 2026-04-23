@@ -35,7 +35,7 @@ class TicketRequest extends FormRequest
 
         // Only validate if it's actually an uploaded file
         if ($this->hasFile('attachments')) {
-            $rules['attachments.*'] = 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx|max:2048';
+            $rules['attachments.*'] = 'file|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,txt|max:2048';
         }
 
         return $rules;

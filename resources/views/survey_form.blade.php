@@ -176,28 +176,25 @@
                             <p class="text-muted fst-italic" style="font-size: 0.95rem;">(The time taken to process my application/request was reasonable or faster than expected.)</p>
 
                             <div class="rating-row">
-                                <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Very Dissatisfied')">
-                                    <input type="radio" name="timeliness_rating" value="Very Dissatisfied" class="visually-hidden" required>
-                                    <span class="emoji-icon">😞</span>
-                                    <span class="emoji-rating-text">Very Dissatisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Very Satisfied')">
+                                    <input type="radio" name="timeliness_rating" value="Very Satisfied" class="visually-hidden">
+                                    <span class="emoji-icon">😁</span>
+                                    <span class="emoji-rating-text">Very Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Dissatisfied')">
-                                    <input type="radio" name="timeliness_rating" value="Dissatisfied" class="visually-hidden">
-                                    <span class="emoji-icon">🙁</span>
-                                    <span class="emoji-rating-text">Dissatisfied</span>
-                                </label>
-
                                 <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Satisfied')">
                                     <input type="radio" name="timeliness_rating" value="Satisfied" class="visually-hidden">
                                     <span class="emoji-icon">😊</span>
                                     <span class="emoji-rating-text">Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Very Satisfied')">
-                                    <input type="radio" name="timeliness_rating" value="Very Satisfied" class="visually-hidden">
-                                    <span class="emoji-icon">😁</span>
-                                    <span class="emoji-rating-text">Very Satisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Dissatisfied')">
+                                    <input type="radio" name="timeliness_rating" value="Dissatisfied" class="visually-hidden">
+                                    <span class="emoji-icon">🙁</span>
+                                    <span class="emoji-rating-text">Dissatisfied</span>
+                                </label>
+                                <label class="rating-option" onclick="selectRating(this, 'timeliness_rating', 'Very Dissatisfied')">
+                                    <input type="radio" name="timeliness_rating" value="Very Dissatisfied" class="visually-hidden" required>
+                                    <span class="emoji-icon">😞</span>
+                                    <span class="emoji-rating-text">Very Dissatisfied</span>
                                 </label>
                             </div>
 
@@ -213,28 +210,25 @@
                             <p class="text-muted fst-italic" style="font-size: 0.95rem;">(The staff member was courteous and maintained a professional demeanor throughout the transaction.)</p>
 
                             <div class="rating-row">
-                                <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Very Dissatisfied')">
-                                    <input type="radio" name="handling_rating" value="Very Dissatisfied" class="visually-hidden" required>
-                                    <span class="emoji-icon">😞</span>
-                                    <span class="emoji-rating-text">Very Dissatisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Very Satisfied')">
+                                    <input type="radio" name="handling_rating" value="Very Satisfied" class="visually-hidden">
+                                    <span class="emoji-icon">😁</span>
+                                    <span class="emoji-rating-text">Very Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Dissatisfied')">
-                                    <input type="radio" name="handling_rating" value="Dissatisfied" class="visually-hidden">
-                                    <span class="emoji-icon">🙁</span>
-                                    <span class="emoji-rating-text">Dissatisfied</span>
-                                </label>
-
                                 <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Satisfied')">
                                     <input type="radio" name="handling_rating" value="Satisfied" class="visually-hidden">
                                     <span class="emoji-icon">😊</span>
                                     <span class="emoji-rating-text">Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Very Satisfied')">
-                                    <input type="radio" name="handling_rating" value="Very Satisfied" class="visually-hidden">
-                                    <span class="emoji-icon">😁</span>
-                                    <span class="emoji-rating-text">Very Satisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Dissatisfied')">
+                                    <input type="radio" name="handling_rating" value="Dissatisfied" class="visually-hidden">
+                                    <span class="emoji-icon">🙁</span>
+                                    <span class="emoji-rating-text">Dissatisfied</span>
+                                </label>
+                                <label class="rating-option" onclick="selectRating(this, 'handling_rating', 'Very Dissatisfied')">
+                                    <input type="radio" name="handling_rating" value="Very Dissatisfied" class="visually-hidden" required>
+                                    <span class="emoji-icon">😞</span>
+                                    <span class="emoji-rating-text">Very Dissatisfied</span>
                                 </label>
                             </div>
 
@@ -250,28 +244,25 @@
                             <p class="text-muted fst-italic" style="font-size: 0.95rem;">(The service or document I received was accurate, complete, and free of errors.)</p>
 
                             <div class="rating-row">
-                                <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Very Dissatisfied', false)">
-                                    <input type="radio" name="quality_rating" value="Very Dissatisfied" class="visually-hidden" required>
-                                    <span class="emoji-icon">😞</span>
-                                    <span class="emoji-rating-text">Very Dissatisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Very Satisfied', false)">
+                                    <input type="radio" name="quality_rating" value="Very Satisfied" class="visually-hidden">
+                                    <span class="emoji-icon">😁</span>
+                                    <span class="emoji-rating-text">Very Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Dissatisfied', false)">
-                                    <input type="radio" name="quality_rating" value="Dissatisfied" class="visually-hidden">
-                                    <span class="emoji-icon">🙁</span>
-                                    <span class="emoji-rating-text">Dissatisfied</span>
-                                </label>
-
                                 <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Satisfied', false)">
                                     <input type="radio" name="quality_rating" value="Satisfied" class="visually-hidden">
                                     <span class="emoji-icon">😊</span>
                                     <span class="emoji-rating-text">Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Very Satisfied', false)">
-                                    <input type="radio" name="quality_rating" value="Very Satisfied" class="visually-hidden">
-                                    <span class="emoji-icon">😁</span>
-                                    <span class="emoji-rating-text">Very Satisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Dissatisfied', false)">
+                                    <input type="radio" name="quality_rating" value="Dissatisfied" class="visually-hidden">
+                                    <span class="emoji-icon">🙁</span>
+                                    <span class="emoji-rating-text">Dissatisfied</span>
+                                </label>
+                                <label class="rating-option" onclick="selectRating(this, 'quality_rating', 'Very Dissatisfied', false)">
+                                    <input type="radio" name="quality_rating" value="Very Dissatisfied" class="visually-hidden" required>
+                                    <span class="emoji-icon">😞</span>
+                                    <span class="emoji-rating-text">Very Dissatisfied</span>
                                 </label>
                             </div>
 
@@ -287,28 +278,25 @@
                             <p class="text-muted fst-italic" style="font-size: 0.95rem;">(I am satisfied with the service that I received.)</p>
 
                             <div class="rating-row">
-                                <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Very Dissatisfied', true)">
-                                    <input type="radio" name="overall_rating" value="Very Dissatisfied" class="visually-hidden" required>
-                                    <span class="emoji-icon">😞</span>
-                                    <span class="emoji-rating-text">Very Dissatisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Very Satisfied', true)">
+                                    <input type="radio" name="overall_rating" value="Very Satisfied" class="visually-hidden">
+                                    <span class="emoji-icon">😁</span>
+                                    <span class="emoji-rating-text">Very Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Dissatisfied', true)">
-                                    <input type="radio" name="overall_rating" value="Dissatisfied" class="visually-hidden">
-                                    <span class="emoji-icon">🙁</span>
-                                    <span class="emoji-rating-text">Dissatisfied</span>
-                                </label>
-
                                 <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Satisfied', true)">
                                     <input type="radio" name="overall_rating" value="Satisfied" class="visually-hidden">
                                     <span class="emoji-icon">😊</span>
                                     <span class="emoji-rating-text">Satisfied</span>
                                 </label>
-
-                                <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Very Satisfied', true)">
-                                    <input type="radio" name="overall_rating" value="Very Satisfied" class="visually-hidden">
-                                    <span class="emoji-icon">😁</span>
-                                    <span class="emoji-rating-text">Very Satisfied</span>
+                                <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Dissatisfied', true)">
+                                    <input type="radio" name="overall_rating" value="Dissatisfied" class="visually-hidden">
+                                    <span class="emoji-icon">🙁</span>
+                                    <span class="emoji-rating-text">Dissatisfied</span>
+                                </label>
+                                <label class="rating-option" onclick="selectRating(this, 'overall_rating', 'Very Dissatisfied', true)">
+                                    <input type="radio" name="overall_rating" value="Very Dissatisfied" class="visually-hidden" required>
+                                    <span class="emoji-icon">😞</span>
+                                    <span class="emoji-rating-text">Very Dissatisfied</span>
                                 </label>
                             </div>
 

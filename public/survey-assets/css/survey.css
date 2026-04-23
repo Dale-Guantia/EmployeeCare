@@ -38,8 +38,6 @@ body {
 
 #installSurveyApp {
     position: fixed;
-    top: 8px;
-    left: 8px;
     z-index: 1000;
     padding: 0;
     border: none;
@@ -351,7 +349,6 @@ p {
     gap: 16px 18px;
     justify-items: center;
     width: 100%;
-    padding: 4px 0;
 }
 
 .service-item {
@@ -507,186 +504,126 @@ p {
     border-radius: 5px;
 }
 
-/* Medium tablets */
-@media (max-width: 1180px) {
-    .survey-shell, .container { padding: 0.6rem; }
-    .survey-title, h1 { font-size: 1.6rem; }
-    .slide-title, h3 { font-size: 1.3rem; }
-    .question-heading, h2 { font-size: 1.3rem; }
-    p { font-size: 1rem; }
+/* Comprehensive Responsive Patches for CSS Form */
+.survey-title { font-size: clamp(1.4rem, 4vw, 2.2rem) !important; }
+.survey-subtitle { font-size: clamp(0.85rem, 2vw, 1rem) !important; }
+.slide-title { font-size: clamp(1.1rem, 3vw, 1.8rem) !important; }
+.question-heading { font-size: clamp(1.1rem, 2.5vw, 1.8rem) !important; }
+p { font-size: clamp(0.9rem, 2vw, 1.15rem) !important; }
 
-    .question-slide {
-        padding: 2rem 1.5rem;
-    }
+.emoji-icon { font-size: clamp(2.5rem, 8vw, 4.5rem) !important; }
+.service-icon-box { width: clamp(55px, 15vw, 96px) !important; height: clamp(55px, 15vw, 96px) !important; }
+.service-icon-box i { font-size: clamp(1.5rem, 5vw, 2.8rem) !important; }
+.staff-avatar { width: clamp(100px, 25vw, 190px) !important; height: clamp(100px, 25vw, 190px) !important; }
 
+/* FIX: Prevent the active "All Divisions" button from zooming to be larger than the others */
+.division-buttons-grid .division-btn.active,
+.division-buttons-grid .division-btn:hover {
+    transform: translateY(-3px) !important;
+}
+
+@media (max-width: 768px) {
+    .survey-header { padding: 1rem !important; margin-bottom: 1rem !important; border-radius: 16px !important; }
+    .question-slide { padding: 1.5rem 1rem !important; border-radius: 16px !important; }
+
+    /* SCROLLABLE DIVISION GRID FOR MOBILE PORTRAIT */
     .division-buttons-grid {
-        grid-template-columns: repeat(3, minmax(180px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+        max-height: 60vh !important;
+        overflow-y: auto !important;
+        padding-right: 5px !important;
+        padding-bottom: 10px !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .division-buttons-grid::-webkit-scrollbar { width: 5px; }
+    .division-buttons-grid::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+
+    .division-btn { min-height: 70px !important; font-size: 0.85rem !important; padding: 10px !important; }
+    .rating-row { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+    .rating-option { padding: 1rem 0.5rem !important; }
+    .go-back-btn-large { padding: 10px 20px !important; font-size: 0.95rem !important; margin-top: 15px !important; }
+    .qr-code-container svg, .qr-code-container img { width: 100% !important; max-width: 200px; height: auto; }
+    .selection-wrapper { grid-template-columns: 40px minmax(0, 1fr) 40px !important; gap: 5px !important; }
+    .service-nav-btn { width: 40px !important; height: 40px !important; font-size: 1.2rem !important; }
+}
+
+@media (max-width: 640px) {
+    .division-buttons-grid {
+        grid-template-columns: 1fr !important;
+        max-height: 55vh !important;
     }
 
-    .division-buttons-grid .division-btn {
-        min-height: 84px;
-        font-size: 0.9rem;
-        padding: 12px 14px;
-    }
-
+    /* STACK 3 STAFF IN A COLUMN */
     #staff-grid-paginated {
-        grid-template-columns: repeat(3, minmax(150px, 1fr));
-        gap: 14px;
+        grid-template-columns: 1fr !important;
+        justify-items: center !important;
+        gap: 8px !important;
     }
+    .staff-avatar {
+        width: 100px !important;
+        height: 100px !important;
+        margin-bottom: 2px !important;
+    }
+    .staff-nickname { font-size: 1.1rem !important; }
+    .staff-name { font-size: 0.85rem !important; }
+    .staff-item { margin-bottom: 0 !important; }
 
-    .staff-avatar { width: 150px; height: 150px; }
-    .staff-name { font-size: 1rem; }
-    .staff-nickname { font-size: 1.3rem; }
-
+    /* STACK 4 SERVICES IN A COLUMN (LIST VIEW) */
     #service-grid-paginated {
-        grid-template-columns: repeat(4, minmax(130px, 1fr));
-        gap: 12px;
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+        width: 100% !important;
     }
-
-    .service-icon-box { width: 82px; height: 82px; }
-    .service-icon-box i { font-size: 2.2rem !important; }
-    .service-name { font-size: 0.9rem; }
-
-    .rating-row {
-        grid-template-columns: repeat(4, minmax(120px, 1fr));
-        gap: 12px;
+    .service-item { max-width: 100% !important; padding: 0 !important; }
+    .service-item label {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        padding: 8px 15px !important;
+        border-radius: 16px !important;
+        background: rgba(0,0,0,0.03);
     }
-
-    .rating-row .emoji-icon { font-size: 4rem; }
-    .rating-row .emoji-rating-text { font-size: 0.9rem; }
+    .service-item:hover label, .service-item.selected label { background: rgba(0, 86, 179, 0.08) !important; }
+    .service-icon-box {
+        width: 45px !important;
+        height: 45px !important;
+        margin: 0 15px 0 0 !important;
+        flex-shrink: 0 !important;
+        border-radius: 12px !important;
+    }
+    .service-icon-box i { font-size: 1.4rem !important; }
+    .service-name { font-size: 0.9rem !important; text-align: left !important; line-height: 1.2 !important; margin: 0 !important; }
 }
 
-/* Phones / portrait tablets fallback */
-@media (max-width: 920px) and (orientation: portrait) {
-    .survey-shell, .container {
-        height: 100dvh;
-        max-height: 100dvh;
-        overflow: hidden;
-    }
+@media (max-height: 500px) and (orientation: landscape) {
+    .survey-shell { padding: 0.5rem !important; min-height: 100vh; justify-content: flex-start;}
 
-    .survey-header {
-        padding: 0.8rem 1rem;
-        margin-bottom: 1rem;
-        border-radius: 16px;
-    }
+    /* Let JS toggle the header visibility, just shrink it here so it fits beautifully on Slide 1 */
+    .survey-header { padding: 0.5rem !important; margin-bottom: 0.5rem !important; }
+    .center-logo-container { padding: 0 !important; gap: 10px !important; }
+    .center-logo-container picture img { max-width: 100px !important; height: auto !important; }
+    .survey-title { font-size: 1.2rem !important; }
+    .survey-subtitle { font-size: 0.75rem !important; }
 
-    .division-buttons-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
-    #staff-grid-paginated { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
-    #service-grid-paginated { grid-template-columns: repeat(2, minmax(110px, 1fr)); }
+    .question-slide { padding: 1rem !important; gap: 5px !important; }
 
-    .rating-row {
-        grid-template-columns: repeat(2, minmax(120px, 1fr));
-        gap: 1rem;
-    }
+    /* Remove scroll effect on landscape */
+    .division-buttons-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 5px !important; }
+    .division-btn { min-height: 50px !important; font-size: 0.75rem !important; padding: 5px !important; }
 
-    .rating-row .emoji-icon { font-size: 4.5rem; }
-}
+    .rating-row { grid-template-columns: repeat(4, 1fr) !important; margin-top: 5px !important; gap: 40px !important; }
+    .rating-option { padding: 5px !important; flex-direction: row !important; gap: 10px !important; }
+    .emoji-icon { margin-bottom: 0 !important; font-size: 4.5rem !important; }
+    .emoji-rating-text { font-size: 0.8rem !important; text-align: left !important; }
 
-/* Short landscape screens / Lenovo-friendly */
-@media (max-height: 465px) and (orientation: landscape) {
-    html, body, .survey-shell, .question-slide {
-        overflow: hidden !important;
-    }
-
-    .center-logo-container picture img {
-        max-width: 150px;
-        width: 100%;
-        height: auto;
-    }
-
-    .survey-subtitle {
-        color: red;
-        font-size: 1rem;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-    }
-
-    .survey-shell { padding: 4px 8px 4px; }
-    .survey-header {
-        display: none; /* Hide header completely on tiny landscape screens to save space */
-        margin-bottom: 0;
-    }
-
-    .question-slide {
-        gap: 3px;
-        padding: 6px 12px;
-        border-radius: 16px;
-    }
-
-    .slide-title, h3 { font-size: 0.9rem; margin-bottom: 4px; }
-    .question-heading, h2 { font-size: 1.1rem; margin-bottom: 2px; }
-    p { font-size: 0.9rem; line-height: 1.1; margin: 0; }
-
-    .division-buttons-grid {
-        grid-template-columns: repeat(3, minmax(120px, 1fr));
-        gap: 8px;
-    }
-
-    .division-buttons-grid .division-btn {
-        min-height: 58px;
-        padding: 6px 8px;
-        font-size: 0.75rem;
-        border-radius: 12px;
-    }
-
-    .selection-wrapper {
-        grid-template-columns: 34px minmax(0, 1fr) 34px;
-        gap: 6px;
-    }
-
-    .service-nav-btn {
-        width: 34px;
-        height: 34px;
-        font-size: 1rem;
-    }
-
-    #staff-grid-paginated { grid-template-columns: repeat(3, minmax(110px, 1fr)); gap: 4px; }
-    .staff-item { max-width: 180px; }
-    .staff-avatar { width: 150px; height: auto; margin-bottom: 4px; }
-    .staff-name { font-size: 0.8rem; }
-    .staff-nickname { font-size: 1rem; }
-
-    #service-grid-paginated { grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: 8px; }
-    .service-item { padding: 2px; }
-    .service-icon-box { width: 55px; height: 55px; margin-bottom: 4px; border-radius: 12px; }
-    .service-icon-box i { font-size: 1.5rem !important; }
-    .service-name { font-size: 0.75rem; }
-
-    .rating-row {
-        grid-template-columns: repeat(4, minmax(90px, 1fr)) !important;
-        gap: 8px;
-        margin-top: 10px;
-    }
-
-    .rating-row .rating-option {
-        /* padding: 6px;
-        border-radius: 12px !important; */
-        gap: 4px;
-    }
-
-    .qr-code-container svg,
-    .qr-code-container img {
-        width: 125px;
-        height: auto;
-    }
-
-    .alert {
-        --bs-alert-margin-bottom: 0;
-    }
-
-    .rating-row .emoji-icon { font-size: 5rem; }
-    .rating-row .emoji-rating-text { font-size: 0.8rem; }
-
-    .go-back-btn-large {
-        margin-top: 10px;
-        padding: 6px 16px !important;
-        font-size: 0.75rem !important;
-    }
-
-    .page-indicator, #staff-page-indicator, #service-page-indicator {
-        min-height: 12px;
-        font-size: 0.7rem;
-        margin-top: 4px;
-    }
+    .go-back-btn-large { padding: 5px 15px !important; font-size: 0.8rem !important; margin-top: 0 !important;}
+    #staff-grid-paginated { grid-template-columns: repeat(3, 1fr) !important; gap: 5px !important; }
+    #service-grid-paginated { grid-template-columns: repeat(4, 1fr) !important; gap: 0 !important; }
+    .staff-avatar { width: 150px !important; height: 150px !important; }
+    .slide-title, h3 { font-size: clamp(1rem, 2vw, 2rem) !important; font-weight: 700 !important; margin: 0 !important; }
+    .page-indicator, #staff-page-indicator, #service-page-indicator { font-size: 0.8rem !important; margin-top: 5px !important;}
+    .service-icon-box { width: 60px !important; height: 60px !important; border-radius: 12px !important;}
+    .service-icon-box i { font-size: clamp(1.5rem, 2.5vw, 2.8rem) !important; }
+    .service-name { font-size: 0.7rem !important; }
 }

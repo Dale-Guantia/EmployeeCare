@@ -27,6 +27,7 @@ class CreateUsersTable extends Migration
             $table->string('avatar_url')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->json('skills')->nullable();
             $table->timestamp('last_login_at')->nullable();
             $table->boolean('notify_ticket_created')->default(true);
             $table->boolean('notify_ticket_assigned')->default(true);

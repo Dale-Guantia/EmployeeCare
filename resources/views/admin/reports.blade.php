@@ -22,7 +22,6 @@
                 </div>
             </div>
         </div>
-        <!-- /.col-->
         <div class="col-sm-6 col-md-2">
             <div class="card text-white" style="background-color: #7c69ef;">
                     <div class="card-body">
@@ -31,7 +30,6 @@
                     </div>
             </div>
         </div>
-        <!-- /.col-->
         <div class="col-sm-6 col-md-2">
             <div class="card text-white bg-success">
                 <div class="card-body">
@@ -40,7 +38,6 @@
                 </div>
             </div>
         </div>
-        <!-- /.col-->
         <div class="col-sm-6 col-md-2">
             <div class="card text-white bg-warning">
                 <div class="card-body">
@@ -49,7 +46,6 @@
                 </div>
             </div>
         </div>
-        <!-- /.col-->
         <div class="col-sm-6 col-md-2">
             <div class="card text-white" style="background-color: #abbcd5;">
                 <div class="card-body">
@@ -58,7 +54,6 @@
                 </div>
             </div>
         </div>
-        <!-- /.col-->
         <div class="col-sm-6 col-md-2">
             <div class="card text-white bg-primary">
                 <div class="card-body">
@@ -67,15 +62,14 @@
                 </div>
             </div>
         </div>
-        <!-- /.col-->
-    </div>
+        </div>
 
-    <!-- Latest Tickets -->
     <div class="row">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <table id="latestTicketsTable" class="table table-striped table-hover dt-responsive nowrap w-100">
+                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
+                    <table id="latestTicketsTable" class="table table-striped table-hover text-nowrap w-100">
                         <thead>
                         <tr>
                             <th>Reference ID</th>
@@ -123,14 +117,12 @@
             </div>
         </div>
     </div>
-    <!-- End of Latest Tickets -->
-
-    <!-- User Activity -->
     <div class="row">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <table id="userActivityTable" class="table table-striped table-hover dt-responsive nowrap w-100">
+                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
+                    <table id="userActivityTable" class="table table-striped table-hover text-nowrap w-100">
                         <thead>
                         <tr>
                             <th>Name</th>
@@ -154,14 +146,12 @@
             </div>
         </div>
     </div>
-    <!-- End of User Activity -->
-
-    <!-- Tickets Per Division -->
     <div class="row">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <table id="ticketsPerDivisionTable" class="table table-striped table-hover dt-responsive nowrap w-100">
+                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
+                    <table id="ticketsPerDivisionTable" class="table table-striped table-hover text-nowrap w-100">
                         <thead>
                         <tr>
                             <th>Issue description</th>
@@ -185,8 +175,7 @@
             </div>
         </div>
     </div>
-    <!-- End of Tickets Per Division -->
-</div>
+    </div>
 
 <div class="modal fade" id="downloadReportModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -289,13 +278,14 @@ div.dataTables_wrapper div.dataTables_length select {
 
         let LatestTicketTable = $('#latestTicketsTable').DataTable({
             pageLength: 10,
-            responsive: true,
+            responsive: false,
             ordering: true,
             searching: true,
 
+            // FIX: Added 'table-responsive' directly to the 'tr' (table rows) wrapper part of the DOM string
             dom:
             "<'row align-items-center'<'col-md-6 latest-title'><'col-md-6'f>>" +
-            "<'row'<'col-sm-12'tr>>" +
+            "<'row'<'col-sm-12 table-responsive'tr>>" +
             "<'row'<'col-sm-6'l><'col-sm-6'p>>"
         });
 
@@ -303,13 +293,14 @@ div.dataTables_wrapper div.dataTables_length select {
 
         let UserActivityTable = $('#userActivityTable').DataTable({
             pageLength: 10,
-            responsive: true,
+            responsive: false,
             ordering: true,
             searching: true,
 
+            // FIX: Added 'table-responsive' here too
             dom:
             "<'row align-items-center'<'col-md-6 user-activity'><'col-md-6'f>>" +
-            "<'row'<'col-sm-12'tr>>" +
+            "<'row'<'col-sm-12 table-responsive'tr>>" +
             "<'row'<'col-sm-6'l><'col-sm-6'p>>"
         });
 
@@ -317,13 +308,14 @@ div.dataTables_wrapper div.dataTables_length select {
 
         let TicketOverviewTable = $('#ticketsPerDivisionTable').DataTable({
             pageLength: 10,
-            responsive: true,
+            responsive: false,
             ordering: true,
             searching: true,
 
+            // FIX: Added 'table-responsive' here too
             dom:
             "<'row align-items-center'<'col-md-6 overview-title'><'col-md-6'f>>" +
-            "<'row'<'col-sm-12'tr>>" +
+            "<'row'<'col-sm-12 table-responsive'tr>>" +
             "<'row'<'col-sm-6'l><'col-sm-6'p>>"
             });
 

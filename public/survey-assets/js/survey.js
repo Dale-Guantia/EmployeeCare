@@ -25,7 +25,7 @@ function getStaffItemsPerPage() {
 
     const width = window.innerWidth;
 
-    if (width <= 640) return 1;
+    if (width <= 640) return 3;
     if (width <= 920) return 3;
     return 3;
 }
@@ -317,7 +317,7 @@ $(document).ready(function () {
 
     setTimeout(() => {
         $('#success-message').fadeOut('slow');
-    }, 3 * 60 * 1000);
+    }, 5000);
 });
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -350,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 timeoutId = setTimeout(() => {
                     window.location.reload();
-                }, 5 * 60 * 1000);
+                }, 1 * 60 * 1000);
             } else {
                 clearTimeout(timeoutId);
             }

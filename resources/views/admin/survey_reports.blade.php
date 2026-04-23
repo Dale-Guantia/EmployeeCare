@@ -79,7 +79,8 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <table id="surveyResponsesTable" class="table table-striped table-hover dt-responsive nowrap w-100">
+                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
+                    <table id="surveyResponsesTable" class="table table-striped table-hover text-nowrap w-100">
                         <thead>
                         <tr>
                             <th>Staff Rated</th>
@@ -116,7 +117,8 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <table id="surveyRatingsTable" class="table table-striped table-hover dt-responsive nowrap w-100">
+                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
+                    <table id="surveyRatingsTable" class="table table-striped table-hover text-nowrap w-100">
                         <thead>
                         <tr>
                             <th>Staff Name</th>
@@ -236,7 +238,7 @@
                     <p class="mb-3">Total Surveys: <strong id="detailTotalSurveys">0</strong></p>
 
                     <div class="table-responsive">
-                        <table class="table table-bordered table-striped mb-0">
+                        <table class="table table-bordered table-striped text-nowrap mb-0">
                             <thead>
                                 <tr>
                                     <th></th>
@@ -336,12 +338,13 @@
 
             $('#surveyResponsesTable').DataTable({
                 pageLength: 10,
-                responsive: true,
+                responsive: false,
                 ordering: true,
                 searching: true,
+                // FIX: Added 'table-responsive' directly to the 'tr' wrapper
                 dom:
                     "<'row align-items-center mb-2'<'col-md-6 responses-title'><'col-md-6'f>>" +
-                    "<'row'<'col-sm-12'tr>>" +
+                    "<'row'<'col-sm-12 table-responsive'tr>>" +
                     "<'row mt-2'<'col-sm-6'l><'col-sm-6'p>>"
             });
 
@@ -349,12 +352,13 @@
 
             $('#surveyRatingsTable').DataTable({
                 pageLength: 10,
-                responsive: true,
+                responsive: false,
                 ordering: true,
                 searching: true,
+                // FIX: Added 'table-responsive' here too
                 dom:
                     "<'row align-items-center mb-2'<'col-md-6 ratings-title'><'col-md-6'f>>" +
-                    "<'row'<'col-sm-12'tr>>" +
+                    "<'row'<'col-sm-12 table-responsive'tr>>" +
                     "<'row mt-2'<'col-sm-6'l><'col-sm-6'p>>"
             });
 

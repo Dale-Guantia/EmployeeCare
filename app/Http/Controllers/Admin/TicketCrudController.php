@@ -285,6 +285,20 @@ class TicketCrudController extends CrudController
                 </script>
             ',
         ]);
+
+        if (backpack_user()->hasAnyRole(['Admin', 'Department Head', 'Division Head'])) {
+            CRUD::addField([
+                'name'      => 'assigned_to',
+                'label'     => 'Assign To (Leave blank for Auto-Assign)',
+                'type'      => 'select2',
+                'entity'    => 'assignedUser', // the method that defines the relationship in your Model
+                'attribute' => 'name',
+                'model'     => "App\Models\User",
+                'options'   => (function ($query) {
+                    return $query->role('hr_staff')->get();
+                }),
+            ]);
+        }
     }
 
     protected function renderAttachments($ticket)
