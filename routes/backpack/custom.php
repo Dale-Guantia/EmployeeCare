@@ -1,13 +1,14 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\Auth\LoginController;
 use App\Http\Controllers\Admin\Auth\RegisterController;
 use App\Http\Controllers\Admin\MyAccountController;
 use App\Http\Controllers\Admin\ReportsController;
 use App\Http\Controllers\Admin\SurveyReportsController;
 use App\Http\Controllers\Admin\NotificationController;
+use \App\Http\Controllers\Admin\ArtaSurveyReportsController;
 
 // Register routes
 Route::group([
@@ -42,6 +43,8 @@ Route::group([
     ),
     'namespace' => 'App\Http\Controllers\Admin',
 ], function () {
+    Route::get('dashboard', [DashboardController::class, 'dashboard'])->name('backpack.dashboard');
+
     // CRUD routes
     Route::crud('ticket', 'TicketCrudController');
     Route::crud('issue', 'IssueCrudController');
@@ -58,6 +61,10 @@ Route::group([
     // Survey Reports
     Route::get('survey-reports', [SurveyReportsController::class, 'index'])->name('page.survey_reports.index');
     Route::post('survey-reports/download-pdf', [SurveyReportsController::class, 'downloadPdf'])->name('page.survey_reports.download_pdf');
+
+    // ARTA Survey Reports
+    Route::get('arta-survey-reports', [ArtaSurveyReportsController::class, 'index'])->name('page.arta_survey_reports.index');
+    Route::post('arta-survey-reports/download-pdf', [ArtaSurveyReportsController::class, 'downloadPdf'])->name('page.arta_survey_reports.download_pdf');
 
     // Notifications
     Route::get('notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');

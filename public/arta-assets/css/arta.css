@@ -194,9 +194,9 @@ body {
     .qr-code-container svg { width: 100% !important; max-width: 200px; height: auto; }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 550px) {
     /* Force 2 columns for ARTA emojis on very small phones to prevent horizontal squeezing */
-    .rating-row { grid-template-columns: repeat(2, 1fr) !important; }
+    .rating-row { grid-template-columns: repeat(2, 1fr) !important; width: 80% !important; }
 }
 
 @media (max-height: 500px) and (orientation: landscape) {

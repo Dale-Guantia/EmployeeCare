@@ -56,7 +56,7 @@ class TicketCrudController extends CrudController
             }
             if ($user->hasRole('div_head')) {
                 $query->orWhere('division_id', $user->division_id);
-                $this->crud->allowAccess(['create','show']);
+                $this->crud->allowAccess(['create','show', 'update']);
             }
             if ($user->hasRole('hr_staff')) {
                 // HR Staff ONLY sees tickets assigned specifically to them
@@ -333,7 +333,7 @@ class TicketCrudController extends CrudController
 
         $ticket = $this->crud->getCurrentEntry();
         $user = backpack_user();
-        $canEditAttachments = $user->id === $ticket->user_id || $user->hasRole('admin');
+        $canEditAttachments = $user->id === $ticket->user_id || $user->hasRole('admin') || $user->hasRole('div_head');
 
         if (!$canEditAttachments) {
             $this->crud->modifyField('issue_id', [
@@ -573,7 +573,7 @@ class TicketCrudController extends CrudController
             'escaped' => false,
         ]);
 
-        if ($user->hasAnyRole(['admin', 'dept_head', 'div_head'])) {
+        if ($user->hasAnyRole(['admin', 'dept_head', 'div_head', 'hr_staff'])) {
             CRUD::addColumn([
                 'name'     => 'quick_assign',
                 'label'    => 'Assign Staff',

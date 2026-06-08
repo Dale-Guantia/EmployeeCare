@@ -99,6 +99,7 @@
                                     {{ optional(backpack_user()->department)->department_name ?? 'No Department Assigned' }}
                                 </p>
                             </div>
+
                             <div class="col-md-6 form-group">
                                 <label class="font-weight-bold">Division</label>
                                 <p class="text-muted bg-light p-2 rounded border">
@@ -106,7 +107,7 @@
                                 </p>
                             </div>
 
-                            <div class="col-md-12 form-group">
+                            <div class="col-md-6 form-group">
                                 <label class="font-weight-bold">Profile Avatar</label>
 
                                 <div class="d-flex align-items-center mb-3">
@@ -142,6 +143,32 @@
                                         </label>
                                     </div>
                                 @endif
+                            </div>
+
+                            <div class="col-md-6 form-group">
+                                <label class="font-weight-bold">Skills</label>
+
+                                {{-- Visual Tag Container --}}
+                                <div id="skills-container" class="form-control" style="height: auto; min-height: 45px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; cursor: text;" onclick="document.getElementById('skill-input').focus()">
+
+                                    {{-- The invisible input field for typing --}}
+                                    <input type="text" id="skill-input" placeholder="Type a skill & press Enter" style="border: none; outline: none; flex-grow: 1; min-width: 200px; background: transparent;">
+                                </div>
+                                <small class="form-text text-muted">Type your custom skill and press <strong>Enter</strong> or a <strong>Comma</strong> to add it.</small>
+
+                                {{-- Hidden container that actually submits the array to Laravel --}}
+                                <div id="hidden-skills-inputs">
+                                    @php
+                                        $currentSkills = old('skills', $user->skills ?? []);
+                                        if (is_string($currentSkills)) {
+                                            $currentSkills = json_decode($currentSkills, true) ?? [];
+                                        }
+                                    @endphp
+
+                                    @foreach($currentSkills as $skill)
+                                        <input type="hidden" name="skills[]" value="{{ $skill }}">
+                                    @endforeach
+                                </div>
                             </div>
 
                         </div>
@@ -297,4 +324,78 @@
             </form>
         </div>
     </div>
+@endsection
+
+@section('after_scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const skillInput = document.getElementById('skill-input');
+        const container = document.getElementById('skills-container');
+        const hiddenInputsContainer = document.getElementById('hidden-skills-inputs');
+
+        // Render existing tags on page load
+        const existingInputs = hiddenInputsContainer.querySelectorAll('input');
+        existingInputs.forEach(input => {
+            renderBadge(input.value);
+        });
+
+        // Listen for Enter or Comma keys
+        skillInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault(); // Stop form from submitting early
+
+                let val = this.value.trim().toLowerCase(); // Clean input
+                if(val !== '') {
+                    // Check for duplicates
+                    if(!hiddenInputsContainer.querySelector('input[value="' + val + '"]')) {
+                        renderBadge(val);
+                        addHiddenInput(val);
+                    }
+                    this.value = ''; // Clear input
+                }
+            }
+        });
+
+        // Allow Backspace to delete the last tag if input is empty
+        skillInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Backspace' && this.value === '') {
+                const badges = container.querySelectorAll('.skill-badge');
+                if(badges.length > 0) {
+                    const lastBadge = badges[badges.length - 1];
+                    const skillName = lastBadge.getAttribute('data-skill');
+                    removeTag(lastBadge, skillName);
+                }
+            }
+        });
+
+        function renderBadge(skillName) {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-primary mr-1 mb-1 d-flex align-items-center skill-badge';
+            badge.style.fontSize = '14px';
+            badge.style.padding = '6px 12px';
+            badge.setAttribute('data-skill', skillName);
+
+            // X button to remove
+            badge.innerHTML = skillName + ' <i class="la la-times ml-2" style="cursor:pointer;" onclick="removeTag(this.parentElement, \'' + skillName + '\')"></i>';
+
+            // Insert badge right before the typing input field
+            container.insertBefore(badge, skillInput);
+        }
+
+        function addHiddenInput(skillName) {
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'skills[]';
+            hiddenInput.value = skillName;
+            hiddenInputsContainer.appendChild(hiddenInput);
+        }
+
+        // Global function to remove visual badge AND hidden input
+        window.removeTag = function(badgeElement, skillName) {
+            badgeElement.remove();
+            const hiddenInput = hiddenInputsContainer.querySelector('input[value="' + skillName + '"]');
+            if (hiddenInput) hiddenInput.remove();
+        }
+    });
+</script>
 @endsection

@@ -37,11 +37,19 @@ class MyAccountController extends BackpackMyAccountController
             ],
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'remove_avatar' => 'nullable|boolean',
+
+            // 1. ADD VALIDATION FOR SKILLS
+            'skills' => 'nullable|array',
+            'skills.*' => 'string|max:100',
         ]);
 
         $user->name = $request->input('name');
         $user->username = $request->input('username');
         $user->{backpack_authentication_column()} = $request->input(backpack_authentication_column());
+
+        // 2. ASSIGN SKILLS TO THE USER MODEL
+        // If the array is empty (user deleted all tags), it defaults to an empty array []
+        $user->skills = $request->input('skills', []);
 
         if ($request->boolean('remove_avatar')) {
             if ($user->avatar_url && Storage::disk('public')->exists($user->avatar_url)) {

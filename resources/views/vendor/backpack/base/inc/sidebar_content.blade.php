@@ -1,5 +1,11 @@
 {{-- This file is used to store sidebar items, inside the Backpack admin panel --}}
-<li class="nav-item"><a class="nav-link" href="{{ backpack_url('dashboard') }}"><i class="la la-home nav-icon"></i> {{ trans('backpack::base.dashboard') }}</a></li>
+@if(!backpack_user()->hasRole('employee'))
+    <li class="nav-item">
+        <a class="nav-link" href="{{ backpack_url('dashboard') }}">
+            <i class="nav-icon la la-home"></i> {{ trans('backpack::base.dashboard') }}
+        </a>
+    </li>
+@endif
 
 @can('ticket.view')
 <li class="nav-item">
@@ -40,15 +46,27 @@
         <i class="nav-icon la la-flag"></i> Status
     </a>
 </li>
-<li class="nav-item">
-    <a class="nav-link" href="{{ backpack_url('reports') }}">
+<li class="nav-item nav-dropdown">
+    <a class="nav-link nav-dropdown-toggle" href="#">
         <i class="nav-icon la la-chart-bar"></i> Reports
     </a>
-</li>
-<li class="nav-item">
-    <a class="nav-link" href="{{ backpack_url('survey-reports') }}">
-        <i class="nav-icon la la-chart-bar"></i> Survey Reports
-    </a>
+    <ul class="nav-dropdown-items">
+        <li class="nav-item">
+            <a class="nav-link" href="{{ backpack_url('reports') }}">
+                <i class="nav-icon la la-chart-bar"></i> Employee Care
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{{ backpack_url('survey-reports') }}">
+                <i class="nav-icon la la-chart-bar"></i> CSS
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{{ backpack_url('arta-survey-reports') }}">
+                <i class="nav-icon la la-chart-bar"></i> ARTA
+            </a>
+        </li>
+    </ul>
 </li>
 @endcan
 

@@ -9,9 +9,9 @@
     <meta name="apple-mobile-web-app-title" content="HRDO Survey">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="{{ asset('assets/icons/icon-192x192.png') }}">
-    <link rel="stylesheet" href="{{ asset('arta-assets/css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('arta-assets/css/fontawesome.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('arta-assets/css/css2.css') }}">
+    <link rel="stylesheet" href="{{ asset('public-assets/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('public-assets/css/fontawesome.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('public-assets/css/css2.css') }}">
     <link rel="stylesheet" href="{{ asset('arta-assets/css/arta.css') }}">
     <link rel="manifest" href="{{ asset('manifest-survey.json') }}">
     <title>ARTA Client Satisfaction Form</title>
@@ -355,9 +355,9 @@
         </div>
     </div>
 
-    <script src="{{ asset('arta-assets/js/jquery-3.6.0.min.js') }}"></script>
-    <script src="{{ asset('arta-assets/js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ asset('arta-assets/js/browser@4.js') }}"></script>
+    <script src="{{ asset('public-assets/js/jquery-3.6.0.min.js') }}"></script>
+    <script src="{{ asset('public-assets/js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ asset('public-assets/js/browser@4.js') }}"></script>
     <script src="{{ asset('arta-assets/js/arta.js') }}"></script>
 </body>
 </html>
