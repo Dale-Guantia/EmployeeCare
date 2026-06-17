@@ -177,36 +177,37 @@ class Ticket extends Model
 
     public function setAttachmentsAttribute($value)
     {
-        $attribute_name = 'attachments';
-        $disk = 'public';
+        $disk             = 'public';
         $destination_path = 'attachments';
 
-        // Current files from model
-        $attribute_value = $this->{$attribute_name} ?? [];
-        if (is_string($attribute_value)) {
-            $attribute_value = json_decode($attribute_value, true) ?? [];
-        }
-        $attribute_value = is_array($attribute_value) ? $attribute_value : [];
-
-        // Handle files marked for deletion by Backpack
-        $files_to_clear = request()->get('clear_' . $attribute_name) ?? [];
-        foreach ($files_to_clear as $filename) {
-            Storage::disk($disk)->delete($filename);
-            $attribute_value = array_diff($attribute_value, [$filename]);
+        // $value is the retained paths array passed by the controller.
+        // Start from this list only — do NOT read $this->attachments here,
+        // as that would re-merge the old DB value and undo any removals.
+        if (is_string($value)) {
+            $base = json_decode($value, true) ?? [];
+        } elseif (is_array($value)) {
+            $base = $value;
+        } else {
+            $base = [];
         }
 
-        // Handle newly uploaded files
-        if (request()->hasFile($attribute_name)) {
-            foreach ((array) request()->file($attribute_name) as $file) {
+        // Filter to only valid non-empty string paths (not uploaded file objects)
+        $base = array_values(array_filter($base, function ($item) {
+            return is_string($item) && !empty($item);
+        }));
+
+        // Append any newly uploaded files
+        if (request()->hasFile('attachments')) {
+            foreach ((array) request()->file('attachments') as $file) {
                 if ($file && $file->isValid()) {
                     $fileName = time() . '_' . $file->getClientOriginalName();
-                    $path = $file->storeAs($destination_path, $fileName, $disk);
-                    $attribute_value[] = $path;
+                    $path     = $file->storeAs($destination_path, $fileName, $disk);
+                    $base[]   = $path;
                 }
             }
         }
 
-        $this->attributes[$attribute_name] = json_encode(array_values($attribute_value));
+        $this->attributes['attachments'] = json_encode(array_values($base));
     }
 
     public function getOverdueBadgeAttribute()

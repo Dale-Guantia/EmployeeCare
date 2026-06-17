@@ -102,3 +102,20 @@
         <i class="nav-icon la la-bell"></i> Notifications
     </a>
 </li>
+
+{{-- HR Policy Documents — only visible to admin and hr_staff --}}
+@if(backpack_user()->hasAnyRole(['admin', 'hr_staff']))
+<li class="nav-item">
+    <a class="nav-link" href="{{ backpack_url('hr-policy-documents') }}">
+        <i class="nav-icon la la-file-pdf"></i> Policy Documents
+    </a>
+</li>
+@endif
+
+<li class="nav-item">
+    <a class="nav-link" href="{{ backpack_url('hr-assistant') }}">
+        <i class="nav-icon la la-robot"></i> HR Assistant
+    </a>
+</li>
+
+

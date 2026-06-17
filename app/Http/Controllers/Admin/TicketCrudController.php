@@ -7,6 +7,7 @@ use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Prologue\Alerts\Facades\Alert;
 use App\Models\Status;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Class TicketCrudController
@@ -176,7 +177,8 @@ class TicketCrudController extends CrudController
         CRUD::addField([
             'name'      => 'attachments',
             'label'     => 'Attachments',
-            'type'      => 'upload_multiple',
+            'type'      => 'view', // Tell Backpack to use a custom view
+            'view'      => 'vendor.backpack.crud.fields.modern_upload', // Point to your new file
             'upload'    => true,
             'disk'      => 'public',
         ]);
@@ -478,7 +480,34 @@ class TicketCrudController extends CrudController
             return redirect($this->crud->route);
         }
 
-        // 5. Default Backpack Update
+        // 5. Default Backpack Update — with attachment removal handling
+        $request = $this->crud->getRequest();
+
+        // Collect only retained string paths from the hidden inputs.
+        // Files the user removed via ✕ will be absent here.
+        $retainedPaths = collect($request->input('attachments', []))
+            ->filter(function ($item) {
+                return is_string($item) && !empty($item);
+            })
+            ->values()
+            ->all();
+
+        // Delete removed files from disk
+        $entry    = $this->crud->getEntry($request->id);
+        $oldPaths = is_array($entry->attachments)
+            ? $entry->attachments
+            : (json_decode($entry->getRawOriginal('attachments'), true) ?? []);
+
+        foreach (array_diff($oldPaths, $retainedPaths) as $removedPath) {
+            if (!empty($removedPath) && \Storage::disk('public')->exists($removedPath)) {
+                \Storage::disk('public')->delete($removedPath);
+            }
+        }
+
+        // Pass only the retained paths — the mutator will append new uploads on top
+        $request->merge(['attachments' => $retainedPaths]);
+        $this->crud->setRequest($request);
+
         return $this->traitUpdate();
     }
 

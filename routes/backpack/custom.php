@@ -9,6 +9,8 @@ use App\Http\Controllers\Admin\ReportsController;
 use App\Http\Controllers\Admin\SurveyReportsController;
 use App\Http\Controllers\Admin\NotificationController;
 use \App\Http\Controllers\Admin\ArtaSurveyReportsController;
+use App\Http\Controllers\Admin\HrChatController;
+use App\Http\Controllers\Admin\HrPolicyDocumentCrudController;
 
 // Register routes
 Route::group([
@@ -79,4 +81,20 @@ Route::group([
     Route::post('my-account/password', [MyAccountController::class, 'postChangePasswordForm'])->name('backpack.account.password');
     Route::post('my-account/notifications', [MyAccountController::class, 'postNotificationsForm'])->name('backpack.account.notifications');
     Route::post('my-account/notification-settings', [MyAccountController::class, 'updateNotificationSettings'])->name('backpack.account.notification_settings');
+
+    // Chatbot Routes
+    Route::get('hr-assistant',       [HrChatController::class, 'index'])->name('hr.chat.index');
+    Route::post('hr-assistant/ask',  [HrChatController::class, 'ask'])->name('hr.chat.ask');
+    Route::post('hr-assistant/feedback', [HrChatController::class, 'feedback'])->name('hr.chat.feedback');
+    Route::get('hr-assistant/history', [HrChatController::class, 'history'])->name('hr.chat.history');
+    Route::delete('hr-assistant/clear-history', [HrChatController::class, 'clearHistory'])->name('hr.chat.clear_history');
+
+    // Policy document manager
+    // Custom routes for upload and update (not standard CRUD)
+    Route::get('hr-policy-documents/upload', [HrPolicyDocumentCrudController::class, 'uploadForm'])->name('hr.policy.upload.form');
+    Route::post('hr-policy-documents/upload', [HrPolicyDocumentCrudController::class, 'uploadStore'])->name('hr.policy.upload.store');
+    Route::get('hr-policy-documents/{document}/update-file',[HrPolicyDocumentCrudController::class, 'updateForm'])->name('hr.policy.update.form');
+    Route::post('hr-policy-documents/{document}/update-file',[HrPolicyDocumentCrudController::class, 'updateStore'])->name('hr.policy.update.store');
+    Route::post('hr-policy-documents/{document}/toggle',[HrPolicyDocumentCrudController::class, 'toggleActive'])->name('hr.policy.toggle');
+    Route::crud('hr-policy-documents', 'HrPolicyDocumentCrudController');
 });

@@ -13,6 +13,17 @@ return [
     | a conventional file to locate the various service credentials.
     |
     */
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+    ],
+
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+    ],
+
+    'openrouter' => [
+        'key' => env('OPENROUTER_API_KEY'),
+    ],
 
     'mailgun' => [
         'domain' => env('MAILGUN_DOMAIN'),

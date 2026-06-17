@@ -148,3 +148,5 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endif
+
+@include(backpack_view('inc.hr-float-widget'))
