@@ -42,6 +42,12 @@ class HrPolicyDocumentCrudController extends CrudController
             ->value(function ($entry) {
                 return $entry->status_badge;
             });
+        CRUD::column('ocr_badge')
+            ->label('Type')
+            ->type('custom_html')
+            ->value(function ($entry) {
+                return $entry->ocr_badge;
+            });
         CRUD::column('created_at')->label('Uploaded')->type('datetime');
 
         // Custom buttons
@@ -62,6 +68,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
     public function uploadStore(Request $request, PolicyIngestService $ingest)
     {
+        set_time_limit(0);
         $this->crud->hasAccessOrFail('list');
 
         $request->validate([
@@ -100,6 +107,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
     public function updateStore(Request $request, HrPolicyDocument $document, PolicyIngestService $ingest)
     {
+        set_time_limit(0);
         $this->crud->hasAccessOrFail('list');
 
         $rules = [

@@ -13,6 +13,12 @@ return [
     | a conventional file to locate the various service credentials.
     |
     */
+    'ocr' => [
+        'tesseract_path' => env('OCR_TESSERACT_PATH', 'tesseract'),
+        'pdftoppm_path'  => env('OCR_PDFTOPPM_PATH', 'pdftoppm'),
+        'languages'      => env('OCR_LANGUAGES', 'eng+fil'),
+    ],
+
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
     ],

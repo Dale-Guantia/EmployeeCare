@@ -10,13 +10,23 @@ use Illuminate\Support\Facades\Storage;
 
 class PolicyIngestService
 {
+    protected $ocr;
+
+    // Inject OcrService so it can be mocked in tests
+    // and so the OCR logic stays in one dedicated place
+    public function __construct(OcrService $ocr)
+    {
+        $this->ocr = $ocr;
+    }
+
     /**
-     * Store the PDF file and create the document record.
-     * Ingestion (parsing + chunking) is done in a separate ingest() call
-     * so the HTTP response is not blocked by the PDF parsing time.
+     * Store the uploaded PDF and create the document record.
+     * Does NOT run ingestion — caller must invoke ingest() separately.
      */
     public function store(UploadedFile $file, array $data): HrPolicyDocument
     {
+        set_time_limit(0);
+
         $path = $file->storeAs(
             'policies',
             time() . '_' . $file->getClientOriginalName()
@@ -31,15 +41,20 @@ class PolicyIngestService
             'is_active'      => true,
             'status'         => 'processing',
             'chunk_count'    => 0,
+            // Store whether OCR was needed — visible in the admin UI
+            'ocr_used'       => false,
         ]);
     }
 
     /**
-     * Run the full ingest pipeline: parse PDF → chunk → save to DB.
-     * Called after store(). Safe to re-run on the same document (re-ingest).
+     * Run the full ingest pipeline.
+     * Now uses OcrService for text extraction, which handles both
+     * regular (text-layer) PDFs and scanned image PDFs transparently.
      */
     public function ingest(HrPolicyDocument $document): void
     {
+        set_time_limit(0);
+
         try {
             $fullPath = Storage::path($document->file_path);
 
@@ -49,30 +64,45 @@ class PolicyIngestService
                 );
             }
 
-            // Delete all existing chunks before re-ingesting
-            $document->chunks()->delete();
+            // Detect if this is a scanned PDF before extraction
+            // so we can record it in the document record
+            $isScanned = $this->ocr->isScannedPdf($fullPath);
 
-            $parser = new \Smalot\PdfParser\Parser();
-            $text   = $parser->parseFile($fullPath)->getText();
+            if ($isScanned) {
+                Log::info("[PolicyIngest] Scanned PDF detected, OCR will be used: {$document->title}");
+
+                // Verify OCR tools are available before attempting
+                if (!$this->ocr->isOcrAvailable()) {
+                    throw new \RuntimeException(
+                        'This appears to be a scanned PDF but OCR tools are not installed on this server. '
+                        . 'Please install Tesseract and Poppler (pdftoppm), or upload a text-based PDF instead.'
+                    );
+                }
+            }
+
+            // Extract text — OcrService handles both paths transparently
+            $text = $this->ocr->extractText($fullPath);
 
             if (empty(trim($text))) {
                 throw new \RuntimeException(
-                    'PDF returned no text. It may be a scanned image PDF that requires OCR.'
+                    'Could not extract any text from this PDF. '
+                    . 'If this is a scanned document, ensure Tesseract is installed. '
+                    . 'If the document is encrypted or password-protected, please remove the protection first.'
                 );
             }
+
+            // Delete old chunks before re-ingesting
+            $document->chunks()->delete();
 
             $chunks = $this->chunkText($text, 300, 50);
 
             if (empty($chunks)) {
                 throw new \RuntimeException(
-                    'PDF was parsed but produced no valid text chunks.'
+                    'PDF was parsed but produced no valid text chunks (minimum 30 words per chunk).'
                 );
             }
 
-            // FIX: Use a database transaction for chunk insertion.
-            // If a chunk insert fails halfway through, the document won't be
-            // left in a partial/corrupt state — all chunks are rolled back together.
-            DB::transaction(function () use ($document, $chunks) {
+            DB::transaction(function () use ($document, $chunks, $isScanned) {
                 foreach ($chunks as $index => $chunk) {
                     HrPolicyChunk::create([
                         'document_id'   => $document->id,
@@ -87,30 +117,32 @@ class PolicyIngestService
                     'status'       => 'active',
                     'chunk_count'  => count($chunks),
                     'ingest_error' => null,
+                    'ocr_used'     => $isScanned,
                 ]);
             });
 
-            Log::info("[PolicyIngest] Successfully ingested '{$document->title}': " . count($chunks) . " chunks.");
+            Log::info("[PolicyIngest] Successfully ingested '{$document->title}': "
+                . count($chunks) . " chunks"
+                . ($isScanned ? " (via OCR)" : " (via pdfparser)")
+            );
 
         } catch (\Throwable $e) {
-            // Mark document as failed so HRDO can see it in the UI
             $document->update([
                 'status'       => 'failed',
                 'ingest_error' => $e->getMessage(),
             ]);
-            Log::error("[PolicyIngest] Failed to ingest '{$document->title}': " . $e->getMessage());
-
-            // Re-throw so the controller can display the error to the user
+            Log::error("[PolicyIngest] Failed: '{$document->title}': " . $e->getMessage());
             throw $e;
         }
     }
 
     /**
-     * Replace the PDF on an existing document and re-ingest from scratch.
+     * Replace the PDF file on an existing document and re-ingest.
      */
     public function replace(HrPolicyDocument $document, UploadedFile $newFile, array $data): void
     {
-        // Delete the old physical file before replacing
+        set_time_limit(0);
+
         if ($document->file_path && Storage::exists($document->file_path)) {
             Storage::delete($document->file_path);
         }
@@ -130,17 +162,14 @@ class PolicyIngestService
             'ingest_error'   => null,
         ]);
 
-        // ingest() handles deleting old chunks and re-creating them
         $this->ingest($document);
     }
 
     /**
-     * Fully remove a document: delete chunks, physical file, and the DB record.
+     * Delete a document: its chunks, physical file, and DB record.
      */
     public function destroy(HrPolicyDocument $document): void
     {
-        // Explicit chunk deletion (cascadeOnDelete handles it too, but explicit is safer
-        // in case the constraint is ever removed from the migration)
         $document->chunks()->delete();
 
         if ($document->file_path && Storage::exists($document->file_path)) {
@@ -152,16 +181,8 @@ class PolicyIngestService
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    /**
-     * Split raw PDF text into overlapping chunks.
-     *
-     * @param int $wordsPerChunk Target chunk size in words
-     * @param int $overlap       How many words to repeat between consecutive chunks
-     *                           so that sentences split across boundaries are not lost
-     */
     private function chunkText(string $text, int $wordsPerChunk = 300, int $overlap = 50): array
     {
-        // Collapse all whitespace (newlines, tabs, multiple spaces) to single spaces
         $text  = preg_replace('/\s+/', ' ', trim($text));
         $words = explode(' ', $text);
         $total = count($words);
@@ -170,10 +191,6 @@ class PolicyIngestService
 
         for ($i = 0; $i < $total; $i += $step) {
             $chunk = implode(' ', array_slice($words, $i, $wordsPerChunk));
-
-            // FIX: Increased minimum word count from 20 to 30.
-            // Chunks under 30 words are usually page headers, footers, or
-            // page numbers that add noise without retrieval value.
             if (str_word_count($chunk) >= 30) {
                 $chunks[] = $chunk;
             }
@@ -182,27 +199,17 @@ class PolicyIngestService
         return $chunks;
     }
 
-    /**
-     * Try to detect the section heading at the start of a chunk.
-     * Used to populate section_title for richer source citations.
-     */
     private function detectSection(string $chunk): ?string
     {
-        // "Section 3. Vacation Leave" or "Section 3.1 Filing Requirements"
         if (preg_match('/^(Section\s+[\d.]+[^.\n]{3,60})/i', $chunk, $m)) {
             return trim($m[1]);
         }
-        // All-caps headings common in CSC issuances and Philippine government documents
         if (preg_match('/^([A-Z][A-Z\s]{5,50})\n/', $chunk, $m)) {
             return trim($m[1]);
         }
         return null;
     }
 
-    /**
-     * Build a deduplicated keyword string for the search_vector column.
-     * This is used as a supplementary search field alongside content.
-     */
     private function buildVector(string $text): string
     {
         $clean = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', ' ', $text));

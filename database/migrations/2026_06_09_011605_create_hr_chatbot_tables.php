@@ -25,6 +25,7 @@ class CreateHrChatbotTables extends Migration
             $table->string('status')->default('active');
             $table->unsignedInteger('chunk_count')->default(0);
             $table->text('ingest_error')->nullable();
+            $table->boolean('ocr_used')->default(false);
             $table->timestamps();
         });
 

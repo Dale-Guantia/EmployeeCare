@@ -24,6 +24,7 @@ class HrPolicyDocument extends Model
         'status',
         'chunk_count',
         'ingest_error',
+        'ocr_used',
     ];
 
     protected $casts = [
@@ -31,6 +32,7 @@ class HrPolicyDocument extends Model
         'effective_date' => 'date',
         // FIX: Cast chunk_count to integer so it's always a number, not a string.
         'chunk_count'    => 'integer',
+        'ocr_used' => 'boolean',
     ];
 
     public function chunks()
@@ -52,6 +54,17 @@ class HrPolicyDocument extends Model
         $class  = $map[$this->status] ?? 'secondary';
         $label  = ucfirst(e($this->status));
         return '<span class="badge badge-' . $class . '">' . $label . '</span>';
+    }
+
+    // NEW: OCR badge for the list view
+    // Shows whether this document required OCR during ingestion
+    public function getOcrBadgeAttribute(): string
+    {
+        if ($this->ocr_used) {
+            return '<span class="badge badge-info" title="This was a scanned PDF — OCR was used to extract text. Accuracy may vary.">'
+                 . '<i class="la la-eye"></i> OCR</span>';
+        }
+        return '<span class="badge badge-light text-muted">Text PDF</span>';
     }
 
     // FIX: Added scope for active documents — used in PolicyRetriever and

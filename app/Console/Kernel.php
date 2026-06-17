@@ -32,5 +32,6 @@ class Kernel extends ConsoleKernel
 
     protected $commands = [
         \App\Console\Commands\IngestHrPolicyPdf::class,
+        \App\Console\Commands\TestOcrSetup::class,
     ];
 }
