@@ -12,11 +12,10 @@ class NotificationController extends Controller
         $user = backpack_user();
 
         $notifications = $user->notifications()
-            ->latest() // Keep this so new notifications appear at the top!
+            // Removed latest() because notifications() already orders by created_at desc
             ->take(10)
             ->get()
             ->map(function ($notification) {
-                // 1. Safely handle the data array (in case it's somehow null or malformed)
                 $data = is_array($notification->data) ? $notification->data : [];
 
                 return [
@@ -25,9 +24,6 @@ class NotificationController extends Controller
                     'message' => $data['message'] ?? '',
                     'url' => $data['url'] ?? '#',
                     'read_at' => $notification->read_at,
-
-                    // 2. THE FIX: Safely check if created_at exists AND is a Carbon object
-                    // before calling diffForHumans(). If it's missing, default to 'Just now'.
                     'created_at_human' => $notification->created_at
                         ? $notification->created_at->diffForHumans()
                         : 'Just now',

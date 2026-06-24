@@ -12,17 +12,17 @@ class PriorityTableSeeder extends Seeder
      */
     public function run(): void
     {
-        Priority::create([
-            'priority_name' => 'High',
-            'priority_color' => '#fe7c7c',
-        ]);
-        Priority::create([
-            'priority_name' => 'Medium',
-            'priority_color' => '#fed971',
-        ]);
-        Priority::create([
-            'priority_name' => 'Low',
-            'priority_color' => '#5cb0ff',
-        ]);
+        $priorities = [
+            ['priority_name' => 'High', 'priority_color' => '#fe7c7c'],
+            ['priority_name' => 'Medium', 'priority_color' => '#fed971'],
+            ['priority_name' => 'Low', 'priority_color' => '#5cb0ff'],
+        ];
+
+        foreach ($priorities as $priority) {
+            Priority::updateOrCreate(
+                ['priority_name' => $priority['priority_name']],
+                $priority
+            );
+        }
     }
 }

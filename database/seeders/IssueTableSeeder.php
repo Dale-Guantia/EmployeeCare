@@ -3,12 +3,18 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use App\Models\Department;
+use App\Models\Division;
 use App\Models\Issue;
 
 class IssueTableSeeder extends Seeder
 {
     public function run(): void
     {
+        $department = Department::firstOrCreate([
+            'department_name' => 'City Human Resource Development Office',
+        ]);
+
         $admin_issues = [
             ['name' => 'Administrative Case/Complaint', 'icon' => 'fas fa-balance-scale'],
             ['name' => 'Overtime Request-Related Concern', 'icon' => 'fas fa-user-clock'],
@@ -127,25 +133,43 @@ class IssueTableSeeder extends Seeder
             ['name' => 'GEMS account password reset', 'icon' => 'fas fa-undo'],
         ];
 
-        $division_mapping = [
-            2 => $it_issues,
-            3 => $admin_issues,
-            4 => $payroll_issues,
-            5 => $records_issues,
-            6 => $claims_issues,
-            7 => $rsp_issues,
-            8 => $lnd_issues,
-            9 => $pm_issues,
+        $divisionMapping = [
+            'Information Technology' => $it_issues,
+            'Administrative' => $admin_issues,
+            'Payroll' => $payroll_issues,
+            'Records' => $records_issues,
+            'Claims and Benefits' => $claims_issues,
+            'RSP' => $rsp_issues,
+            'Learning and Development' => $lnd_issues,
+            'Performance Management' => $pm_issues,
         ];
 
-        foreach ($division_mapping as $division_id => $issues) {
+        foreach ($divisionMapping as $divisionName => $issues) {
+            $division = Division::firstOrCreate(
+                [
+                    'division_name' => $divisionName,
+                    'department_id' => $department->id,
+                ],
+                [
+                    'division_name' => $divisionName,
+                    'department_id' => $department->id,
+                ]
+            );
+
             foreach ($issues as $issue) {
-                Issue::create([
-                    'department_id'     => 1,
-                    'division_id'       => $division_id,
-                    'issue_description' => $issue['name'],
-                    'icon'              => $issue['icon'],
-                ]);
+                Issue::updateOrCreate(
+                    [
+                        'department_id' => $department->id,
+                        'division_id' => $division->id,
+                        'issue_description' => $issue['name'],
+                    ],
+                    [
+                        'department_id' => $department->id,
+                        'division_id' => $division->id,
+                        'issue_description' => $issue['name'],
+                        'icon' => $issue['icon'],
+                    ]
+                );
             }
         }
     }

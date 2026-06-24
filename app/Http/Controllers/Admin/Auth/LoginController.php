@@ -8,6 +8,19 @@ use Illuminate\Http\Request;
 class LoginController extends BackpackLoginController
 {
     /**
+     * Show login form.
+     * If already logged in, redirect to EmployeeCare dashboard.
+     */
+    public function showLoginForm()
+    {
+        if (backpack_auth()->check()) {
+            return redirect('/employeecare/employee-care/dashboard');
+        }
+
+        return redirect('https://hrdo.gemspasig.ph/login');
+    }
+
+    /**
      * Override credentials method to allow
      * login via email OR username.
      */

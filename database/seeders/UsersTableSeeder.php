@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use App\Models\Department;
+use App\Models\Division;
 use App\Models\User;
 use Illuminate\Support\Str;
 
@@ -13,6 +15,10 @@ class UsersTableSeeder extends Seeder
      */
     public function run(): void
     {
+        $department = Department::firstOrCreate([
+            'department_name' => 'City Human Resource Development Office',
+        ]);
+
         $admin = [
             // ['100561', 'Correa', 'Edwin', 'Bautista', '', 'EDWIN'],
             ['4422136', 'Mosqueda', 'Louise', 'Peñaranda', '', 'LOUISE'],
@@ -113,482 +119,196 @@ class UsersTableSeeder extends Seeder
             ['4416267', 'Valles', 'Darrel', 'Espejo', '', 'DARREL']
         ];
 
-        $user_admin = User::create([
+        $divisionIds = $this->divisionIds($department->id);
+
+        $this->seedUser([
             'name' => 'Admin',
             'username' => 'admin',
             'email' => 'admin@example.com',
             'password' => bcrypt('12341234'),
-            'role'=> 1,
-            'department_id' => 1,
-            'division_id' => 2,
+            'role' => 1,
+            'department_id' => $department->id,
+            'division_id' => $divisionIds['Information Technology'] ?? null,
             'is_active' => 1,
-            'email_verified_at' => now()
+            'email_verified_at' => now(),
+        ], 'admin');
 
-        ]);
-        $user_admin->assignRole('admin');
-
-        $dept_head = User::create([
-            // 'emp_no' => '',
-            'name' => 'Deaprtment Head',
+        $this->seedUser([
+            'name' => 'Department Head',
             'username' => 'departmenthead',
             'email' => 'departmenthead@example.com',
             'password' => bcrypt('12341234'),
-            'department_id' => 1,
-            'division_id' => 1,
+            'department_id' => $department->id,
+            'division_id' => $divisionIds['Department Head'] ?? null,
             'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $admin_head = User::create([
-            'emp_no' => '100561',
-            'name' => 'Edwin B. Correa',
-            'username' => 'correaedwin',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'EDWIN',
-            'department_id' => 1,
-            'division_id' => 3,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $payroll_head = User::create([
-            'emp_no' => '4417351',
-            'name' => 'Robert Henry H. Flores',
-            'username' => 'floresroberthenry',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'HENRY',
-            'department_id' => 1,
-            'division_id' => 4,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $records_head = User::create([
-            'emp_no' => '100970',
-            'name' => 'Haydie V. Santos',
-            'username' => 'santoshaydie',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'HAYDIE',
-            'department_id' => 1,
-            'division_id' => 5,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $claims_head = User::create([
-            'emp_no' => '1100255',
-            'name' => 'Maria Luisa N. Buenafe',
-            'username' => 'buenafemarialuisa',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'MALU',
-            'department_id' => 1,
-            'division_id' => 6,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $rsp_head = User::create([
-            'emp_no' => '100325',
-            'name' => 'Minerva V. Rosas',
-            'username' => 'rosasminerva',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'MINNIE',
-            'department_id' => 1,
-            'division_id' => 7,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $lnd_head = User::create([
-            'emp_no' => '408433',
-            'name' => 'Analiza V. Tatco',
-            'username' => 'tatcoanaliza',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'ANA',
-            'department_id' => 1,
-            'division_id' => 8,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $pm_head = User::create([
-            'emp_no' => '2300769',
-            'name' => 'Iluminada T. Vierne',
-            'username' => 'vierneiluminada',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'GINA',
-            'department_id' => 1,
-            'division_id' => 9,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $it_head = User::create([
-            'emp_no' => '4416266',
-            'name' => 'Myls S. Duza',
-            'username' => 'duzamyls',
-            'password' => bcrypt('12341234'),
-            'nickname' => 'MYLS',
-            'department_id' => 1,
-            'division_id' => 2,
-            'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
-        $employee = User::create([
+            'email_verified_at' => now(),
+        ], 'dept_head');
+
+        $divisionHeads = [
+            ['100561', 'Edwin B. Correa', 'correaedwin', 'EDWIN', 'Administrative'],
+            ['4417351', 'Robert Henry H. Flores', 'floresroberthenry', 'HENRY', 'Payroll'],
+            ['100970', 'Haydie V. Santos', 'santoshaydie', 'HAYDIE', 'Records'],
+            ['1100255', 'Maria Luisa N. Buenafe', 'buenafemarialuisa', 'MALU', 'Claims and Benefits'],
+            ['100325', 'Minerva V. Rosas', 'rosasminerva', 'MINNIE', 'RSP'],
+            ['408433', 'Analiza V. Tatco', 'tatcoanaliza', 'ANA', 'Learning and Development'],
+            ['2300769', 'Iluminada T. Vierne', 'vierneiluminada', 'GINA', 'Performance Management'],
+            ['4416266', 'Myls S. Duza', 'duzamyls', 'MYLS', 'Information Technology'],
+        ];
+
+        foreach ($divisionHeads as $head) {
+            [$empNo, $name, $username, $nickname, $divisionName] = $head;
+
+            $this->seedUser([
+                'emp_no' => $empNo,
+                'name' => $name,
+                'username' => $username,
+                'email' => $this->emailForUsername($username),
+                'password' => bcrypt('12341234'),
+                'nickname' => $nickname,
+                'department_id' => $department->id,
+                'division_id' => $divisionIds[$divisionName] ?? null,
+                'is_active' => 1,
+                'email_verified_at' => now(),
+            ], 'div_head');
+        }
+
+        $this->seedUser([
             'name' => 'Employee',
             'username' => 'employee',
             'email' => 'employee@example.com',
             'password' => bcrypt('12341234'),
             'is_active' => 1,
-            'email_verified_at' => now()
-        ]);
+            'email_verified_at' => now(),
+        ], 'employee');
 
-        $user_admin->assignRole('admin');
-        $dept_head->assignRole('dept_head');
-        $admin_head->assignRole('div_head');
-        $payroll_head->assignRole('div_head');
-        $records_head->assignRole('div_head');
-        $claims_head->assignRole('div_head');
-        $rsp_head->assignRole('div_head');
-        $lnd_head->assignRole('div_head');
-        $pm_head->assignRole('div_head');
-        $it_head->assignRole('div_head');
-        $employee->assignRole('employee');
+        $this->seedGroup($admin, $department->id, $divisionIds['Administrative'] ?? null);
+        $this->seedGroup($rsp, $department->id, $divisionIds['RSP'] ?? null);
+        $this->seedGroup($claims, $department->id, $divisionIds['Claims and Benefits'] ?? null);
+        $this->seedGroup($lnd, $department->id, $divisionIds['Learning and Development'] ?? null);
+        $this->seedGroup($payroll, $department->id, $divisionIds['Payroll'] ?? null);
+        $this->seedGroup($records, $department->id, $divisionIds['Records'] ?? null);
+        $this->seedGroup($pm, $department->id, $divisionIds['Performance Management'] ?? null);
+        $this->seedGroup($it, $department->id, $divisionIds['Information Technology'] ?? null);
+    }
 
-        foreach ($admin as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
+    private function seedGroup(array $users, int $departmentId, ?int $divisionId): void
+    {
+        foreach ($users as $userData) {
+            [$empNo, $lastName, $firstNameFull, $middleName, $suffix, $nickname] = $userData;
 
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
-            }
+            $fullName = $this->fullName($firstNameFull, $middleName, $lastName, $suffix);
+            $username = $this->username($lastName, $firstNameFull);
 
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
-
-            $fullName = implode(' ', array_filter($nameParts));
-
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
-
-            $admin_loop = User::create([
+            $user = $this->seedUser([
                 'emp_no' => $empNo,
                 'name' => $fullName,
                 'username' => $username,
+                'email' => $this->emailForUsername($username),
                 'password' => bcrypt('12341234'),
                 'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 3,
+                'department_id' => $departmentId,
+                'division_id' => $divisionId,
                 'is_active' => 1,
                 'email_verified_at' => now(),
-            ]);
+            ], 'hr_staff');
 
-            $admin_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
-        }
-
-        foreach ($rsp as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
-
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
+            if (isset($this->command)) {
+                $this->command->info("Seeded User ({$empNo}): {$fullName} | Username: {$user->username}");
             }
+        }
+    }
 
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
-
-            $fullName = implode(' ', array_filter($nameParts));
-
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
-
-            $rsp_loop = User::create([
-                'emp_no' => $empNo,
-                'name' => $fullName,
-                'username' => $username,
-                'password' => bcrypt('12341234'),
-                'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 7,
-                'is_active' => 1,
-                'email_verified_at' => now(),
-            ]);
-
-            $rsp_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
+    private function seedUser(array $attributes, string $roleName): User
+    {
+        if (empty($attributes['username'])) {
+            $attributes['username'] = $this->usernameFromName($attributes['name']);
         }
 
-        foreach ($claims as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
-
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
-            }
-
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
-
-            $fullName = implode(' ', array_filter($nameParts));
-
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
-
-            $claims_loop = User::create([
-                'emp_no' => $empNo,
-                'name' => $fullName,
-                'username' => $username,
-                'password' => bcrypt('12341234'),
-                'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 6,
-                'is_active' => 1,
-                'email_verified_at' => now(),
-            ]);
-
-            $claims_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
+        if (empty($attributes['email'])) {
+            $attributes['email'] = $this->emailForUsername($attributes['username']);
         }
 
-        foreach ($lnd as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
+        $lookup = ['username' => $attributes['username']];
+        $user = User::updateOrCreate($lookup, $attributes);
 
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
-            }
-
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
-
-            $fullName = implode(' ', array_filter($nameParts));
-
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
-
-            $lnd_loop = User::create([
-                'emp_no' => $empNo,
-                'name' => $fullName,
-                'username' => $username,
-                'password' => bcrypt('12341234'),
-                'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 8,
-                'is_active' => 1,
-                'email_verified_at' => now(),
-            ]);
-
-            $lnd_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
+        if (! empty($roleName)) {
+            $user->assignRole($roleName);
         }
 
-        foreach ($payroll as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
+        return $user;
+    }
 
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
-            }
+    private function divisionIds(int $departmentId): array
+    {
+        $names = [
+            'Department Head',
+            'Information Technology',
+            'Administrative',
+            'Payroll',
+            'Records',
+            'Claims and Benefits',
+            'RSP',
+            'Learning and Development',
+            'Performance Management',
+        ];
 
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
+        $ids = [];
 
-            $fullName = implode(' ', array_filter($nameParts));
+        foreach ($names as $name) {
+            $division = Division::firstOrCreate(
+                [
+                    'division_name' => $name,
+                    'department_id' => $departmentId,
+                ],
+                [
+                    'division_name' => $name,
+                    'department_id' => $departmentId,
+                ]
+            );
 
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
-
-            $payroll_loop = User::create([
-                'emp_no' => $empNo,
-                'name' => $fullName,
-                'username' => $username,
-                'password' => bcrypt('12341234'),
-                'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 4,
-                'is_active' => 1,
-                'email_verified_at' => now(),
-            ]);
-
-            $payroll_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
+            $ids[$name] = $division->id;
         }
 
-        foreach ($records as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
+        return $ids;
+    }
 
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
-            }
+    private function fullName(string $firstNameFull, ?string $middleName, string $lastName, ?string $suffix): string
+    {
+        $middleInitial = '';
 
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
-
-            $fullName = implode(' ', array_filter($nameParts));
-
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
-
-            $records_loop = User::create([
-                'emp_no' => $empNo,
-                'name' => $fullName,
-                'username' => $username,
-                'password' => bcrypt('12341234'),
-                'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 5,
-                'is_active' => 1,
-                'email_verified_at' => now(),
-            ]);
-
-            $records_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
+        if (! empty($middleName)) {
+            $middleInitial = Str::upper(Str::substr($middleName, 0, 1)) . '.';
         }
 
-        foreach ($pm as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
+        return implode(' ', array_filter([
+            $firstNameFull,
+            $middleInitial ?: null,
+            $lastName,
+            $suffix ?: null,
+        ]));
+    }
 
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
-            }
+    private function username(string $lastName, string $firstNameFull): string
+    {
+        $username = Str::ascii($lastName . $firstNameFull);
+        $username = preg_replace('/[^A-Za-z0-9]/', '', $username);
 
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
+        return Str::lower($username);
+    }
 
-            $fullName = implode(' ', array_filter($nameParts));
+    private function usernameFromName(string $name): string
+    {
+        $username = Str::ascii($name);
+        $username = preg_replace('/[^A-Za-z0-9]/', '', $username);
 
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
+        return Str::lower($username);
+    }
 
-            $pm_loop = User::create([
-                'emp_no' => $empNo,
-                'name' => $fullName,
-                'username' => $username,
-                'password' => bcrypt('12341234'),
-                'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 9,
-                'is_active' => 1,
-                'email_verified_at' => now(),
-            ]);
+    private function emailForUsername(string $username): string
+    {
+        $username = Str::lower(Str::ascii($username));
+        $username = preg_replace('/[^a-z0-9._-]/', '', $username);
 
-            $pm_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
-        }
-
-        foreach ($it as $userData) {
-            $empNo = $userData[0];
-            $lastName = $userData[1];
-            $firstNameFull = $userData[2];
-            $middleName = $userData[3];
-            $suffix = $userData[4];
-            $nickname = $userData[5];
-
-            $middleInitial = '';
-            if (!empty($middleName)) {
-                $middleInitial = Str::upper(substr($middleName, 0, 1)) . '.';
-            }
-
-            $nameParts = [
-                $firstNameFull,
-                !empty($middleInitial) ? $middleInitial : null, // Include middle initial if available
-                $lastName,
-                !empty($suffix) ? $suffix : null, // Include suffix if available
-            ];
-
-            $fullName = implode(' ', array_filter($nameParts));
-
-            $lastNameSlug = str_replace(' ', '', $lastName);
-            $firstNameSlug = str_replace(' ', '', $firstNameFull); // Use the full first name here
-            $username = Str::lower($lastNameSlug . $firstNameSlug);
-
-            $it_loop = User::create([
-                'emp_no' => $empNo,
-                'name' => $fullName,
-                'username' => $username,
-                'password' => bcrypt('12341234'),
-                'nickname' => $nickname,
-                'department_id' => 1,
-                'division_id' => 2,
-                'is_active' => 1,
-                'email_verified_at' => now(),
-            ]);
-
-            $it_loop->assignRole('hr_staff');
-
-            $this->command->info("Created User ({$empNo}): {$fullName} | Username: {$username}");
-        }
+        return $username . '@employee-care.local';
     }
 }

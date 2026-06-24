@@ -9,16 +9,11 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        /*
-        |--------------------------------------------------------------------------
-        | 1. Create CRUD Permissions
-        |--------------------------------------------------------------------------
-        */
+        $guardName = config('auth.defaults.guard', 'web');
 
         $entities = [
             'ticket',
@@ -31,7 +26,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'role',
             'permission',
             'reports',
-            'survey-reports'
+            'survey-reports',
         ];
 
         $actions = ['view', 'create', 'update', 'delete'];
@@ -39,76 +34,52 @@ class RolesAndPermissionsSeeder extends Seeder
         foreach ($entities as $entity) {
             foreach ($actions as $action) {
                 Permission::firstOrCreate([
-                    'name' => "{$entity}.{$action}"
+                    'name' => "{$entity}.{$action}",
+                    'guard_name' => $guardName,
                 ]);
             }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | 2. Create Roles
-        |--------------------------------------------------------------------------
-        */
+        $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => $guardName]);
+        $deptHead = Role::firstOrCreate(['name' => 'dept_head', 'guard_name' => $guardName]);
+        $divHead = Role::firstOrCreate(['name' => 'div_head', 'guard_name' => $guardName]);
+        $hrStaff = Role::firstOrCreate(['name' => 'hr_staff', 'guard_name' => $guardName]);
+        $employee = Role::firstOrCreate(['name' => 'employee', 'guard_name' => $guardName]);
 
-        $admin = Role::firstOrCreate(['name' => 'admin']);
-        $deptHead = Role::firstOrCreate(['name' => 'dept_head']);
-        $divHead = Role::firstOrCreate(['name' => 'div_head']);
-        $hrStaff = Role::firstOrCreate(['name' => 'hr_staff']);
-        $employee = Role::firstOrCreate(['name' => 'employee']);
+        $admin->syncPermissions(Permission::where('guard_name', $guardName)->get());
 
-        /*
-        |--------------------------------------------------------------------------
-        | 3. Assign Permissions
-        |--------------------------------------------------------------------------
-        */
-
-        // ADMIN → Everything
-        $admin->givePermissionTo(Permission::all());
-
-
-        // DEPARTMENT HEAD
-        $deptHead->givePermissionTo([
-            // Tickets
+        $deptHead->syncPermissions([
             'ticket.view',
             'ticket.create',
             'ticket.update',
-
-            // Issues
             'issue.view',
             'issue.create',
             'issue.update',
-
-            // Departments & Divisions
             'department.view',
             'division.view',
         ]);
 
-
-        // DIVISION HEAD (same as dept_head but customizable later)
-        $divHead->givePermissionTo([
+        $divHead->syncPermissions([
             'ticket.view',
             'ticket.create',
             'ticket.update',
-
             'issue.view',
             'issue.create',
             'issue.update',
         ]);
 
-
-        // HR STAFF
-        $hrStaff->givePermissionTo([
+        $hrStaff->syncPermissions([
             'ticket.view',
             'ticket.create',
             'ticket.update',
         ]);
 
-
-        // EMPLOYEE
-        $employee->givePermissionTo([
+        $employee->syncPermissions([
             'ticket.view',
             'ticket.create',
             'ticket.update',
         ]);
+
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
 }
