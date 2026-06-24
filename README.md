@@ -50,6 +50,30 @@ Run the server:
 php artisan serve
 ```
 
+## Tools needed to Enable OCR Processing of PDF Files for the HR Policy Chatbot.
+
+Install Tesseract:
+- Go to ```https://github.com/UB-Mannheim/tesseract/wiki```
+- Download tesseract-ocr-w64-setup-5.x.x.exe
+- Run the installer — on the "Additional language data" screen, expand it and check both English and Filipino or (Add your prefered language)
+- Default install path is C:\Program Files\Tesseract-OCR\ — keep it
+- Add C:\Program Files\Tesseract-OCR to your Windows PATH (System Environment Variables → Path → New)
+
+Install Poppler (for pdftoppm):
+
+- Go to ```https://github.com/oschwartz10612/poppler-windows/releases```
+- Download the latest Release-xx.xx.x-0.zip
+- Extract to C:\poppler\
+- Add C:\poppler\Library\bin to your Windows PATH
+- Restart XAMPP after PATH changes — Apache inherits PATH from Windows but only reads it at startup
+
+Verify if you install it successfully in Command Prompt:
+```bash
+tesseract --version
+tesseract --list-langs    (should show 'eng' and 'fil')
+pdftoppm -v
+```
+
 ## Login using Admin account
 
 #### Admin
