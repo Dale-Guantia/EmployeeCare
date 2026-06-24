@@ -74,6 +74,13 @@ tesseract --list-langs    (should show 'eng' and 'fil')
 pdftoppm -v
 ```
 
+Add this in your .env file:
+```
+OCR_TESSERACT_PATH="C:/Program Files/Tesseract-OCR/tesseract.exe"
+OCR_PDFTOPPM_PATH="C:/poppler/Library/bin/pdftoppm.exe"
+OCR_LANGUAGES=eng+fil
+```
+
 ## Login using Admin account
 
 #### Admin
