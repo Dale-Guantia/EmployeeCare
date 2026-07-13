@@ -12,8 +12,9 @@ class DepartmentTableSeeder extends Seeder
      */
     public function run(): void
     {
-        Department::create([
-            'department_name' => 'City Human Resource Development Office',
-        ]);
+        Department::updateOrCreate(
+            ['department_name' => 'City Human Resource Development Office'],
+            ['department_name' => 'City Human Resource Development Office']
+        );
     }
 }

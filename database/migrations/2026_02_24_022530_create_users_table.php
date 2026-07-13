@@ -21,8 +21,8 @@ class CreateUsersTable extends Migration
             $table->string('nickname')->nullable();
             $table->string('username')->nullable()->unique();
             $table->string('email')->unique()->nullable();
-            $table->foreignId('department_id')->nullable()->constrained()->cascadeOnDelete();
-            $table->foreignId('division_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('department_id')->nullable()->constrained();
+            $table->foreignId('division_id')->nullable()->constrained();
             $table->boolean('is_active')->default(true);
             $table->string('avatar_url')->nullable();
             $table->timestamp('email_verified_at')->nullable();

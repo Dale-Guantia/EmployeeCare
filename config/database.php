@@ -90,6 +90,16 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
         ],
+        'connectsession' => [
+            'driver'   => 'sqlsrv',
+            'host'     => '121.58.196.198',
+            'port'     => '1433',
+            'database' => 'hrisdb',
+            'username' => env('DB_USERNAME','forge'),
+            'password' => env('DB_PASSWORD', ''),  
+            'charset'  => 'utf8',
+            'prefix'   => '',
+        ],
 
     ],
 

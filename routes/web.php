@@ -3,6 +3,9 @@
 use App\Http\Controllers\ArtaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SurveyController;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+
 
 
 /*
@@ -27,3 +30,5 @@ Route::post('/survey', [SurveyController::class, 'submitForm'])->name('survey.su
 // Survey Form Routes
 Route::get('/arta-form', [ArtaController::class, 'showForm'])->name('arta.form');
 Route::post('/arta-form', [ArtaController::class, 'submitForm'])->name('arta.submit');
+
+

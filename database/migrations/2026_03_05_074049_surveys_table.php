@@ -17,7 +17,7 @@ return new class extends Migration
             // $table->string('sex', 10)->nullable();
             // $table->tinyInteger('age')->nullable();
             // $table->string('client_type')->nullable();
-            $table->foreignId('issue_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('issue_id')->constrained();
             $table->string('timeliness_rating');
             $table->string('handling_rating');
             $table->string('quality_rating');

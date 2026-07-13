@@ -32,14 +32,15 @@ class CreateHrChatbotTables extends Migration
         // Stores searchable chunks from each PDF
         Schema::create('hr_policy_chunks', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('document_id')->constrained('hr_policy_documents')->cascadeOnDelete();
+            $table->foreignId('document_id')->constrained('hr_policy_documents');
             $table->unsignedInteger('chunk_index');
             $table->string('section_title')->nullable();
             $table->text('content');
             $table->text('search_vector')->nullable();
             $table->timestamps();
 
-            $table->fullText(['content', 'section_title', 'search_vector']);
+            // SQL Server-safe indexes. Do not use fullText() here unless a full-text catalog is configured manually.
+            $table->index(['document_id', 'chunk_index'], 'hr_policy_chunks_document_chunk_index');
         });
 
         // Logs every chat for HRDO audit
@@ -47,7 +48,7 @@ class CreateHrChatbotTables extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id')->nullable(); // backpack_user()->id
             $table->text('question');
-            $table->longtext('answer');
+            $table->longText('answer');
             $table->json('matched_chunk_ids')->nullable();
             $table->tinyInteger('feedback')->nullable(); // 1 = helpful, -1 = not
             $table->timestamps();

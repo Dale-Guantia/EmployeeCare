@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use App\Models\Department;
 use App\Models\Division;
 
 class DivisionTableSeeder extends Seeder
@@ -12,41 +13,33 @@ class DivisionTableSeeder extends Seeder
      */
     public function run(): void
     {
-        Division::create([
-            'division_name' => 'Department Head',
-            'department_id' => 1,
+        $department = Department::firstOrCreate([
+            'department_name' => 'City Human Resource Development Office',
         ]);
-        Division::create([
-            'division_name' => 'Information Technology',
-            'department_id' => 1,
-        ]);
-        Division::create([
-            'division_name' => 'Administrative',
-            'department_id' => 1,
-        ]);
-        Division::create([
-            'division_name' => 'Payroll',
-            'department_id' => 1,
-        ]);
-        Division::create([
-            'division_name' => 'Records',
-            'department_id' => 1,
-        ]);
-        Division::create([
-            'division_name' => 'Claims and Benefits',
-            'department_id' => 1,
-        ]);
-        Division::create([
-            'division_name' => 'RSP',
-            'department_id' => 1,
-        ]);
-        Division::create([
-            'division_name' => 'Learning and Development',
-            'department_id' => 1,
-        ]);
-        Division::create([
-            'division_name' => 'Performance Management',
-            'department_id' => 1,
-        ]);
+
+        $divisions = [
+            'Department Head',
+            'Information Technology',
+            'Administrative',
+            'Payroll',
+            'Records',
+            'Claims and Benefits',
+            'RSP',
+            'Learning and Development',
+            'Performance Management',
+        ];
+
+        foreach ($divisions as $divisionName) {
+            Division::updateOrCreate(
+                [
+                    'division_name' => $divisionName,
+                    'department_id' => $department->id,
+                ],
+                [
+                    'division_name' => $divisionName,
+                    'department_id' => $department->id,
+                ]
+            );
+        }
     }
 }
