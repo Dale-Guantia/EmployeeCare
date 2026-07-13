@@ -53,3 +53,8 @@ $response = $kernel->handle(
 )->send();
 
 $kernel->terminate($request, $response);
+
+
+$basePath = 'C:/laragon/www/employeecare';
+require $basePath.'/vendor/autoload.php';
+$app = require_once $basePath.'/bootstrap/app.php';

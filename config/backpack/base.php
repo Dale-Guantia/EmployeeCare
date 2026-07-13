@@ -86,7 +86,7 @@ return [
     // ------
 
     // Menu logo. You can replace this with an <img> tag if you have a logo.
-    'project_logo' => '<img src="/assets/emp-care-logo-1.png" alt="Employee Care Logo" style="height: 30px;">',
+    'project_logo' => '<img src="' . rtrim(env('APP_URL', ''), '/') . '/assets/emp-care-logo-1.png" alt="Employee Care Logo" style="height: 30px;">',
 
     // Show / hide breadcrumbs on admin panel pages.
     'breadcrumbs' => true,

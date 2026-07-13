@@ -98,3 +98,15 @@ Route::group([
     Route::post('hr-policy-documents/{document}/toggle',[HrPolicyDocumentCrudController::class, 'toggleActive'])->name('hr.policy.toggle');
     Route::crud('hr-policy-documents', 'HrPolicyDocumentCrudController');
 });
+
+// routes/web.php (EmployeeCare)
+Route::group([
+    'middleware' => ['web'],
+], function () {
+    Route::get('/sso/login', [\App\Http\Controllers\SsoLoginController::class, 'handle']);
+
+    // If you have a custom login controller/route, replace its logic with:
+    Route::get('/login', function () {
+        return redirect('http://mock-gems.test/simulate-login'); // will point to real GEMS in production
+    });
+});

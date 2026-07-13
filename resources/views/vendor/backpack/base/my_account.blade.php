@@ -183,7 +183,7 @@
             </form>
         </div>
 
-        {{-- CHANGE PASSWORD FORM --}}
+        {{-- CHANGE PASSWORD FORM
         <div class="col-lg-10">
             <form class="form" action="{{ route('backpack.account.password') }}" method="post">
 
@@ -234,7 +234,7 @@
                 </div>
 
             </form>
-        </div>
+        </div> --}}
 
         {{-- NOTIFICATIONS SETTINGS --}}
         <div class="col-lg-10">

@@ -113,7 +113,7 @@ class UsersTableSeeder extends Seeder
             ['4416267', 'Valles', 'Darrel', 'Espejo', '', 'DARREL']
         ];
 
-        $user_admin = User::create([
+        $user_admin = User::updateOrCreate([
             'name' => 'Admin',
             'username' => 'admin',
             'email' => 'admin@example.com',

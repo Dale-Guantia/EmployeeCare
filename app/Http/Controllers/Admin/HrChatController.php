@@ -9,6 +9,7 @@ use App\Services\AnthropicService;
 // use App\Services\GPTService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class HrChatController extends Controller
 {
@@ -76,7 +77,7 @@ class HrChatController extends Controller
             ]);
 
         } catch (\Throwable $e) {
-            \Log::error('[HrChatController] ask() failed: ' . $e->getMessage(), [
+            Log::error('[HrChatController] ask() failed: ' . $e->getMessage(), [
                 'user_id'  => backpack_user()->id ?? null,
                 'question' => $request->input('question'),
             ]);
