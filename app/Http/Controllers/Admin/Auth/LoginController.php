@@ -17,7 +17,11 @@ class LoginController extends BackpackLoginController
             return redirect('/employeecare/employee-care/dashboard');
         }
 
-        return redirect('https://hrdo.gemspasig.ph/login');
+        if (! app()->environment('local')) {
+            return redirect('https://hrdo.gemspasig.ph/login');
+        }
+
+        return parent::showLoginForm();
     }
 
     /**

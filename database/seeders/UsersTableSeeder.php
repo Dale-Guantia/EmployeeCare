@@ -19,9 +19,11 @@ class UsersTableSeeder extends Seeder
             'department_name' => 'City Human Resource Development Office',
         ]);
 
+        // Was missing entirely — this is why $divisionIds was undefined
+        $divisionIds = $this->divisionIds($department->id);
+
         $admin = [
             // ['100561', 'Correa', 'Edwin', 'Bautista', '', 'EDWIN'],
-            ['4422136', 'Mosqueda', 'Louise', 'Peñaranda', '', 'LOUISE'],
             ['4420420', 'Dela Paz', 'Joana Leonisa', 'Pielago', '', 'JOANA'],
             ['101046', 'Rayos', 'Raoul Enrico', 'Victoria', '', 'ERICK'],
         ];
@@ -119,18 +121,11 @@ class UsersTableSeeder extends Seeder
             ['4416267', 'Valles', 'Darrel', 'Espejo', '', 'DARREL']
         ];
 
-<<<<<<< HEAD
-        $user_admin = User::updateOrCreate([
-=======
-        $divisionIds = $this->divisionIds($department->id);
-
-        $this->seedUser([
->>>>>>> d553df458550428c87698a66012d28a594d39cb2
+        $adminUser  = $this->seedUser([
             'name' => 'Admin',
             'username' => 'admin',
             'email' => 'admin@example.com',
             'password' => bcrypt('12341234'),
-            'role' => 1,
             'department_id' => $department->id,
             'division_id' => $divisionIds['Information Technology'] ?? null,
             'is_active' => 1,

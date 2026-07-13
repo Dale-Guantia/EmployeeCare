@@ -38,9 +38,6 @@ class User extends Authenticatable
         'notify_ticket_status_changed',
         'notify_ticket_commented',
         'avatar_url',
-        'gems_user_id',
-        'emp_code',
-        'dept_code',
     ];
 
     /**
