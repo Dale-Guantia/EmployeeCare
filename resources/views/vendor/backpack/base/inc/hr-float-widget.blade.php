@@ -5,9 +5,13 @@
 
     Included from: resources/views/vendor/backpack/base/inc/footer.blade.php
     Appears on every authenticated Backpack page as a bottom-right chat bubble.
-    Shares the same backend routes as the full HR Assistant page.
+    Shares the same backend routes and the same shared chat engine
+    (public/js/hr-chat-core.js) as the full HR Assistant page.
 --}}
-@if(backpack_auth()->check())
+@if(backpack_auth()->check() && !request()->routeIs('hr.chat.index'))
+{{-- Auto-hidden on the full HR Assistant page itself — that page already offers
+     everything this widget does (history, sources, feedback), so mounting both
+     would be a redundant second copy of the same conversation on screen. --}}
 
 {{-- ── Floating widget styles ──────────────────────────────────────── --}}
 <style>
@@ -58,6 +62,8 @@
     right: 30px;
     width: 500px;
     height: 500px;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 110px);
     background: #fff;
     border-radius: 14px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.18);
@@ -73,6 +79,17 @@
 @keyframes hrf-pop {
     from { opacity: 0; transform: translateY(16px) scale(0.97); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Narrow viewports: use nearly the full width/height instead of a fixed 500px panel */
+@media (max-width: 560px) {
+    #hrf-panel {
+        right: 10px;
+        left: 10px;
+        bottom: 80px;
+        width: auto;
+    }
+    #hrf-launcher { right: 16px; bottom: 16px; }
 }
 
 /* ── Header ────────────────────────────────────────────────────── */
@@ -129,31 +146,72 @@
 
 /* ── Message bubbles ────────────────────────────────────────────── */
 .hrf-msg { display: flex; flex-direction: column; max-width: 88%; }
-.hrf-msg.user { align-self: flex-end; align-items: flex-end; }
-.hrf-msg.bot  { align-self: flex-start; align-items: flex-start; }
+.hrf-msg.align-items-end { align-self: flex-end; align-items: flex-end; }
+.hrf-msg.align-items-start { align-self: flex-start; align-items: flex-start; }
 .hrf-msg-sender { font-size: 10px; color: #888; margin-bottom: 3px; }
-.hrf-msg-bubble {
+.hrf-bubble-user,
+.hrf-bubble-bot,
+.hrf-bubble-error {
     padding: 9px 12px;
     border-radius: 14px;
     font-size: 13px;
     line-height: 1.55;
     word-wrap: break-word;
 }
-.hrf-msg.user .hrf-msg-bubble {
+.hrf-bubble-user {
     background: #375DA7;
     color: #fff;
     border-bottom-right-radius: 4px;
 }
-.hrf-msg.bot .hrf-msg-bubble {
+.hrf-bubble-bot {
     background: #fff;
     color: #222;
     border: 1px solid #e0e4ea;
     border-bottom-left-radius: 4px;
 }
+.hrf-bubble-error {
+    background: #fff5f5;
+    border: 1px solid #f5c6cb;
+    border-bottom-left-radius: 4px;
+}
+
+/* Source citations */
+.hrf-sources { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.hrf-source-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #eef2fa;
+    border: 1px solid #c8d0e0;
+    color: #375DA7;
+    white-space: normal;
+}
+.hrf-not-grounded {
+    margin-top: 4px;
+    display: inline-block;
+    font-size: 11px;
+    color: #856404;
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    padding: 3px 8px;
+    border-radius: 10px;
+}
+
+/* Feedback */
+.hrf-feedback { margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.hrf-feedback small { font-size: 10px; color: #888; }
+.hrf-feedback button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 1px 3px;
+    border-radius: 4px;
+    line-height: 1;
+}
+.hrf-feedback button:hover { background: #e8eef8; }
 
 /* Typing dots */
-#hrf-typing { display: none; align-self: flex-start; }
-#hrf-typing.visible { display: flex; }
 .hrf-typing-bubble {
     background: #fff;
     border: 1px solid #e0e4ea;
@@ -175,6 +233,24 @@
 @keyframes hrf-bounce {
     0%,60%,100% { transform: translateY(0); }
     30%         { transform: translateY(-5px); }
+}
+
+/* Loading skeleton for the first history fetch */
+#hrf-skeleton { padding: 4px 0; display: flex; flex-direction: column; gap: 10px; }
+.hrf-skel-row { display: flex; flex-direction: column; gap: 4px; }
+.hrf-skel-row.mine { align-items: flex-end; }
+.hrf-skel-bar {
+    height: 28px;
+    border-radius: 12px;
+    width: 60%;
+    background: linear-gradient(90deg, #e8ebf0 25%, #f2f4f7 37%, #e8ebf0 63%);
+    background-size: 400% 100%;
+    animation: hrf-shimmer 1.4s ease infinite;
+}
+.hrf-skel-row.mine .hrf-skel-bar { width: 40%; }
+@keyframes hrf-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
 }
 
 /* Quick suggestions */
@@ -258,18 +334,30 @@
 }
 #hrf-fullpage a:hover { text-decoration: underline; }
 
-/* ── Markdown output ────────────────────────────────────────────── */
-.hrf-msg-bubble strong { font-weight: 600; }
-.hrf-msg-bubble em     { font-style: italic; }
-.hrf-msg-bubble h4     { font-size: 13px; font-weight: 600; margin: 6px 0 2px; }
-.hrf-msg-bubble h5     { font-size: 12px; font-weight: 600; margin: 5px 0 2px; }
-.hrf-msg-bubble h6     { font-size: 12px; font-weight: 600; margin: 4px 0 2px; }
-.hrf-msg-bubble hr     { border: none; border-top: 1px solid #e0e4ea; margin: 6px 0; }
-.hrf-msg-bubble code   { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+/* ── Markdown output (rendered via marked.js, same as the full page) ───── */
+.hrf-bubble-bot strong, .hrf-bubble-error strong { font-weight: 600; }
+.hrf-bubble-bot em, .hrf-bubble-error em         { font-style: italic; }
+.hrf-bubble-bot h1, .hrf-bubble-bot h2, .hrf-bubble-bot h3 { font-size: 13px; font-weight: 700; color: #0056b3; margin: 6px 0 3px; }
+.hrf-bubble-bot h4, .hrf-bubble-bot h5, .hrf-bubble-bot h6 { font-size: 12px; font-weight: 600; margin: 5px 0 2px; }
+.hrf-bubble-bot p  { margin: 0 0 8px; }
+.hrf-bubble-bot p:last-child { margin-bottom: 0; }
+.hrf-bubble-bot ul, .hrf-bubble-bot ol { margin: 0 0 8px; padding-left: 18px; }
+.hrf-bubble-bot li { margin-bottom: 2px; }
+.hrf-bubble-bot hr { border: none; border-top: 1px solid #e0e4ea; margin: 6px 0; }
+.hrf-bubble-bot code {
+    background: #f0f0f0;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #d63384;
+}
+.hrf-bubble-bot table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; }
+.hrf-bubble-bot th, .hrf-bubble-bot td { padding: 3px 5px; border: 1px solid #e0e4ea; vertical-align: top; }
+.hrf-bubble-bot thead th { background: #f4f6f9; }
 </style>
 
 {{-- ── Launcher bubble ─────────────────────────────────────────────── --}}
-<button id="hrf-launcher" onclick="hrFloat.toggle()" aria-label="Open HR Policy Assistant">
+<button id="hrf-launcher" onclick="hrFloat.toggle()" aria-label="Open HR Policy Assistant" aria-expanded="false" aria-controls="hrf-panel">
     <i class="la la-robot"></i>
     <span id="hrf-badge" aria-hidden="true">1</span>
 </button>
@@ -285,30 +373,21 @@
             <p class="hrf-sub">Pasig City Government · AI-Powered</p>
         </div>
         <div id="hrf-header-actions">
-            <button onclick="hrFloat.newChat()" title="New conversation"><i class="la la-plus"></i></button>
+            <button onclick="hrFloat.clearView()" title="Clears the chat view only — your question history is still saved" aria-label="Clear view"><i class="la la-eraser"></i></button>
             <button onclick="hrFloat.close()" title="Close" aria-label="Close chat"><i class="la la-times"></i></button>
         </div>
     </div>
 
     {{-- Message thread --}}
-    <div id="hrf-thread">
-        {{-- Welcome message (rendered by JS on first open) --}}
-    </div>
-
-    {{-- Typing indicator --}}
-    <div id="hrf-typing" class="hrf-msg bot" aria-live="polite" aria-label="Assistant is typing">
-        <div class="hrf-typing-bubble">
-            <span class="hrf-dot"></span>
-            <span class="hrf-dot"></span>
-            <span class="hrf-dot"></span>
-        </div>
+    <div id="hrf-thread" aria-live="polite">
+        {{-- Populated by JS on first open --}}
     </div>
 
     {{-- Quick suggestion chips --}}
     <div id="hrf-suggestions">
-        <button class="hrf-chip" onclick="hrFloat.ask('What are my leave entitlements?')">🏖️ Leave</button>
-        <button class="hrf-chip" onclick="hrFloat.ask('What is the Code of Conduct for government employees?')">📋 Code of Conduct</button>
-        <button class="hrf-chip" onclick="hrFloat.ask('What are my GSIS and PhilHealth benefits?')">💼 Benefits</button>
+        <button type="button" class="hrf-chip" onclick="hrFloat.ask('What are my leave entitlements?')">🏖️ Leave</button>
+        <button type="button" class="hrf-chip" onclick="hrFloat.ask('What is the Code of Conduct for government employees?')">📋 Code of Conduct</button>
+        <button type="button" class="hrf-chip" onclick="hrFloat.ask('What are my GSIS and PhilHealth benefits?')">💼 Benefits</button>
     </div>
 
     {{-- Input --}}
@@ -319,7 +398,7 @@
             placeholder="Ask about HR policies…"
             aria-label="Your question"
             onkeydown="hrFloat.handleKey(event)"
-            oninput="hrFloat.resize(this)"
+            oninput="hrFloat.handleInput(this)"
         ></textarea>
         <button id="hrf-send-btn" onclick="hrFloat.send()" aria-label="Send" disabled>
             <i class="la la-paper-plane" style="font-size:15px;"></i>
@@ -336,16 +415,120 @@
 </div>
 
 {{-- ── Widget JavaScript ────────────────────────────────────────────── --}}
+<script src="{{ asset('js/hr-chat-core.js') }}"></script>
 <script>
 (function() {
     'use strict';
 
-    var ENDPOINT    = @json(route('hr.chat.ask'));
-    var CSRF        = @json(csrf_token());
-    var USER_NAME   = @json(backpack_user()->name);
-    var isOpen      = false;
-    var isLoading   = false;
-    var hasWelcome  = false;
+    var DRAFT_KEY = 'hrf-draft';
+    var OPEN_KEY  = 'hrf-open';
+
+    var chat = HrChatCore.create({
+        globalName: 'hrFloat',
+        ids: {
+            thread: 'hrf-thread',
+            input: 'hrf-input',
+            sendBtn: 'hrf-send-btn',
+            // no emptyState / recentList / clearHistoryBtn — the widget has no
+            // history sidebar by design, only a lightweight thread + chips.
+        },
+        endpoints: {
+            ask: @json(route('hr.chat.ask')),
+            feedback: @json(route('hr.chat.feedback')),
+            history: @json(route('hr.chat.history')),
+            clearHistory: @json(route('hr.chat.clear_history')),
+        },
+        csrf: @json(csrf_token()),
+        userName: @json(backpack_user()->name),
+        classes: {
+            wrapUser: 'hrf-msg align-items-end',
+            wrapBot: 'hrf-msg align-items-start',
+            senderTag: 'span',
+            senderClass: 'hrf-msg-sender',
+            bubbleUser: 'hrf-bubble-user',
+            bubbleBot: 'hrf-bubble-bot',
+            bubbleBotError: 'hrf-bubble-error',
+            sourcesWrap: 'hrf-sources',
+            sourcePill: 'hrf-source-pill',
+            notGroundedBanner: 'hrf-not-grounded',
+            typingBubble: 'hrf-typing-bubble',
+            feedbackWrap: 'hrf-feedback',
+            feedbackLabel: '',
+            feedbackBtnUp: '',
+            feedbackBtnDown: '',
+        },
+        typingHtml: '<span class="hrf-dot"></span><span class="hrf-dot"></span><span class="hrf-dot"></span>'
+            + '<span style="position:absolute;width:1px;height:1px;overflow:hidden;">%SEARCHING%</span>',
+        strings: {
+            assistantName: 'HRDO Assistant',
+            searching: 'Searching policies…',
+            helpfulPrompt: 'Helpful?',
+            thumbsUpAria: 'Mark answer as helpful',
+            thumbsDownAria: 'Mark answer as not helpful',
+            thanksHelpful: '\u{1F44D} Thanks!',
+            notedUnhelpful: '\u{1F44E} Noted!',
+            // Chrome (buttons/placeholder/labels) stays English by design.
+            // Substantive messages are bilingual so Tagalog-speaking employees
+            // aren't left guessing, especially since Tagalog questions are the
+            // most likely to hit the ungrounded/no-policy-found path.
+            notGrounded: 'Not from an official policy document — verify with HRDO. / Hindi galing sa opisyal na dokumento — mangyaring i-verify sa HRDO.',
+            connectionError: 'Connection error. Please try again or contact HRDO directly.\n\n*(Nagkaproblema sa koneksyon. Subukan muli o makipag-ugnayan nang direkta sa HRDO.)*',
+        },
+        computeSendDisabled: function (isLoading, input) {
+            return isLoading || !input.value.trim();
+        },
+        onInputCleared: function (input) {
+            if (input) { input.style.height = 'auto'; }
+            sessionStorage.removeItem(DRAFT_KEY);
+        },
+        onClearView: function () {
+            hasWelcome = false;
+            showWelcome();
+        },
+    });
+
+    var WELCOME_TEXT = "Hi! I'm your HRDO Policy Assistant. Ask me anything about "
+        + "leave, benefits, conduct, performance, or other HR policies.\n\n"
+        + "*(Kumusta! Ako ang inyong HRDO Policy Assistant. Magtanong tungkol sa "
+        + "leave, benepisyo, asal, performance, o iba pang patakaran ng HR.)*";
+
+    var isOpen     = false;
+    var hasWelcome = false;
+
+    function showWelcome() {
+        if (hasWelcome) return;
+        chat._appendAi(WELCOME_TEXT, [], null, false);
+        hasWelcome = true;
+    }
+
+    function showSkeleton() {
+        var thread = document.getElementById('hrf-thread');
+        var el = document.createElement('div');
+        el.id = 'hrf-skeleton';
+        el.innerHTML =
+            '<div class="hrf-skel-row"><div class="hrf-skel-bar"></div></div>' +
+            '<div class="hrf-skel-row mine"><div class="hrf-skel-bar"></div></div>' +
+            '<div class="hrf-skel-row"><div class="hrf-skel-bar"></div></div>';
+        thread.appendChild(el);
+    }
+
+    function hideSkeleton() {
+        var el = document.getElementById('hrf-skeleton');
+        if (el) el.remove();
+    }
+
+    function hideSuggestions() {
+        var s = document.getElementById('hrf-suggestions');
+        if (s) s.style.display = 'none';
+    }
+
+    function restoreDraft() {
+        var draft = sessionStorage.getItem(DRAFT_KEY);
+        if (!draft) return;
+        var input = document.getElementById('hrf-input');
+        input.value = draft;
+        window.hrFloat.autoResize(input);
+    }
 
     window.hrFloat = {
 
@@ -358,8 +541,27 @@
             isOpen = true;
             document.getElementById('hrf-panel').classList.add('open');
             document.getElementById('hrf-launcher').classList.add('open');
+            document.getElementById('hrf-launcher').setAttribute('aria-expanded', 'true');
             document.getElementById('hrf-badge').style.display = 'none';
-            if (!hasWelcome) { this._showWelcome(); hasWelcome = true; }
+            sessionStorage.setItem(OPEN_KEY, '1');
+
+            chat.ensureMarkdown()['catch'](function () {});
+
+            if (!hasWelcome && !chat.historyLoaded) {
+                showSkeleton();
+                chat.loadHistory().then(function (logs) {
+                    hideSkeleton();
+                    if (!logs || !logs.length) {
+                        showWelcome();
+                    } else {
+                        hideSuggestions();
+                    }
+                })['catch'](function () {
+                    hideSkeleton();
+                    showWelcome();
+                });
+            }
+
             setTimeout(function() {
                 document.getElementById('hrf-input').focus();
             }, 220);
@@ -369,114 +571,37 @@
             isOpen = false;
             document.getElementById('hrf-panel').classList.remove('open');
             document.getElementById('hrf-launcher').classList.remove('open');
+            document.getElementById('hrf-launcher').setAttribute('aria-expanded', 'false');
+            sessionStorage.removeItem(OPEN_KEY);
         },
 
-        newChat: function() {
-            document.getElementById('hrf-thread').innerHTML = '';
-            hasWelcome = false;
-            this._showWelcome();
-            hasWelcome = true;
+        // Visual reset only — see HrChatCore.clearView(). Does not delete
+        // saved history; "Open full HR Assistant page" will still show it.
+        clearView: function() {
+            chat.clearView();
+            document.getElementById('hrf-suggestions').style.display = '';
             document.getElementById('hrf-input').value = '';
-            document.getElementById('hrf-send-btn').disabled = true;
+            sessionStorage.removeItem(DRAFT_KEY);
             document.getElementById('hrf-input').focus();
         },
 
         /* ── Send flow ────────────────────────────────── */
         send: function() {
-            var input = document.getElementById('hrf-input');
-            var text  = input.value.trim();
-            if (!text || isLoading) return;
-            input.value = '';
-            this.resize(input);
-            document.getElementById('hrf-send-btn').disabled = true;
-            this._hideSuggestions();
-            this._doSend(text);
+            hideSuggestions();
+            chat.send();
         },
 
         ask: function(question) {
-            if (isLoading) return;
+            if (chat.loading) return;
             if (!isOpen) this.open();
-            this._hideSuggestions();
-            this._doSend(question);
+            hideSuggestions();
+            chat.ask(question);
         },
 
-        _doSend: function(text) {
-            this._appendUser(text);
-            this._showTyping();
-            isLoading = true;
-
-            fetch(ENDPOINT, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
-                body:    JSON.stringify({ question: text }),
-            })
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-                hrFloat._hideTyping();
-                hrFloat._appendBot(data.answer || 'No response received.');
-                isLoading = false;
-                document.getElementById('hrf-send-btn').disabled =
-                    !document.getElementById('hrf-input').value.trim();
-            })
-            .catch(function() {
-                hrFloat._hideTyping();
-                hrFloat._appendBot('Connection error. Please try again or contact HRDO directly.', true);
-                isLoading = false;
-                document.getElementById('hrf-send-btn').disabled = false;
-            });
-        },
-
-        /* ── Renderers ────────────────────────────────── */
-        _showWelcome: function() {
-            this._appendBot(
-                "Hi! I'm your HRDO Policy Assistant. Ask me anything about " +
-                "leave, benefits, conduct, performance, or other HR policies."
-            );
-        },
-
-        _appendUser: function(text) {
-            var thread = document.getElementById('hrf-thread');
-            var div    = document.createElement('div');
-            div.className = 'hrf-msg user';
-            div.innerHTML =
-                '<span class="hrf-msg-sender">' + this._esc(USER_NAME) + '</span>' +
-                '<div class="hrf-msg-bubble">' + this._esc(text) + '</div>';
-            thread.appendChild(div);
-            this._scroll();
-        },
-
-        _appendBot: function(text, isError) {
-            var thread = document.getElementById('hrf-thread');
-            var div    = document.createElement('div');
-            div.className = 'hrf-msg bot';
-            div.innerHTML =
-                '<span class="hrf-msg-sender">HRDO Assistant</span>' +
-                '<div class="hrf-msg-bubble' + (isError ? '" style="border-color:#f5c6cb;background:#fff5f5;' : '"') + '">' +
-                this._renderMarkdown(text) +
-                '</div>';
-            thread.appendChild(div);
-            this._scroll();
-        },
-
-        _showTyping: function() {
-            var t = document.getElementById('hrf-typing');
-            t.classList.add('visible');
-            document.getElementById('hrf-thread').appendChild(t);
-            this._scroll();
-        },
-
-        _hideTyping: function() {
-            document.getElementById('hrf-typing').classList.remove('visible');
-        },
-
-        _hideSuggestions: function() {
-            var s = document.getElementById('hrf-suggestions');
-            if (s) s.style.display = 'none';
-        },
-
-        _scroll: function() {
-            var t = document.getElementById('hrf-thread');
-            setTimeout(function() { t.scrollTop = t.scrollHeight; }, 30);
+        // Passthrough so the feedback buttons rendered by HrChatCore (which
+        // call `<globalName>.giveFeedback(...)`) can reach the chat instance.
+        giveFeedback: function(logId, value, btn) {
+            chat.giveFeedback(logId, value, btn);
         },
 
         /* ── Input helpers ────────────────────────────── */
@@ -487,119 +612,24 @@
             }
         },
 
-        resize: function(el) {
+        handleInput: function(el) {
+            this.autoResize(el);
+            sessionStorage.setItem(DRAFT_KEY, el.value);
+        },
+
+        autoResize: function(el) {
             el.style.height = 'auto';
             el.style.height = Math.min(el.scrollHeight, 80) + 'px';
-            document.getElementById('hrf-send-btn').disabled = !el.value.trim() || isLoading;
-        },
-
-        /* ── Markdown renderer ────────────────────────── */
-        _renderMarkdown(raw) {
-            if (!raw) return '';
-
-            // 1. Escape all HTML special chars to prevent injection
-            var text = String(raw)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-
-            // 2. Restore explicit <br> tags the AI might have provided (e.g., inside tables)
-            text = text.replace(/&lt;br\s*\/?&gt;/gi, '<br>');
-
-            // 3. Parse Markdown Tables
-            // Matches standard markdown tables: | Header | \n |---| \n | Body |
-            text = text.replace(/^\|(.+)\|[ \t]*\n\|([-:| \t]+)\|[ \t]*\n((?:\|.*\|[ \t]*(?:\n|$))*)/gm, function(match, header, sep, body) {
-                let html = '<div class="table-responsive my-3"><table class="table table-bordered table-sm bg-white mb-0" style="font-size:13px;"><thead><tr>';
-
-                // Cleanly extract header cells and filter out empty outer elements
-                let hCells = header.split('|').map(c => c.trim());
-                if (hCells.length > 0 && hCells[0] === '') hCells.shift();
-                if (hCells.length > 0 && hCells[hCells.length-1] === '') hCells.pop();
-
-                // Store the exact number of columns we expect
-                let numCols = hCells.length;
-
-                hCells.forEach(function(cell) {
-                    html += '<th class="bg-light">' + cell + '</th>';
-                });
-                html += '</tr></thead><tbody>';
-
-                // Parse body
-                if (body) {
-                    body.trim().split('\n').forEach(function(row) {
-                        html += '<tr>';
-                        let bCells = row.split('|').map(c => c.trim());
-                        if (bCells.length > 0 && bCells[0] === '') bCells.shift();
-                        if (bCells.length > 0 && bCells[bCells.length-1] === '') bCells.pop();
-
-                        // CRITICAL FIX: Force the row to output EXACTLY the same number of columns as the header.
-                        // This prevents the rogue empty columns if the AI adds an extra trailing pipe.
-                        for (let i = 0; i < numCols; i++) {
-                            let cellContent = bCells[i] || '';
-
-                            // Apply inline code formatting and bullets inside table cells
-                            cellContent = cellContent
-                                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                                .replace(/•\s+/g, '&bull; ');
-
-                            html += '<td>' + cellContent + '</td>';
-                        }
-                        html += '</tr>';
-                    });
-                }
-                html += '</tbody></table></div>';
-                return html;
-            });
-
-            // 4. Headings
-            text = text.replace(/^### (.+)$/gm, '<h6 class="mt-3 mb-2 text-primary" style="font-size:14px;font-weight:700;">$1</h6>');
-            text = text.replace(/^## (.+)$/gm,  '<h5 class="mt-3 mb-2 text-primary" style="font-size:15px;font-weight:700;">$1</h5>');
-            text = text.replace(/^# (.+)$/gm,   '<h4 class="mt-3 mb-2 text-primary" style="font-size:16px;font-weight:700;">$1</h4>');
-
-            // 5. Horizontal rule
-            text = text.replace(/^---+$/gm, '<hr style="border-color:#dee2e6;margin:12px 0;">');
-
-            // 6. Bold & Italic
-            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-            text = text.replace(/__(.+?)__/g,      '<strong>$1</strong>');
-            text = text.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>');
-            text = text.replace(/_([^_\n]+?)_/g,   '<em>$1</em>');
-
-            // 7. Inline code
-            text = text.replace(/`([^`]+)`/g,
-                '<code style="background:#f0f0f0;padding:2px 5px;border-radius:4px;font-size:12px;color:#d63384;">$1</code>');
-
-            // 8. Lists (Numbered & Bullet)
-            // Standard line-start bullets
-            text = text.replace(/^\d+\.\s+(.+)$/gm,
-                '<div style="padding-left:1.5em;text-indent:-1.5em;margin:4px 0;"><strong>&bull;</strong>&nbsp;$1</div>');
-            text = text.replace(/^[-*•]\s+(.+)$/gm,
-                '<div style="padding-left:1.5em;text-indent:-1.5em;margin:4px 0;">&bull;&nbsp;$1</div>');
-
-            // Clean up bullets placed directly after a <br> (like inside the AI's table cells)
-            text = text.replace(/<br>\s*[-*•]\s+(.+?)(?=<br>|$|\n)/g, '<br>&bull;&nbsp;$1');
-
-            // 9. Cleanup extra space around block tags
-            text = text.replace(/\n+(<\/?(?:h[456]|div|hr|table|thead|tbody|tr|td|th)[^>]*>)/g, '$1');
-            text = text.replace(/(<\/?(?:h[456]|div|hr|table|thead|tbody|tr|td|th)[^>]*>)\n+/g, '$1');
-
-            // 10. Convert remaining newlines
-            text = text.replace(/\n{2,}/g, '<br><br>');
-            text = text.replace(/\n/g, '<br>');
-
-            return text;
-        },
-
-        /* ── HTML escape (for user messages only) ───────────────── */
-        _esc(str) {
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
+            document.getElementById('hrf-send-btn').disabled = !el.value.trim() || chat.loading;
         }
     };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        restoreDraft();
+        if (sessionStorage.getItem(OPEN_KEY) === '1') {
+            hrFloat.open();
+        }
+    });
 
 })();
 </script>

@@ -15,9 +15,8 @@ class AnthropicService
     // not the dynamic policy text which changes per query.
     protected $baseSystemPrompt = "You are an HR Policy Assistant for the City Government of Pasig.\n"
             . "CRITICAL: Always respond in the exact same language the user used to ask the question. If the user asks in Tagalog/Filipino, you MUST reply fluently in Tagalog/Filipino.\n"
-            . "Answer employee questions ONLY using the policy documents provided below.\n"
-            . "If the answer is NOT in the documents, answer from your training knowledge.'\n"
-            . "If the answer is not found at all, say: 'Please contact HRDO directly for this concern.'\n"
+            . "Answer employee questions ONLY using the policy documents provided below. Do not use outside knowledge and do not invent details.\n"
+            . "If the provided documents do not answer the question, say plainly that you could not find it in the current policy documents and that the employee should contact HRDO directly. Do not guess.\n"
             . "Always cite the source document name in your answer.\n"
             . "Format responses clearly using **bold** for key terms and bullet points where helpful.";
 
@@ -60,13 +59,9 @@ class AnthropicService
                     'model'      => $this->model,
                     'max_tokens' => 4096,
 
-                    // Web search tool — Claude decides when to call this based on system prompt instructions
-                    'tools' => [
-                        [
-                            'type' => 'web_search_20250305',
-                            'name' => 'web_search',
-                        ]
-                    ],
+                    // web_search is intentionally disabled: this is a grounded HR policy
+                    // assistant and must answer only from the uploaded policy documents,
+                    // not from live internet results.
 
                     // FIX: Only the static base prompt portion is marked for caching.
                     // The dynamic policy context (which changes per question) is intentionally

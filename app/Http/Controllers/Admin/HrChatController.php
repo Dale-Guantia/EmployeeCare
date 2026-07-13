@@ -48,16 +48,33 @@ class HrChatController extends Controller
 
             $chunks = $this->retriever->retrieve($question);
 
-            // Pass context to AI — if no chunks found, send an empty context string
-            // so the system prompt's fallback instructions still apply (web search, etc.)
-            $policyContext = $chunks->isEmpty()
-                ? 'No matching policy documents were found for this question.'
-                : $this->retriever->formatForPrompt($chunks);
+            // Strict grounding: if retrieval found no matching policy chunks, do not
+            // call the AI at all — return a fixed "not found" answer instead of risking
+            // an ungrounded, invented response. This is the retrieval-miss path.
+            if ($chunks->isEmpty()) {
+                $answer = "I couldn't find this in our current HR policy documents. Please contact HRDO directly for assistance.\n\n"
+                    . "*(Hindi ko ito nakita sa aming kasalukuyang mga dokumento ng patakaran ng HR. Mangyaring makipag-ugnayan nang direkta sa HRDO para sa tulong.)*";
+
+                $log = HrChatLog::create([
+                    'user_id'           => backpack_user()->id,
+                    'question'          => $question,
+                    'answer'            => $answer,
+                    'matched_chunk_ids' => [],
+                ]);
+
+                return response()->json([
+                    'answer'  => $answer,
+                    'sources' => [],
+                    'log_id'  => $log->id,
+                ]);
+            }
+
+            $policyContext = $this->retriever->formatForPrompt($chunks);
 
             $answer = $this->ai->ask($question, $policyContext);
 
-            // Build source citations only from chunks that were actually used
-            $sources = $chunks->isEmpty() ? [] : $chunks->map(function ($c) {
+            // Build source citations from the chunks that were actually used
+            $sources = $chunks->map(function ($c) {
                 $title   = $c->document->title ?? 'Unknown Document';
                 $section = $c->section_title ? ' — ' . $c->section_title : '';
                 return $title . $section;

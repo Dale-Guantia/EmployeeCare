@@ -67,6 +67,24 @@
         border-bottom: 2px solid #dee2e6;
         background-color: #f8f9fa;
     }
+
+    .hrchat-bubble { max-width: 85%; word-wrap: break-word; }
+    .hrchat-recent-item {
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .hrchat-not-grounded {
+        display: inline-block;
+        margin-top: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        color: #856404;
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        border-radius: 4px;
+    }
 </style>
 @endsection
 
@@ -81,7 +99,7 @@
             <div class="card-header d-flex justify-content-between align-items-center py-2">
                 <strong style="font-size:13px"><i class="la la-question-circle text-danger"></i> Recent Prompts</strong>
                 <button class="btn btn-sm btn-link p-0 text-danger" id="hrc-clear-btn"
-                    onclick="hrChat.clearHistory()" style="font-size:11px; text-decoration: none; font-weight: 600;">
+                    onclick="hrChat.clearHistory('Are you sure you want to permanently delete your search records? This action cannot be undone.')" style="font-size:11px; text-decoration: none; font-weight: 600;">
                     <i class="la la-trash"></i> Clear All
                 </button>
             </div>
@@ -106,9 +124,10 @@
             <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
                 <span><i class="la la-robot"></i> <strong>HRDO Policy Assistant</strong>
                     <span class="badge badge-light ml-2">AI-Powered</span></span>
-                <button class="btn btn-sm btn-outline-light" onclick="hrChat.newConversation()"
-                    title="Start a new conversation">
-                    <i class="la la-plus"></i> New
+                <button class="btn btn-sm btn-outline-light" onclick="hrChat.clearView()"
+                    aria-label="Clear the visible chat"
+                    title="Clears the chat view only — your question history is still saved">
+                    <i class="la la-eraser"></i> Clear view
                 </button>
             </div>
 
@@ -146,325 +165,80 @@
 @endsection
 
 @push('after_scripts')
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"
+    integrity="sha384-zbcZAIxlvJtNE3Dp5nxLXdXtXyxwOdnILY1TDPVmKFhl4r4nSUG1r8bcFXGVa4Te"
+    crossorigin="anonymous"></script>
+<script src="{{ asset('js/hr-chat-core.js') }}"></script>
 <script>
-const hrChat = {
+    var EMPTY_STATE_HTML = document.getElementById('hrc-empty')
+        ? document.getElementById('hrc-empty').outerHTML
+        : '';
 
-    /* ── Config ────────────────────────────────────────────── */
-    endpoint:        @json(route('hr.chat.ask')),
-    feedbackUrl:     @json(route('hr.chat.feedback')),
-    historyEndpoint: @json(route('hr.chat.history')),
-    clearHistoryUrl: @json(route('hr.chat.clear_history')),
-    csrf:            @json(csrf_token()),
-    userName:        @json(backpack_user()->name),
-    loading:         false,
+    window.hrChat = HrChatCore.create({
+        globalName: 'hrChat',
+        ids: {
+            thread: 'hrc-thread',
+            input: 'hrc-input',
+            sendBtn: 'hrc-send',
+            emptyState: 'hrc-empty',
+            recentList: 'hrc-recent-list',
+            clearHistoryBtn: 'hrc-clear-btn',
+        },
+        endpoints: {
+            ask: @json(route('hr.chat.ask')),
+            feedback: @json(route('hr.chat.feedback')),
+            history: @json(route('hr.chat.history')),
+            clearHistory: @json(route('hr.chat.clear_history')),
+        },
+        csrf: @json(csrf_token()),
+        userName: @json(backpack_user()->name),
+        classes: {
+            wrapUser: 'mb-3 d-flex flex-column align-items-end',
+            wrapBot: 'mb-3 d-flex flex-column align-items-start',
+            senderTag: 'small',
+            senderClass: 'text-muted mb-1',
+            bubbleUser: 'p-2 rounded shadow-sm bg-primary text-white hrchat-bubble',
+            bubbleBot: 'p-2 rounded shadow-sm bg-white border chat-markdown hrchat-bubble',
+            bubbleBotError: 'p-2 rounded shadow-sm bg-warning chat-markdown hrchat-bubble',
+            sourcesWrap: 'mt-1',
+            sourcePill: 'badge badge-light border mr-1',
+            notGroundedBanner: 'hrchat-not-grounded',
+            typingBubble: 'p-2 rounded bg-white border',
+            feedbackWrap: 'mt-1',
+            feedbackLabel: 'text-muted',
+            feedbackBtnUp: 'btn btn-sm btn-outline-success ml-1',
+            feedbackBtnDown: 'btn btn-sm btn-outline-danger ml-1',
+            recentItem: 'list-group-item list-group-item-action py-2 text-left hrchat-recent-item',
+        },
+        typingHtml: '<span class="text-muted"><i class="la la-circle-notch la-spin"></i> %SEARCHING%</span>',
+        strings: {
+            assistantName: 'HRDO Assistant',
+            searching: 'Searching policies…',
+            helpfulPrompt: 'Helpful?',
+            thumbsUpAria: 'Mark answer as helpful',
+            thumbsDownAria: 'Mark answer as not helpful',
+            thanksHelpful: '\u{1F44D} Thanks!',
+            notedUnhelpful: '\u{1F44E} Noted!',
+            notGrounded: 'Not from an official policy document — verify with HRDO.',
+            connectionError: 'Connection error. Please try again or contact HRDO directly.',
+            recentListEmptyHtml:
+                '<div class="text-center p-4 text-muted bg-light">' +
+                    '<i class="la la-history mb-2 text-secondary" style="font-size: 28px;"></i>' +
+                    '<p class="mb-0" style="font-size: 12px;">Your recent searches will appear here.</p>' +
+                '</div>',
+        },
+        onAfterAnswer: function () { hrChat.refreshSidebarHistory(); },
+        onClearView: function () {
+            var thread = document.getElementById('hrc-thread');
+            if (thread && EMPTY_STATE_HTML) thread.insertAdjacentHTML('beforeend', EMPTY_STATE_HTML);
+            var input = document.getElementById('hrc-input');
+            if (input) input.focus();
+        },
+    });
 
-    /* ── Public actions ─────────────────────────────────────── */
-    send() {
-        const input = document.getElementById('hrc-input');
-        const text  = input.value.trim();
-        if (!text || this.loading) return;
-        input.value = '';
-        this._send(text);
-    },
-
-    ask(question) {
-        if (this.loading) return;
-        this._send(question);
-    },
-
-    newConversation() {
-        const thread = document.getElementById('hrc-thread');
-        thread.innerHTML = '';
-        // Re-inject empty state
-        const empty = document.createElement('div');
-        empty.id = 'hrc-empty';
-        empty.className = 'text-center text-muted mt-5';
-        empty.innerHTML = `
-            <i class="la la-comments d-block" style="font-size:3rem;"></i>
-            <h5 class="mt-2">Ask me anything about HR policies</h5>
-            <p class="small">Leave, benefits, conduct, performance, discipline —
-                I'll find the answer from official HRDO documents.</p>`;
-        thread.appendChild(empty);
-        document.getElementById('hrc-input').value = '';
-        document.getElementById('hrc-input').focus();
-    },
-
-    /**
-     * Absolute Database Deletion Routine
-     */
-    async clearHistory() {
-        if (!confirm("Are you sure you want to permanently delete your search records? This action cannot be undone.")) {
-            return;
-        }
-
-        try {
-            const res = await fetch(this.clearHistoryUrl, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': this.csrf
-                }
-            });
-            const data = await res.json();
-
-            if (data.ok) {
-                // Instantly render the empty fallback UI
-                const list = document.getElementById('hrc-recent-list');
-                if (list) {
-                    list.innerHTML =
-                        '<div class="text-center p-4 text-muted bg-light">' +
-                            '<i class="la la-history mb-2 text-secondary" style="font-size: 28px;"></i>' +
-                            '<p class="mb-0" style="font-size: 12px;">Your recent searches will appear here.</p>' +
-                        '</div>';
-                }
-                // Hide the clear button
-                const clearBtn = document.getElementById('hrc-clear-btn');
-                if (clearBtn) clearBtn.style.display = 'none';
-
-                this.newConversation();
-            }
-        } catch (e) {
-            console.error("Failed executing storage clear down action:", e);
-        }
-    },
-
-    /* ── Core send flow ─────────────────────────────────────── */
-    async _send(text) {
-        const emptyEl = document.getElementById('hrc-empty');
-        if (emptyEl) emptyEl.remove();
-
-        this._appendMsg('user', text);
-        const typing = this._appendTyping();
-        this.loading = true;
-        document.getElementById('hrc-send').disabled = true;
-
-        try {
-            const res  = await fetch(this.endpoint, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrf },
-                body:    JSON.stringify({ question: text }),
-            });
-            const data = await res.json();
-            typing.remove();
-            this._appendAi(data.answer, data.sources || [], data.log_id);
-
-            // Re-render the fresh sidebar layout immediately upon dynamic generation updates
-            this.refreshSidebarHistory();
-        } catch (e) {
-            typing.remove();
-            this._appendAi(
-                'Connection error. Please try again or contact HRDO directly.',
-                [], null, true
-            );
-        }
-
-        this.loading = false;
-        document.getElementById('hrc-send').disabled = false;
-        document.getElementById('hrc-input').focus();
-    },
-
-    /* ── Message renderers ──────────────────────────────────── */
-    _appendMsg(role, text) {
-        const thread = document.getElementById('hrc-thread');
-        const isUser = role === 'user';
-        const div    = document.createElement('div');
-        div.className = 'mb-3 d-flex flex-column ' + (isUser ? 'align-items-end' : 'align-items-start');
-        div.innerHTML =
-            '<small class="text-muted mb-1">' +
-                this._esc(isUser ? this.userName : 'HRDO Assistant') +
-            '</small>' +
-            '<div class="p-2 rounded shadow-sm ' +
-                (isUser ? 'bg-primary text-white' : 'bg-white border') +
-                '" style="max-width:85%;word-wrap:break-word;">' +
-                (isUser ? this._esc(text) : this._renderMarkdown(text)) +
-            '</div>';
-        thread.appendChild(div);
-        thread.scrollTop = thread.scrollHeight;
-        return div;
-    },
-
-    _appendAi(text, sources, logId, isError) {
-        isError = isError || false;
-        const thread = document.getElementById('hrc-thread');
-        const div    = document.createElement('div');
-        div.className = 'mb-3 d-flex flex-column align-items-start';
-
-        const sourcePills = (sources || []).map(function(s) {
-            return '<span class="badge badge-light border mr-1">' +
-                   '<i class="la la-file-alt"></i> ' + hrChat._esc(s) + '</span>';
-        }).join('');
-
-        let feedbackHtml = '';
-        if (!isError && logId) {
-            feedbackHtml =
-                '<div class="mt-1">' +
-                    '<small class="text-muted">Helpful?</small>' +
-                    '<button class="btn btn-sm btn-outline-success ml-1" ' +
-                        'onclick="hrChat.giveFeedback(' + logId + ', 1, this)">&#128077;</button>' +
-                    '<button class="btn btn-sm btn-outline-danger ml-1" ' +
-                        'onclick="hrChat.giveFeedback(' + logId + ', -1, this)">&#128078;</button>' +
-                '</div>';
-        }
-
-        div.innerHTML =
-            '<small class="text-muted mb-1">HRDO Assistant</small>' +
-            '<div class="p-2 rounded shadow-sm chat-markdown ' + (isError ? 'bg-warning' : 'bg-white border') +
-                '" style="max-width:85%;word-wrap:break-word;">' +
-                this._renderMarkdown(text) +
-            '</div>' +
-            (sourcePills ? '<div class="mt-1">' + sourcePills + '</div>' : '') +
-            feedbackHtml;
-
-        thread.appendChild(div);
-        thread.scrollTop = thread.scrollHeight;
-    },
-
-    _appendTyping() {
-        const thread = document.getElementById('hrc-thread');
-        const div    = document.createElement('div');
-        div.className = 'mb-3 d-flex flex-column align-items-start';
-        div.id = 'hrc-typing';
-        div.innerHTML =
-            '<small class="text-muted mb-1">HRDO Assistant</small>' +
-            '<div class="p-2 rounded bg-white border">' +
-                '<span class="text-muted">' +
-                    '<i class="la la-circle-notch la-spin"></i> Searching policies&hellip;' +
-                '</span>' +
-            '</div>';
-        thread.appendChild(div);
-        thread.scrollTop = thread.scrollHeight;
-        return div;
-    },
-
-    /* ── Feedback ───────────────────────────────────────────── */
-    async giveFeedback(logId, value, btn) {
-        await fetch(this.feedbackUrl, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrf },
-            body:    JSON.stringify({ log_id: logId, feedback: value }),
-        });
-        btn.closest('div').innerHTML =
-            '<small class="text-muted">' + (value === 1 ? '&#128077; Thanks!' : '&#128078; Noted!') + '</small>';
-    },
-
-    /* ── History Execution & Core Synchronization ────────────── */
-    async loadHistory() {
-        try {
-            const res  = await fetch(this.historyEndpoint);
-            const logs = await res.json();
-
-            const list = document.getElementById('hrc-recent-list');
-            const clearBtn = document.getElementById('hrc-clear-btn');
-
-            if (list) {
-                list.innerHTML = '';
-
-                // If history is empty, show Fallback UI
-                if (!logs || !logs.length) {
-                    if (clearBtn) clearBtn.style.display = 'none'; // Hide Clear button
-                    list.innerHTML =
-                        '<div class="text-center p-4 text-muted bg-light">' +
-                            '<i class="la la-history mb-2 text-secondary" style="font-size: 28px;"></i>' +
-                            '<p class="mb-0" style="font-size: 12px;">Your recent searches will appear here.</p>' +
-                        '</div>';
-                } else {
-                    if (clearBtn) clearBtn.style.display = ''; // Show clear button
-                    logs.forEach(function(log) {
-                        const btn = document.createElement('button');
-                        btn.className  = 'list-group-item list-group-item-action py-2 text-left';
-                        btn.style.cssText = 'font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-                        btn.innerHTML = '<i class="la la-comment-alt mt-2" style="margin-right: 5px;"></i>' + hrChat._esc(log.question);
-                        btn.onclick = function() { hrChat.ask(log.question); };
-                        list.appendChild(btn);
-                    });
-                }
-            }
-
-            // Stop here so we don't try to loop over an empty array for the chat window
-            if (!logs || !logs.length) return;
-
-            const emptyEl = document.getElementById('hrc-empty');
-            if (emptyEl) emptyEl.remove();
-
-            logs.slice().reverse().forEach(function(log) {
-                hrChat._appendMsg('user', log.question);
-                hrChat._appendAi(log.answer, [], log.id);
-            });
-
-        } catch (e) {
-            console.error("History configuration bypass structural load error:", e);
-        }
-    },
-
-    /**
-     * Isolated Sidebar update workflow to refresh recent sidebar listing on new chats
-     */
-    async refreshSidebarHistory() {
-        try {
-            const res = await fetch(this.historyEndpoint);
-            const logs = await res.json();
-            const list = document.getElementById('hrc-recent-list');
-            const clearBtn = document.getElementById('hrc-clear-btn');
-
-            if (list) {
-                list.innerHTML = '';
-
-                if (!logs || !logs.length) {
-                    if (clearBtn) clearBtn.style.display = 'none';
-                    list.innerHTML =
-                        '<div class="text-center p-4 text-muted bg-light">' +
-                            '<i class="la la-history mb-2 text-secondary" style="font-size: 28px;"></i>' +
-                            '<p class="mb-0" style="font-size: 12px;">Your recent searches will appear here.</p>' +
-                        '</div>';
-                } else {
-                    if (clearBtn) clearBtn.style.display = '';
-                    logs.forEach(function(log) {
-                        const btn = document.createElement('button');
-                        btn.className  = 'list-group-item list-group-item-action py-2 text-left';
-                        btn.style.cssText = 'font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-                        btn.innerHTML = '<i class="la la-comment-alt mt-2" style="margin-right: 5px;"></i>' + hrChat._esc(log.question);
-                        btn.onclick = function() { hrChat.ask(log.question); };
-                        list.appendChild(btn);
-                    });
-                }
-            }
-        } catch (e) {
-            // Silently complete structural dynamic sidebar tasks
-        }
-    },
-
-    _renderMarkdown(raw) {
-        if (!raw) return '';
-
-        // Step 1: Escape HTML to prevent any malicious script injection (XSS)
-        const safeText = String(raw)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-
-        // Step 2: Configure Marked to use GitHub Flavored Markdown
-        // 'breaks: true' ensures standard newlines (\n) become <br> tags automatically
-        marked.use({
-            gfm: true,
-            breaks: true
-        });
-
-        // Step 3: Parse and return the clean HTML
-        return marked.parse(safeText);
-    },
-    _esc(str) {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-};
-
-document.addEventListener('DOMContentLoaded', function() {
-    hrChat.loadHistory();
-});
+    document.addEventListener('DOMContentLoaded', function () {
+        hrChat.loadHistory();
+    });
 </script>
 @endpush
+
