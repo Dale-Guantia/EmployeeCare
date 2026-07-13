@@ -9,6 +9,8 @@
     <meta name="apple-mobile-web-app-title" content="HRDO Survey">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="{{ asset('assets/icons/icon-192x192.png') }}">
+    <link rel="preload" as="image" href="{{ asset('assets/logo-with-seal.webp') }}" type="image/webp">
+    <link rel="preload" as="image" href="{{ asset('assets/blue.webp') }}" type="image/webp">
     <link rel="stylesheet" href="{{ asset('public-assets/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('public-assets/css/fontawesome.min.css') }}">
     <link rel="stylesheet" href="{{ asset('public-assets/css/css2.css') }}">
@@ -17,9 +19,9 @@
     <title>Customer Satisfaction Survey</title>
 </head>
 <body>
-    <button id="installSurveyApp" type="button" class="btn btn-warning" style="display:none;">Install App</button>
+    <button id="installSurveyApp" type="button" class="btn btn-warning is-hidden">Install App</button>
 
-    <video id="background-video" autoplay loop muted playsinline preload="auto">
+    <video id="background-video" autoplay loop muted playsinline preload="metadata" poster="{{ asset('assets/blue.webp') }}">
         <source src="{{ asset('assets/blue.webm') }}" type="video/webm">
         <source src="{{ asset('assets/blue.mp4') }}" type="video/mp4">
         <img src="{{ asset('assets/blue.webp') }}" alt="Background">
@@ -32,7 +34,7 @@
             <div class="center-logo-container d-flex justify-content-center w-100">
                 <picture>
                     <source type="image/webp" srcset="{{ asset('assets/logo-with-seal.webp') }}">
-                    <img src="{{ asset('assets/logo-with-seal.webp') }}" alt="HRDO Logo" loading="lazy">
+                    <img src="{{ asset('assets/logo-with-seal.webp') }}" alt="HRDO Logo" width="522" height="133" decoding="async">
                 </picture>
             </div>
 
@@ -78,7 +80,7 @@
                                 <div class="selection-content">
                                     <div id="staff-grid-paginated">
                                         @foreach($staffs as $staff)
-                                            <div class="text-center staff-item" data-division-id="{{ $staff->division_id }}" style="display:none;">
+                                            <div class="text-center staff-item is-hidden" data-division-id="{{ $staff->division_id }}">
                                                 <label class="w-100" style="cursor: pointer;">
                                                     <input
                                                         type="radio"
@@ -100,6 +102,7 @@
                                                             alt="{{ $staff->name }}'s profile picture"
                                                             class="staff-avatar"
                                                             loading="lazy"
+                                                            decoding="async"
                                                         >
                                                     </picture>
                                                 </label>
@@ -138,10 +141,9 @@
                                             @php $color = $colors[$index % count($colors)]; @endphp
 
                                             <div
-                                                class="service-item text-center"
+                                                class="service-item text-center is-hidden"
                                                 data-division-id="{{ $service->division_id }}"
                                                 data-service-id="{{ $service->id }}"
-                                                style="display:none;"
                                             >
                                                 <label class="w-100" style="cursor: pointer;">
                                                     <input type="radio" name="issue_id" value="{{ $service->id }}" class="visually-hidden" required>
@@ -341,9 +343,8 @@
         </div>
     </div>
 
-    <script src="{{ asset('public-assets/js/jquery-3.6.0.min.js') }}"></script>
-    <script src="{{ asset('public-assets/js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ asset('public-assets/js/browser@4.js') }}"></script>
-    <script src="{{ asset('survey-assets/js/survey.js') }}"></script>
+    <script src="{{ asset('public-assets/js/jquery-3.6.0.min.js') }}" defer></script>
+    <script src="{{ asset('public-assets/js/bootstrap.bundle.min.js') }}" defer></script>
+    <script src="{{ asset('survey-assets/js/survey.js') }}" defer></script>
 </body>
 </html>

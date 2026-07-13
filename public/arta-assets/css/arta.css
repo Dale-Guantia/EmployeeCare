@@ -9,6 +9,16 @@ body {
     font-family: "Bricolage Grotesque", sans-serif;
 }
 
+#background-video {
+    position: fixed;
+    top: 0;
+    left: 0;
+    min-width: 100%;
+    min-height: 100%;
+    z-index: -1;
+    object-fit: cover;
+}
+
 /* Modern Glassmorphism UI for forms over video */
 .survey-shell {
     display: flex;
@@ -105,6 +115,7 @@ body {
     font-size: 1.1rem;
     border-radius: 50px;
     font-weight: 600;
+    min-height: 44px;
 }
 
 /* Emoji Rating Grid */
@@ -220,11 +231,10 @@ body {
     #background-video { display: none; } /* Hide video on landscape to boost performance */
     body { background: #e0f0ff; }
 
-    .go-back-btn-large {  padding: 0.6rem 1rem !important; font-size: 0.9rem !important; border-radius: 30px !important; font-weight: 500 !important;}
+    .go-back-btn-large {  padding: 0.6rem 1rem !important; font-size: 0.9rem !important; border-radius: 30px !important; font-weight: 500 !important; min-height: 40px !important; }
     .carousel-indicators { bottom: 0.7em !important; }
     .rating-option { aspect-ratio: 0 !important; }
     .emoji-rating-text { aspect-ratio: 0 !important; }
-    .p-3 { padding: 0.5 !important; }
     .my-4 { margin-top: 0.3rem !important; margin-bottom: 0 !important }
     .qr-code-container svg, .qr-code-container img { width: 150px; height: auto; }
 }

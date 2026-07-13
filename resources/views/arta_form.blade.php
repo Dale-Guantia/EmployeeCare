@@ -9,6 +9,8 @@
     <meta name="apple-mobile-web-app-title" content="HRDO Survey">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="{{ asset('assets/icons/icon-192x192.png') }}">
+    <link rel="preload" as="image" href="{{ asset('assets/logo-with-seal.webp') }}" type="image/webp">
+    <link rel="preload" as="image" href="{{ asset('assets/blue.webp') }}" type="image/webp">
     <link rel="stylesheet" href="{{ asset('public-assets/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('public-assets/css/fontawesome.min.css') }}">
     <link rel="stylesheet" href="{{ asset('public-assets/css/css2.css') }}">
@@ -17,9 +19,12 @@
     <title>ARTA Client Satisfaction Form</title>
 </head>
 <body>
-    <video id="background-video" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; min-width: 100%; min-height: 100%; z-index: -1; object-fit: cover;">
+    <video id="background-video" autoplay loop muted playsinline preload="metadata" poster="{{ asset('assets/blue.webp') }}">
         <source src="{{ asset('assets/blue.webm') }}" type="video/webm">
         <source src="{{ asset('assets/blue.mp4') }}" type="video/mp4">
+        <img src="{{ asset('assets/blue.webp') }}" alt="Background">
+        <img src="{{ asset('assets/blue.jpg') }}" alt="Background">
+        Your browser does not support the video tag.
     </video>
 
     <div class="survey-shell">
@@ -37,7 +42,7 @@
                             <div class="center-logo-container mb-4 d-flex justify-content-center w-100">
                                 <picture>
                                     <source type="image/webp" srcset="{{ asset('assets/logo-with-seal.webp') }}">
-                                    <img src="{{ asset('assets/logo-with-seal.webp') }}" alt="HRDO Logo" loading="lazy" style="max-width: 150px;">
+                                    <img src="{{ asset('assets/logo-with-seal.webp') }}" alt="HRDO Logo" decoding="async" style="max-width: 300px;">
                                 </picture>
                             </div>
                             <h4 class="slide-title" style="color: red">ANTI-RED TAPE AUTHORITY CLIENT SATISFACTION FORM</h4>
@@ -355,9 +360,8 @@
         </div>
     </div>
 
-    <script src="{{ asset('public-assets/js/jquery-3.6.0.min.js') }}"></script>
-    <script src="{{ asset('public-assets/js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ asset('public-assets/js/browser@4.js') }}"></script>
-    <script src="{{ asset('arta-assets/js/arta.js') }}"></script>
+    <script src="{{ asset('public-assets/js/jquery-3.6.0.min.js') }}" defer></script>
+    <script src="{{ asset('public-assets/js/bootstrap.bundle.min.js') }}" defer></script>
+    <script src="{{ asset('arta-assets/js/arta.js') }}" defer></script>
 </body>
 </html>
