@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Jobs\IngestPolicyDocumentJob;
 use App\Models\HrPolicyDocument;
 use App\Services\PolicyIngestService;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
@@ -19,7 +20,7 @@ class HrPolicyDocumentCrudController extends CrudController
         CRUD::setRoute(backpack_url('hr-policy-documents'));
         CRUD::setEntityNameStrings('HR policy document', 'HR policy documents');
 
-        CRUD::allowAccess(['upload_new', 'update_policy', 'toggle_active']);
+        CRUD::allowAccess(['upload_new', 'update_policy', 'toggle_active', 'reingest']);
 
         // Only admins and HR staff can manage policies
         $this->middleware(function ($request, $next) {
@@ -48,12 +49,24 @@ class HrPolicyDocumentCrudController extends CrudController
             ->value(function ($entry) {
                 return $entry->ocr_badge;
             });
+        CRUD::column('review_note')
+            ->label('Notes')
+            ->type('custom_html')
+            ->value(function ($entry) {
+                if (!in_array($entry->status, ['needs_review', 'failed'], true) || empty($entry->ingest_error)) {
+                    return '';
+                }
+                $icon  = $entry->status === 'failed' ? 'la-times-circle text-danger' : 'la-exclamation-triangle text-warning';
+                return '<span title="' . e($entry->ingest_error) . '"><i class="la ' . $icon . '"></i> '
+                    . e(\Illuminate\Support\Str::limit($entry->ingest_error, 60)) . '</span>';
+            });
         CRUD::column('created_at')->label('Uploaded')->type('datetime');
 
         // Custom buttons
         CRUD::button('upload_new')->stack('top')->view('admin.buttons.policy_upload_btn');
         CRUD::button('update_policy')->stack('line')->view('admin.buttons.policy_update_btn');
         CRUD::button('toggle_active')->stack('line')->view('admin.buttons.policy_toggle_btn');
+        CRUD::button('reingest')->stack('line')->view('admin.buttons.policy_reingest_btn');
         CRUD::removeButton('create'); // replaced by custom upload page
     }
 
@@ -84,10 +97,9 @@ class HrPolicyDocumentCrudController extends CrudController
                 $request->only('title', 'category', 'effective_date')
             );
 
-            // Run ingestion inline (synchronous for simplicity on PHP 7)
-            $ingest->ingest($document);
+            IngestPolicyDocumentJob::dispatch($document->id);
 
-            \Alert::success("Policy \"{$document->title}\" uploaded and ingested successfully. {$document->chunk_count} chunks created.")->flash();
+            \Alert::success("Policy \"{$document->title}\" uploaded. Processing in the background — refresh this list in a moment to see its status.")->flash();
 
         } catch (\Throwable $e) {
             \Alert::error('Upload failed: ' . $e->getMessage())->flash();
@@ -121,13 +133,14 @@ class HrPolicyDocumentCrudController extends CrudController
 
         try {
             if ($request->hasFile('pdf_file')) {
-                // Full replace: new file + re-ingest
+                // Full replace: new file, then re-ingest in the background
                 $ingest->replace(
                     $document,
                     $request->file('pdf_file'),
                     $request->only('title', 'category', 'effective_date')
                 );
-                $msg = "Policy updated and re-ingested. {$document->fresh()->chunk_count} chunks created.";
+                IngestPolicyDocumentJob::dispatch($document->id, true);
+                $msg = 'Policy file replaced. Processing in the background — refresh this list in a moment to see its status.';
             } else {
                 // Metadata-only update — no re-ingest needed
                 $document->update($request->only('title', 'category', 'effective_date'));
@@ -149,6 +162,16 @@ class HrPolicyDocumentCrudController extends CrudController
     {
         $this->crud->hasAccessOrFail('list');
 
+        // Only meaningful for a document that has actually finished ingesting
+        // one way or another — flipping a pending/processing doc to 'active'
+        // here would bypass the quality gate that needs_review exists for.
+        if (!in_array($document->status, ['active', 'inactive'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This document is ' . $document->status . ' — it can only be toggled active/inactive once ingestion has finished.',
+            ], 422);
+        }
+
         $document->update([
             'is_active' => !$document->is_active,
             'status'    => $document->is_active ? 'inactive' : 'active',
@@ -157,6 +180,21 @@ class HrPolicyDocumentCrudController extends CrudController
         return response()->json([
             'success' => true,
             'message' => "Document marked as " . ($document->fresh()->is_active ? 'active' : 'inactive'),
+        ]);
+    }
+
+    // ── Re-run ingestion in place (no delete/recreate) ─────────
+
+    public function reingest(HrPolicyDocument $document)
+    {
+        $this->crud->hasAccessOrFail('list');
+
+        app(PolicyIngestService::class)->markPendingForReingest($document);
+        IngestPolicyDocumentJob::dispatch($document->id, true);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Re-ingestion started — refresh in a moment to see its status.',
         ]);
     }
 

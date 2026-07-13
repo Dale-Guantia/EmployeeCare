@@ -96,5 +96,6 @@ Route::group([
     Route::get('hr-policy-documents/{document}/update-file',[HrPolicyDocumentCrudController::class, 'updateForm'])->name('hr.policy.update.form');
     Route::post('hr-policy-documents/{document}/update-file',[HrPolicyDocumentCrudController::class, 'updateStore'])->name('hr.policy.update.store');
     Route::post('hr-policy-documents/{document}/toggle',[HrPolicyDocumentCrudController::class, 'toggleActive'])->name('hr.policy.toggle');
+    Route::post('hr-policy-documents/{document}/reingest',[HrPolicyDocumentCrudController::class, 'reingest'])->name('hr.policy.reingest');
     Route::crud('hr-policy-documents', 'HrPolicyDocumentCrudController');
 });

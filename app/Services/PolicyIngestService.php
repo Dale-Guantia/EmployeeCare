@@ -21,39 +21,43 @@ class PolicyIngestService
 
     /**
      * Store the uploaded PDF and create the document record.
-     * Does NOT run ingestion — caller must invoke ingest() separately.
+     * Does NOT run ingestion — the caller dispatches IngestPolicyDocumentJob.
      */
     public function store(UploadedFile $file, array $data): HrPolicyDocument
     {
         set_time_limit(0);
 
-        $path = $file->storeAs(
-            'policies',
-            time() . '_' . $file->getClientOriginalName()
-        );
+        $path     = $file->storeAs('policies', time() . '_' . $file->getClientOriginalName());
+        $fullPath = Storage::path($path);
 
         return HrPolicyDocument::create([
             'title'          => $data['title'],
             'filename'       => $file->getClientOriginalName(),
             'file_path'      => $path,
+            'file_hash'      => hash_file('sha256', $fullPath),
             'category'       => $data['category'],
             'effective_date' => $data['effective_date'] ?? null,
             'is_active'      => true,
-            'status'         => 'processing',
+            'status'         => 'pending',
             'chunk_count'    => 0,
-            // Store whether OCR was needed — visible in the admin UI
             'ocr_used'       => false,
         ]);
     }
 
     /**
-     * Run the full ingest pipeline.
-     * Now uses OcrService for text extraction, which handles both
-     * regular (text-layer) PDFs and scanned image PDFs transparently.
+     * Run the full ingest pipeline: per-page text extraction (native text
+     * layer where present, OCR only for pages that need it), a quality gate
+     * on OCR confidence, then chunking with page-number attribution.
+     *
+     * @param bool $forceReExtract Skip the file-hash extraction cache — used
+     *   by the admin "re-run ingestion" action so it actually re-attempts
+     *   OCR instead of silently reusing a previous bad/cached result.
      */
-    public function ingest(HrPolicyDocument $document): void
+    public function ingest(HrPolicyDocument $document, bool $forceReExtract = false): void
     {
         set_time_limit(0);
+
+        $document->update(['status' => 'processing']);
 
         try {
             $fullPath = Storage::path($document->file_path);
@@ -64,26 +68,21 @@ class PolicyIngestService
                 );
             }
 
-            // Detect if this is a scanned PDF before extraction
-            // so we can record it in the document record
-            $isScanned = $this->ocr->isScannedPdf($fullPath);
+            $cached = $forceReExtract ? null : $this->findCachedExtraction($document);
 
-            if ($isScanned) {
-                Log::info("[PolicyIngest] Scanned PDF detected, OCR will be used: {$document->title}");
-
-                // Verify OCR tools are available before attempting
-                if (!$this->ocr->isOcrAvailable()) {
-                    throw new \RuntimeException(
-                        'This appears to be a scanned PDF but OCR tools are not installed on this server. '
-                        . 'Please install Tesseract and Poppler (pdftoppm), or upload a text-based PDF instead.'
-                    );
-                }
+            if ($cached !== null) {
+                [$pages, $usedOcr, $confidence] = $cached;
+                Log::info("[PolicyIngest] Reusing cached extraction for '{$document->title}' (identical file already OCR'd elsewhere)");
+            } else {
+                $result     = $this->ocr->extractDocument($fullPath);
+                $pages      = $result['pages'];
+                $usedOcr    = $result['used_ocr'];
+                $confidence = $result['confidence'];
             }
 
-            // Extract text — OcrService handles both paths transparently
-            $text = $this->ocr->extractText($fullPath);
+            $fullText = trim(implode("\n\n", array_column($pages, 'text')));
 
-            if (empty(trim($text))) {
+            if ($fullText === '') {
                 throw new \RuntimeException(
                     'Could not extract any text from this PDF. '
                     . 'If this is a scanned document, ensure Tesseract is installed. '
@@ -91,10 +90,8 @@ class PolicyIngestService
                 );
             }
 
-            // Delete old chunks before re-ingesting
-            $document->chunks()->delete();
-
-            $chunks = $this->chunkText($text, 300, 50);
+            [$words, $pageOfWord] = $this->buildWordPageMap($pages);
+            $chunks = $this->chunkWords($words, $pageOfWord, 300, 50);
 
             if (empty($chunks)) {
                 throw new \RuntimeException(
@@ -102,28 +99,48 @@ class PolicyIngestService
                 );
             }
 
-            DB::transaction(function () use ($document, $chunks, $isScanned) {
+            // Quality gate: only documents that actually went through OCR are
+            // scored. A pure text-layer document has no OCR confidence and
+            // always proceeds straight to 'active'.
+            $minConfidence = (float) config('ocr.min_confidence', 60);
+            $needsReview   = $usedOcr && $confidence !== null && $confidence < $minConfidence;
+
+            // Delete old chunks before re-ingesting (matches previous behavior).
+            $document->chunks()->delete();
+
+            DB::transaction(function () use ($document, $chunks) {
                 foreach ($chunks as $index => $chunk) {
                     HrPolicyChunk::create([
                         'document_id'   => $document->id,
                         'chunk_index'   => $index,
-                        'section_title' => $this->detectSection($chunk),
-                        'content'       => $chunk,
-                        'search_vector' => $this->buildVector($chunk),
+                        'page_number'   => $chunk['page_number'],
+                        'section_title' => $this->detectSection($chunk['text']),
+                        'content'       => $chunk['text'],
+                        'search_vector' => $this->buildVector($chunk['text']),
                     ]);
                 }
-
-                $document->update([
-                    'status'       => 'active',
-                    'chunk_count'  => count($chunks),
-                    'ingest_error' => null,
-                    'ocr_used'     => $isScanned,
-                ]);
             });
 
-            Log::info("[PolicyIngest] Successfully ingested '{$document->title}': "
-                . count($chunks) . " chunks"
-                . ($isScanned ? " (via OCR)" : " (via pdfparser)")
+            $document->update([
+                'status'         => $needsReview ? 'needs_review' : 'active',
+                'chunk_count'    => count($chunks),
+                'ingest_error'   => $needsReview
+                    ? sprintf(
+                        'OCR confidence %d%% is below the %d%% quality threshold. Review the extracted text below, or re-upload a clearer scan.',
+                        round($confidence),
+                        $minConfidence
+                    )
+                    : null,
+                'ocr_used'       => $usedOcr,
+                'ocr_confidence' => $confidence !== null ? (int) round($confidence) : null,
+                // Persisted page-by-page so a future re-chunk (or another
+                // document uploading the same file) doesn't require re-OCRing.
+                'extracted_text' => json_encode($pages),
+            ]);
+
+            Log::info("[PolicyIngest] Ingested '{$document->title}': " . count($chunks) . ' chunks'
+                . ($usedOcr ? ' (via OCR, confidence ' . round($confidence ?? 0) . '%)' : ' (via pdfparser)')
+                . ($needsReview ? ' — FLAGGED needs_review' : '')
             );
 
         } catch (\Throwable $e) {
@@ -137,7 +154,8 @@ class PolicyIngestService
     }
 
     /**
-     * Replace the PDF file on an existing document and re-ingest.
+     * Replace the PDF file on an existing document. Does NOT re-ingest —
+     * the caller dispatches IngestPolicyDocumentJob afterwards.
      */
     public function replace(HrPolicyDocument $document, UploadedFile $newFile, array $data): void
     {
@@ -147,22 +165,29 @@ class PolicyIngestService
             Storage::delete($document->file_path);
         }
 
-        $path = $newFile->storeAs(
-            'policies',
-            time() . '_' . $newFile->getClientOriginalName()
-        );
+        $path     = $newFile->storeAs('policies', time() . '_' . $newFile->getClientOriginalName());
+        $fullPath = Storage::path($path);
 
         $document->update([
             'title'          => $data['title'],
             'filename'       => $newFile->getClientOriginalName(),
             'file_path'      => $path,
+            'file_hash'      => hash_file('sha256', $fullPath),
             'category'       => $data['category'],
             'effective_date' => $data['effective_date'] ?? null,
-            'status'         => 'processing',
+            'status'         => 'pending',
             'ingest_error'   => null,
         ]);
+    }
 
-        $this->ingest($document);
+    /**
+     * Reset a document to 'pending' so it can be re-ingested in place
+     * (e.g. after installing missing OCR language data, or to retry after
+     * a transient failure) without deleting and re-creating the record.
+     */
+    public function markPendingForReingest(HrPolicyDocument $document): void
+    {
+        $document->update(['status' => 'pending', 'ingest_error' => null]);
     }
 
     /**
@@ -181,18 +206,85 @@ class PolicyIngestService
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    private function chunkText(string $text, int $wordsPerChunk = 300, int $overlap = 50): array
+    /**
+     * Look for another document with the identical file (by sha256) that
+     * already has persisted extraction results, so we can skip re-extracting
+     * (and, crucially, re-OCRing) entirely.
+     *
+     * @return array{0: array, 1: bool, 2: ?float}|null [pages, used_ocr, confidence]
+     */
+    private function findCachedExtraction(HrPolicyDocument $document): ?array
     {
-        $text  = preg_replace('/\s+/', ' ', trim($text));
-        $words = explode(' ', $text);
-        $total = count($words);
-        $step  = $wordsPerChunk - $overlap;
+        if (empty($document->file_hash)) {
+            return null;
+        }
+
+        $match = HrPolicyDocument::where('file_hash', $document->file_hash)
+            ->where('id', '!=', $document->id)
+            ->whereNotNull('extracted_text')
+            ->latest('updated_at')
+            ->first();
+
+        if (!$match) {
+            return null;
+        }
+
+        $pages = json_decode($match->extracted_text, true);
+        if (!is_array($pages)) {
+            return null;
+        }
+
+        return [
+            $pages,
+            (bool) $match->ocr_used,
+            $match->ocr_confidence !== null ? (float) $match->ocr_confidence : null,
+        ];
+    }
+
+    /**
+     * Flatten per-page text into a single word list, tagging each word with
+     * the page it came from, so chunking can span page boundaries exactly
+     * like before while still attributing each chunk to a starting page.
+     *
+     * @param array $pages from OcrService::extractDocument()['pages']
+     * @return array{0: string[], 1: int[]} [words, pageOfWord] (parallel arrays)
+     */
+    private function buildWordPageMap(array $pages): array
+    {
+        $words      = [];
+        $pageOfWord = [];
+
+        foreach ($pages as $page) {
+            $pageWords = preg_split('/\s+/', trim($page['text']), -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($pageWords as $word) {
+                $words[]      = $word;
+                $pageOfWord[] = $page['page_number'];
+            }
+        }
+
+        return [$words, $pageOfWord];
+    }
+
+    /**
+     * Same sliding-window chunking as before (300 words/chunk, 50-word
+     * overlap, minimum 30 words to keep a chunk), now page-aware: each chunk
+     * is attributed to the page its first word came from.
+     *
+     * @return array<int, array{text: string, page_number: ?int}>
+     */
+    private function chunkWords(array $words, array $pageOfWord, int $wordsPerChunk = 300, int $overlap = 50): array
+    {
+        $total  = count($words);
+        $step   = $wordsPerChunk - $overlap;
         $chunks = [];
 
         for ($i = 0; $i < $total; $i += $step) {
-            $chunk = implode(' ', array_slice($words, $i, $wordsPerChunk));
-            if (str_word_count($chunk) >= 30) {
-                $chunks[] = $chunk;
+            $chunkText = implode(' ', array_slice($words, $i, $wordsPerChunk));
+            if (str_word_count($chunkText) >= 30) {
+                $chunks[] = [
+                    'text'        => $chunkText,
+                    'page_number' => $pageOfWord[$i] ?? null,
+                ];
             }
         }
 

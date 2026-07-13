@@ -11,6 +11,7 @@ class HrPolicyChunk extends Model
     protected $fillable = [
         'document_id',
         'chunk_index',
+        'page_number',
         'section_title',
         'content',
         'search_vector',
@@ -21,6 +22,7 @@ class HrPolicyChunk extends Model
     // which can cause unexpected sort/comparison bugs if used in PHP logic.
     protected $casts = [
         'chunk_index' => 'integer',
+        'page_number' => 'integer',
     ];
 
     public function document()

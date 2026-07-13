@@ -12,19 +12,26 @@ class HrPolicyDocument extends Model
 
     // FIX: Valid status values defined as a constant.
     // Used for validation in controllers and for clarity when reading the code.
-    const STATUSES = ['active', 'processing', 'failed', 'inactive'];
+    // 'pending' = uploaded, ingestion not yet run/queued.
+    // 'needs_review' = ingested but OCR confidence was below the configured
+    // threshold — chunks exist but the document is intentionally excluded
+    // from scopeActive() until a human approves it or re-uploads a cleaner scan.
+    const STATUSES = ['pending', 'processing', 'active', 'needs_review', 'failed', 'inactive'];
 
     protected $fillable = [
         'title',
         'filename',
         'file_path',
+        'file_hash',
         'category',
         'is_active',
         'effective_date',
         'status',
         'chunk_count',
         'ingest_error',
+        'extracted_text',
         'ocr_used',
+        'ocr_confidence',
     ];
 
     protected $casts = [
@@ -32,7 +39,8 @@ class HrPolicyDocument extends Model
         'effective_date' => 'date',
         // FIX: Cast chunk_count to integer so it's always a number, not a string.
         'chunk_count'    => 'integer',
-        'ocr_used' => 'boolean',
+        'ocr_used'       => 'boolean',
+        'ocr_confidence' => 'integer',
     ];
 
     public function chunks()
@@ -46,13 +54,15 @@ class HrPolicyDocument extends Model
     public function getStatusBadgeAttribute(): string
     {
         $map = [
-            'active'     => 'success',
-            'processing' => 'warning',
-            'failed'     => 'danger',
-            'inactive'   => 'secondary',
+            'pending'      => 'secondary',
+            'active'       => 'success',
+            'processing'   => 'warning',
+            'needs_review' => 'warning',
+            'failed'       => 'danger',
+            'inactive'     => 'secondary',
         ];
         $class  = $map[$this->status] ?? 'secondary';
-        $label  = ucfirst(e($this->status));
+        $label  = e(ucwords(str_replace('_', ' ', $this->status)));
         return '<span class="badge badge-' . $class . '">' . $label . '</span>';
     }
 
