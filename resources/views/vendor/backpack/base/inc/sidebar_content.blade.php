@@ -103,8 +103,8 @@
     </a>
 </li>
 
-{{-- HR Policy Documents — only visible to admin and hr_staff --}}
-@if(backpack_user()->hasAnyRole(['admin', 'hr_staff']))
+{{-- HR Policy Documents — only visible to admin, dept_head, div_head --}}
+@if(backpack_user()->hasAnyRole(['admin', 'dept_head', 'div_head']))
 <li class="nav-item">
     <a class="nav-link" href="{{ backpack_url('hr-policy-documents') }}">
         <i class="nav-icon la la-file-pdf"></i> Policy Documents

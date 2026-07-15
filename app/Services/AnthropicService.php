@@ -9,12 +9,10 @@ class AnthropicService
     protected $apiKey;
     protected $model = 'claude-haiku-4-5';
 
-    // FIX: System prompt is now a constant so it is only built once per request,
-    // not rebuilt on every call inside ask(). Also separated from policyContext
-    // so the cache_control correctly targets just the static instructions,
-    // not the dynamic policy text which changes per query.
+    // Static, reused across every request — this is the block cache_control
+    // targets in ask(). Keep it free of anything that varies per question.
     protected $baseSystemPrompt = "You are an HR Policy Assistant for the City Government of Pasig.\n"
-            . "CRITICAL: Always respond in the exact same language the user used to ask the question. If the user asks in Tagalog/Filipino, you MUST reply fluently in Tagalog/Filipino.\n"
+            . "CRITICAL: Always respond in the exact same language the user used to ask the question. If the user asks in Tagalog/Filipino, you MUST reply fluently in Tagalog/Filipino. If the question mixes English and Tagalog (Taglish), reply naturally in that same mixed style rather than forcing it into one language.\n"
             . "Answer employee questions ONLY using the policy documents provided below. Do not use outside knowledge and do not invent details.\n"
             . "If the provided documents do not answer the question, say plainly that you could not find it in the current policy documents and that the employee should contact HRDO directly. Do not guess.\n"
             . "Always cite the source document name in your answer.\n"
@@ -32,20 +30,8 @@ class AnthropicService
             return 'Configuration error: API key missing. Please contact your system administrator.';
         }
 
-        // FIX: Policy context is appended here, NOT inside the cached system block.
-        // The static base prompt is cached; the dynamic policy context is NOT cached
-        // because it changes per query. This is the correct caching pattern.
-        $fullSystemPrompt = $this->baseSystemPrompt
-            . "\n\n## OFFICIAL HRDO POLICY DOCUMENTS:\n"
-            . $policyContext;
-
-        // FIX: Truncate excessively long policy context to avoid hitting token limits.
-        // Claude Haiku's context window is 200k tokens but we keep prompts lean.
-        // ~12000 chars ≈ ~3000 tokens, well within safe limits.
-        if (strlen($fullSystemPrompt) > 12000) {
-            $fullSystemPrompt = substr($fullSystemPrompt, 0, 12000)
-                . "\n\n[Policy context truncated. Contact HRDO for full document.]";
-        }
+        $dynamicSystemBlock = "\n\n## OFFICIAL HRDO POLICY DOCUMENTS:\n"
+            . $this->truncatePolicyContext($policyContext);
 
         try {
             $response = Http::timeout(60)
@@ -63,16 +49,21 @@ class AnthropicService
                     // assistant and must answer only from the uploaded policy documents,
                     // not from live internet results.
 
-                    // FIX: Only the static base prompt portion is marked for caching.
-                    // The dynamic policy context (which changes per question) is intentionally
-                    // NOT in a separate cached block — mixing dynamic content into a cached block
-                    // defeats caching and wastes cache write tokens.
+                    // Two separate blocks: only the static instructions carry
+                    // cache_control. The policy-context block changes on every
+                    // question, so it's sent uncached — bundling it into the
+                    // cached block would change that block's content per request
+                    // and defeat caching entirely (every call becomes a cache miss).
                     'system' => [
                         [
                             'type'          => 'text',
-                            'text'          => $fullSystemPrompt,
+                            'text'          => $this->baseSystemPrompt,
                             'cache_control' => ['type' => 'ephemeral'],
-                        ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $dynamicSystemBlock,
+                        ],
                     ],
 
                     'messages' => [
@@ -132,6 +123,30 @@ class AnthropicService
             ]);
             return 'Could not connect to the AI service. Please check your internet connection and try again.';
         }
+    }
+
+    // Truncates the dynamic policy-context block, not the fixed system prompt,
+    // so the model's core instructions are never at risk of being clipped.
+    // Uses mb_substr (not substr) because policy text is UTF-8 and can contain
+    // multi-byte characters (curly quotes, em dashes, Tagalog diacritics) —
+    // a byte-based cut can land mid-character and corrupt the JSON payload.
+    protected function truncatePolicyContext(string $policyContext, int $maxChars = 11000): string
+    {
+        if (mb_strlen($policyContext) <= $maxChars) {
+            return $policyContext;
+        }
+
+        $truncated = mb_substr($policyContext, 0, $maxChars);
+
+        // Prefer cutting at a chunk boundary (PolicyRetriever::formatForPrompt
+        // joins chunks with "\n\n---\n\n") so we never hand the model half of a
+        // document's content with a dangling, incomplete source citation.
+        $lastBoundary = mb_strrpos($truncated, "\n\n---\n\n");
+        if ($lastBoundary !== false) {
+            $truncated = mb_substr($truncated, 0, $lastBoundary);
+        }
+
+        return $truncated . "\n\n[Additional policy context truncated. Contact HRDO for the full document.]";
     }
 
     protected function friendlyError(int $status, ?array $body): string

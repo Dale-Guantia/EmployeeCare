@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Services\TicketNotificationService;
 use App\Models\Status;
 use App\Models\Issue;
+use App\Models\TicketReassignmentRequest;
 use Carbon\Carbon;
 
 class Ticket extends Model
@@ -63,8 +64,10 @@ class Ticket extends Model
         });
 
         static::saving(function ($model) {
-            // Auto-fill ticket fields from selected issue
-            if ($model->issue_id) {
+            // Auto-fill ticket fields from selected issue.
+            // Only run this on create, or when issue_id itself changed — otherwise this
+            // clobbers manual department/division changes made via reassignment on every save.
+            if ($model->issue_id && (!$model->exists || $model->isDirty('issue_id'))) {
                 $issue = Issue::find($model->issue_id);
 
                 if ($issue) {
@@ -171,6 +174,18 @@ class Ticket extends Model
             if ($ticket->wasChanged('status_id')) {
                 $ticket->loadMissing('status');
                 app(TicketNotificationService::class)->notifyTicketStatusChanged($ticket, $actor);
+
+                $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
+
+                if ($resolvedStatusId && (int) $ticket->status_id === (int) $resolvedStatusId) {
+                    $pending = $ticket->reassignmentRequests()
+                        ->where('status', TicketReassignmentRequest::STATUS_PENDING)
+                        ->get();
+
+                    foreach ($pending as $request) {
+                        $request->update(['status' => TicketReassignmentRequest::STATUS_CANCELLED]);
+                    }
+                }
             }
         });
     }
@@ -220,7 +235,10 @@ class Ticket extends Model
             ];
         }
 
-        $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
+        static $resolvedStatusId = null;
+        if ($resolvedStatusId === null) {
+            $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
+        }
         $createdAt = Carbon::parse($this->created_at);
 
         // CASE A: Resolved ticket
@@ -326,5 +344,17 @@ class Ticket extends Model
     public function comments()
     {
         return $this->hasMany(TicketComment::class)->latest();
+    }
+
+    public function reassignmentRequests()
+    {
+        return $this->hasMany(TicketReassignmentRequest::class);
+    }
+
+    public function pendingReassignmentRequest()
+    {
+        return $this->hasOne(TicketReassignmentRequest::class)
+            ->where('status', TicketReassignmentRequest::STATUS_PENDING)
+            ->latestOfMany();
     }
 }

@@ -85,6 +85,9 @@
                             {{ optional($entry->priority)->priority_name ?? 'Unknown' }}
                         </span>
                     </p>
+                    <hr>
+                    <p><strong>Reassignment</strong></p>
+                    @include('admin.ticket.reassignment_widget', ['entry' => $entry])
                 </div>
             </div>
         </div>

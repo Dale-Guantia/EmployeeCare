@@ -93,16 +93,20 @@
         return div;
     };
 
-    HrChat.prototype._appendAi = function (text, sources, logId, isError) {
+    // Builds the inner HTML for a bot message: the rendered bubble, source
+    // pills (or the not-grounded banner), and a feedback row that holds the
+    // Helpful?/thumbs group plus the copy button on one line. Shared by
+    // _appendAi (live answers) and _renderThreadFromLogs (page reload), so
+    // both paths render an identical, complete structure.
+    HrChat.prototype._buildAiHtml = function (text, sources, logId, isError) {
         var c = this.cfg.classes;
         var s = this.cfg.strings;
         sources = sources || [];
         isError = !!isError;
 
-        var div = document.createElement('div');
-        div.className = c.wrapBot;
-
-        var bodyHtml = '<div class="' + (isError ? c.bubbleBotError : c.bubbleBot) + '">' +
+        // data-hrchat-bubble marks the node whose *rendered* (not raw markdown)
+        // text the copy button should read.
+        var bodyHtml = '<div class="' + (isError ? c.bubbleBotError : c.bubbleBot) + '" data-hrchat-bubble="1">' +
             renderMarkdown(text) + '</div>';
 
         var sourcesHtml = '';
@@ -120,21 +124,41 @@
                 '</div>';
         }
 
+        var copyBtnHtml = '<button type="button" class="' + c.copyBtn + '" title="Copy response" ' +
+            'aria-label="Copy response" onclick="HrChatCore.copy(this)"><i class="la la-copy"></i></button>';
+
         var feedbackHtml = '';
         if (!isError && logId) {
+            // data-hrchat-feedback-group scopes giveFeedback()'s "Thanks!" swap to
+            // just the label+thumbs, so the copy button next to it survives.
             feedbackHtml =
                 '<div class="' + c.feedbackWrap + '">' +
-                    '<small class="' + c.feedbackLabel + '">' + s.helpfulPrompt + '</small>' +
-                    '<button type="button" class="' + c.feedbackBtnUp + '" aria-label="' + s.thumbsUpAria + '" ' +
-                        'onclick="' + this.cfg.globalName + '.giveFeedback(' + logId + ', 1, this)">&#128077;</button>' +
-                    '<button type="button" class="' + c.feedbackBtnDown + '" aria-label="' + s.thumbsDownAria + '" ' +
-                        'onclick="' + this.cfg.globalName + '.giveFeedback(' + logId + ', -1, this)">&#128078;</button>' +
+                    '<span data-hrchat-feedback-group="1">' +
+                        '<small class="' + c.feedbackLabel + '">' + s.helpfulPrompt + '</small>' +
+                        '<button type="button" class="' + c.feedbackBtnUp + '" aria-label="' + s.thumbsUpAria + '" ' +
+                            'onclick="' + this.cfg.globalName + '.giveFeedback(' + logId + ', 1, this)">&#128077;</button>' +
+                        '<button type="button" class="' + c.feedbackBtnDown + '" aria-label="' + s.thumbsDownAria + '" ' +
+                            'onclick="' + this.cfg.globalName + '.giveFeedback(' + logId + ', -1, this)">&#128078;</button>' +
+                    '</span>' +
+                    copyBtnHtml +
                 '</div>';
+        } else if (!isError) {
+            // No logId (e.g. the static widget welcome message) — no feedback
+            // possible yet, but still offer copy.
+            feedbackHtml = '<div class="' + c.feedbackWrap + '">' + copyBtnHtml + '</div>';
         }
 
-        div.innerHTML =
-            '<' + c.senderTag + ' class="' + c.senderClass + '">' + esc(s.assistantName) + '</' + c.senderTag + '>' +
+        return '<' + c.senderTag + ' class="' + c.senderClass + '">' + esc(s.assistantName) + '</' + c.senderTag + '>' +
             bodyHtml + sourcesHtml + feedbackHtml;
+    };
+
+    HrChat.prototype._appendAi = function (text, sources, logId, isError) {
+        var c = this.cfg.classes;
+        var div = document.createElement('div');
+        div.className = c.wrapBot;
+        // data-hrchat-msg scopes the copy button's DOM lookup to this message.
+        div.setAttribute('data-hrchat-msg', '1');
+        div.innerHTML = this._buildAiHtml(text, sources, logId, isError);
 
         this.el('thread').appendChild(div);
         this._scrollThread();
@@ -162,8 +186,12 @@
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.cfg.csrf },
             body: JSON.stringify({ log_id: logId, feedback: value }),
         }).then(function () {
-            btn.closest('div').innerHTML =
-                '<small>' + (value === 1 ? s.thanksHelpful : s.notedUnhelpful) + '</small>';
+            // Scoped to the label+thumbs group only — the copy button sits
+            // beside it in the same row and must not be wiped out too.
+            var group = btn.closest('[data-hrchat-feedback-group]');
+            if (group) {
+                group.innerHTML = '<small>' + (value === 1 ? s.thanksHelpful : s.notedUnhelpful) + '</small>';
+            }
         });
     };
 
@@ -261,9 +289,8 @@
 
             var aiDiv = document.createElement('div');
             aiDiv.className = c.wrapBot;
-            aiDiv.innerHTML =
-                '<' + c.senderTag + ' class="' + c.senderClass + '">' + esc(self.cfg.strings.assistantName) + '</' + c.senderTag + '>' +
-                '<div class="' + c.bubbleBot + '">' + renderMarkdown(log.answer) + '</div>';
+            aiDiv.setAttribute('data-hrchat-msg', '1');
+            aiDiv.innerHTML = self._buildAiHtml(log.answer, log.sources || [], log.id, false);
             fragment.appendChild(aiDiv);
         });
 
@@ -360,11 +387,51 @@
         });
     };
 
+    // Textarea+execCommand fallback for browsers/contexts where the async
+    // Clipboard API is unavailable (e.g. non-HTTPS, older browsers).
+    function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) { /* nothing more we can do */ }
+        document.body.removeChild(ta);
+    }
+
+    // Copies the *rendered* answer (what's actually on screen), not the raw
+    // markdown source. Reads innerText off the message's rendered bubble
+    // (marked by data-hrchat-bubble) rather than a stored raw-text attribute,
+    // so bold/lists/code formatting markers are stripped like a real copy.
+    function copyResponse(btn) {
+        var msg = btn.closest('[data-hrchat-msg]');
+        var bubble = msg ? msg.querySelector('[data-hrchat-bubble]') : null;
+        var text = bubble ? (bubble.innerText || bubble.textContent || '') : '';
+        var original = btn.innerHTML;
+        function showCopied() {
+            btn.innerHTML = '<i class="la la-check"></i>';
+            setTimeout(function () { btn.innerHTML = original; }, 1500);
+        }
+        if (!text) return;
+        if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
+            global.navigator.clipboard.writeText(text).then(showCopied)['catch'](function () {
+                fallbackCopy(text);
+                showCopied();
+            });
+        } else {
+            fallbackCopy(text);
+            showCopied();
+        }
+    }
+
     global.HrChatCore = {
         create: function (config) { return new HrChat(config); },
         renderMarkdown: renderMarkdown,
         esc: esc,
         loadMarked: loadMarked,
+        copy: copyResponse,
     };
 
 })(window);

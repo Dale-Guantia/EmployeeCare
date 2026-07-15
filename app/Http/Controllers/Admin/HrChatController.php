@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\HrChatLog;
+use App\Models\HrPolicyChunk;
 use App\Services\PolicyRetriever;
 use App\Services\AnthropicService;
 // use App\Services\GeminiService;
@@ -45,6 +46,21 @@ class HrChatController extends Controller
         // This prevents the chat UI from breaking when errors occur.
         try {
             $question = trim($request->input('question'));
+
+            // Greet-back path: a bare "hello"/"hi"/"kumusta" has no keywords for
+            // PolicyRetriever to match, so without this it would otherwise fall
+            // through to the "couldn't find this in our policy documents" miss
+            // message — a wrong and unfriendly reply to a plain greeting.
+            // Not logged (log_id: null) so it doesn't clutter recent prompts and
+            // doesn't render the not-grounded warning or feedback thumbs on what
+            // is just small talk, not a policy answer.
+            if ($this->isGreeting($question)) {
+                return response()->json([
+                    'answer'  => $this->greetingReply(),
+                    'sources' => [],
+                    'log_id'  => null,
+                ]);
+            }
 
             $chunks = $this->retriever->retrieve($question);
 
@@ -107,6 +123,34 @@ class HrChatController extends Controller
         }
     }
 
+    // Matches only when the *entire* message is a greeting (punctuation/case
+    // insensitive) — "hello" greets back, but "hello, what is the leave
+    // policy?" still falls through to retrieval so the real question gets
+    // answered.
+    private function isGreeting(string $question): bool
+    {
+        $normalized = strtolower(trim($question));
+        $normalized = preg_replace('/[^\p{L}\s]/u', '', $normalized);
+        $normalized = trim(preg_replace('/\s+/', ' ', $normalized));
+
+        $greetings = [
+            'hi', 'hello', 'hey', 'hiya', 'yo',
+            'good morning', 'good afternoon', 'good evening', 'good day',
+            'kumusta', 'kamusta', 'magandang umaga', 'magandang tanghali',
+            'magandang hapon', 'magandang gabi',
+        ];
+
+        return in_array($normalized, $greetings, true);
+    }
+
+    private function greetingReply(): string
+    {
+        return "Hello! 👋 I'm your HRDO Policy Assistant. Ask me anything about leave, "
+            . "benefits, conduct, performance, or other HR policies.\n\n"
+            . "*(Kumusta! Ako ang inyong HRDO Policy Assistant. Magtanong tungkol sa "
+            . "leave, benepisyo, asal, performance, o iba pang patakaran ng HR.)*";
+    }
+
     public function feedback(Request $request): JsonResponse
     {
         $request->validate([
@@ -131,7 +175,32 @@ class HrChatController extends Controller
         $logs = HrChatLog::where('user_id', backpack_user()->id)
             ->latest()
             ->limit(20)
-            ->get(['id', 'question', 'answer', 'created_at']);
+            ->get(['id', 'question', 'answer', 'matched_chunk_ids', 'created_at']);
+
+        // Resolve source citations for all logs in one batch query (instead of
+        // N+1 per-log lookups), mirroring the title + section format ask() uses.
+        $chunkIds = $logs->pluck('matched_chunk_ids')->flatten()->filter()->unique()->values();
+        $chunksById = HrPolicyChunk::with('document')
+            ->whereIn('id', $chunkIds)
+            ->get()
+            ->keyBy('id');
+
+        $logs->each(function ($log) use ($chunksById) {
+            $log->sources = collect($log->matched_chunk_ids ?? [])
+                ->map(function ($chunkId) use ($chunksById) {
+                    $chunk = $chunksById->get($chunkId);
+                    if (!$chunk) {
+                        return null;
+                    }
+                    $title   = $chunk->document->title ?? 'Unknown Document';
+                    $section = $chunk->section_title ? ' — ' . $chunk->section_title : '';
+                    return $title . $section;
+                })
+                ->filter()
+                ->unique()
+                ->values();
+            unset($log->matched_chunk_ids);
+        });
 
         return response()->json($logs);
     }

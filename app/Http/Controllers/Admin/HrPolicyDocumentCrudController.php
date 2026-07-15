@@ -22,13 +22,19 @@ class HrPolicyDocumentCrudController extends CrudController
 
         CRUD::allowAccess(['upload_new', 'update_policy', 'toggle_active', 'reingest']);
 
-        // Only admins and HR staff can manage policies
-        $this->middleware(function ($request, $next) {
-            if (!backpack_user()->hasAnyRole(['admin', 'hr_staff'])) {
-                abort(403, 'Only HR staff can manage policy documents.');
-            }
-            return $next($request);
-        });
+        // Only admin, dept_head, div_head can view/manage policy documents.
+        // Must be a direct check here, NOT wrapped in $this->middleware(...) —
+        // Backpack's own CrudController::__construct() registers setup() itself
+        // inside a middleware closure, so by the time setup() runs, Laravel's
+        // middleware pipeline for this request has already been built. Any
+        // middleware added via $this->middleware() from within setup() is added
+        // too late to actually run before the action — it silently never fires,
+        // meaning a guard written that way appears to work but blocks no one
+        // (confirmed: even the 'employee' role was getting through). A plain
+        // synchronous check here runs immediately, in-line, every request.
+        if (!backpack_user()->hasAnyRole(['admin', 'dept_head', 'div_head'])) {
+            abort(403, 'You are not allowed to access policy documents.');
+        }
     }
 
     protected function setupListOperation()

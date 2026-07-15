@@ -7,6 +7,13 @@ use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Prologue\Alerts\Facades\Alert;
 use App\Models\Status;
+use App\Models\Department;
+use App\Models\Division;
+use App\Models\Ticket;
+use App\Models\TicketReassignmentRequest;
+use App\Models\User;
+use App\Services\TicketAutoAssignmentService;
+use App\Services\TicketNotificationService;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -53,10 +60,18 @@ class TicketCrudController extends CrudController
             // 2. Add scope-based visibility
             if ($user->hasRole('dept_head')) {
                 $query->orWhere('department_id', $user->department_id);
+                // Also let a receiving dept_head see tickets pending transfer into their department
+                $query->orWhereHas('pendingReassignmentRequest', function ($q) use ($user) {
+                    $q->where('to_department_id', $user->department_id);
+                });
                 $this->crud->allowAccess(['create','update','delete','show']);
             }
             if ($user->hasRole('div_head')) {
                 $query->orWhere('division_id', $user->division_id);
+                // Also let a receiving div_head see tickets pending transfer into their division
+                $query->orWhereHas('pendingReassignmentRequest', function ($q) use ($user) {
+                    $q->where('to_division_id', $user->division_id);
+                });
                 $this->crud->allowAccess(['create','show', 'update']);
             }
             if ($user->hasRole('hr_staff')) {
@@ -83,19 +98,28 @@ class TicketCrudController extends CrudController
         if ($user->hasRole('div_head')) {
             $this->crud->addClause('where', 'division_id', $user->division_id);
         }
-        // // 3. If user is a regular Employee, only show tickets they created
-        // if ($user->hasRole('hr_staff')) {
-        //     $this->crud->addClause('where', 'user_id', $user->id);
-        // };
         // 4. If user is a regular Employee, only show tickets they created
         if ($user->hasRole('employee')) {
             $this->crud->addClause('where', 'user_id', $user->id);
         };
 
+        // Eager-load relations used by columns below to avoid N+1 queries.
+        // Backpack keeps its query builder around, so ->with() here sticks.
+        $this->crud->query->with(['status', 'priority', 'user', 'issue']);
+
         CRUD::column('reference_id')->label('Reference Id');
         CRUD::column('user_id')->label('Created by');
-        CRUD::column('issue_id');
-        // CRUD::column('custom_issue');
+        CRUD::addColumn([
+            'name'     => 'issue_id',
+            'label'    => 'Issue',
+            'type'     => 'closure',
+            'function' => function ($entry) {
+                if ($entry->is_custom_issue) {
+                    return e($entry->custom_issue ?: '-');
+                }
+                return e(optional($entry->issue)->issue_description ?? '-');
+            },
+        ]);
         CRUD::addColumn([
             'name'      => 'priority_id',
             'label'     => 'Priority',
@@ -255,13 +279,16 @@ class TicketCrudController extends CrudController
                                     fetch("/api/department/" + deptId + "/divisions")
                                         .then(response => response.json())
                                         .then(data => {
-                                            divSelect.innerHTML = "<option value=\'\'>-</option>";
+                                            divSelect.innerHTML = "<option value=\'\'>- Select Division -</option>";
                                             data.forEach(div => {
                                                 const option = document.createElement("option");
                                                 option.value = div.id;
                                                 option.text = div.division_name;
                                                 divSelect.appendChild(option);
                                             });
+                                            if (window.hrfRebindTomSelect) {
+                                                window.hrfRebindTomSelect(divSelect, { emptyOptionText: "- Select Division -" });
+                                            }
                                         })
                                         .catch(error => {
                                             console.error("Error fetching divisions:", error);
@@ -271,7 +298,10 @@ class TicketCrudController extends CrudController
                                     // Disable and reset if no department selected
                                     divSelect.value = "";
                                     divSelect.disabled = true;
-                                    divSelect.innerHTML = "<option value=\'\'>-</option>";
+                                    divSelect.innerHTML = "<option value=\'\'>- Select Division -</option>";
+                                    if (window.hrfRebindTomSelect) {
+                                        window.hrfRebindTomSelect(divSelect, { emptyOptionText: "- Select Division -" });
+                                    }
                                 }
                             }
 
@@ -283,24 +313,19 @@ class TicketCrudController extends CrudController
 
                         // Run once on load to set initial state
                         setTimeout(toggleIssueFields, 500);
+
+                        // Tom Select wiring — Backpack-PRO-free searchable dropdowns.
+                        if (window.hrfInitTomSelect) {
+                            window.hrfInitTomSelect("select[name=\'issue_id\']", { emptyOptionText: "- Select Issue -" });
+                            window.hrfInitTomSelect("select[name=\'department_id\']", { emptyOptionText: "- Select Department -" });
+                            window.hrfInitTomSelect("select[name=\'division_id\']", { emptyOptionText: "- Select Division -" });
+                            window.hrfInitTomSelect("select[name=\'assigned_to\']", { emptyOptionText: "- Select Staff -" });
+                            window.hrfInitTomSelect("select[name=\'status_id\']", { emptyOptionText: "- Select Status -" });
+                        }
                     });
                 </script>
             ',
         ]);
-
-        if (backpack_user()->hasAnyRole(['Admin', 'Department Head', 'Division Head'])) {
-            CRUD::addField([
-                'name'      => 'assigned_to',
-                'label'     => 'Assign To (Leave blank for Auto-Assign)',
-                'type'      => 'select2',
-                'entity'    => 'assignedUser', // the method that defines the relationship in your Model
-                'attribute' => 'name',
-                'model'     => "App\Models\User",
-                'options'   => (function ($query) {
-                    return $query->role('hr_staff')->get();
-                }),
-            ]);
-        }
     }
 
     protected function renderAttachments($ticket)
@@ -389,6 +414,7 @@ class TicketCrudController extends CrudController
                 'entity'    => 'assignee',
                 'model'     => "App\Models\User",
                 'attribute' => 'name',
+                'allows_null' => true,
                 'options'   => (function ($query) use ($entry) {
                     // 1. If we are in "Create" mode or ticket has no data, return empty or all HR
                     if (!$entry) {
@@ -403,9 +429,6 @@ class TicketCrudController extends CrudController
             ]);
         }
         if ($user->hasAnyRole(['admin', 'dept_head', 'div_head'])) {
-            // Get the current ticket being edited
-            $entry = $this->crud->getCurrentEntry();
-
             CRUD::addField([
                 'label'     => "Change Status",
                 'type'      => 'select',
@@ -417,70 +440,291 @@ class TicketCrudController extends CrudController
         }
     }
 
+    private function isReceivingHead(TicketReassignmentRequest $reassignment, $user): bool
+    {
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
+        if ($user->hasRole('dept_head') && (int) $user->department_id === (int) $reassignment->to_department_id) {
+            return true;
+        }
+
+        if ($user->hasRole('div_head') && $reassignment->to_division_id && (int) $user->division_id === (int) $reassignment->to_division_id) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function handleReopen($request)
+    {
+        $entry = $this->crud->getEntry($request->id);
+        $user = backpack_user();
+
+        if ((int) $user->id !== (int) $entry->user_id) {
+            abort(403, 'Only the ticket creator can reopen this ticket.');
+        }
+
+        $reopenedId = Status::where('status_name', 'Reopened')->value('id');
+
+        if (!$reopenedId) {
+            abort(500, 'Reopened status not found.');
+        }
+
+        $entry->status_id = $reopenedId;
+        $entry->save();
+
+        Alert::success('Ticket reopened successfully.')->flash();
+
+        return redirect($request->get('_http_referrer') ?? $this->crud->route);
+    }
+
+    private function handleResolve($request)
+    {
+        $entry = $this->crud->getEntry($request->id);
+        $user = backpack_user();
+
+        $canResolve = $user->hasRole('admin')
+            || ($user->hasRole('dept_head') && (int) $user->department_id === (int) $entry->department_id)
+            || ($user->hasRole('div_head') && (int) $user->division_id === (int) $entry->division_id)
+            || ($user->hasRole('hr_staff') && (int) $user->id === (int) $entry->assigned_to);
+
+        if (!$canResolve) {
+            abort(403, 'You are not allowed to resolve this ticket.');
+        }
+
+        $resolvedId = Status::where('status_name', 'Resolved')->value('id');
+
+        if (!$resolvedId) {
+            abort(500, 'Resolved status not found.');
+        }
+
+        $entry->status_id = $resolvedId;
+        $entry->save();
+
+        Alert::success('Ticket resolved successfully.')->flash();
+
+        return redirect($request->get('_http_referrer') ?? $this->crud->route);
+    }
+
+    private function handleQuickAssign($request)
+    {
+        $entry = $this->crud->getEntry($request->id);
+        $user = backpack_user();
+
+        $canAssign = $user->hasAnyRole(['admin', 'dept_head', 'div_head']);
+
+        if (!$canAssign) {
+            abort(403, 'You are not allowed to assign staff to this ticket.');
+        }
+
+        $entry->assigned_to = $request->get('assigned_to') ?: null;
+        $entry->save();
+
+        Alert::success('Staff assigned successfully.')->flash();
+
+        return redirect($request->get('_http_referrer') ?? $this->crud->route);
+    }
+
+    private function handleReassignRequest($request)
+    {
+        $entry = $this->crud->getEntry($request->id);
+        $user = backpack_user();
+
+        $canRequest = $user->hasRole('admin')
+            || ($user->hasRole('dept_head') && (int) $user->department_id === (int) $entry->department_id)
+            || ($user->hasRole('div_head') && (int) $user->division_id === (int) $entry->division_id);
+
+        if (!$canRequest) {
+            abort(403, 'You are not allowed to request reassignment for this ticket.');
+        }
+
+        $referrer = $request->get('_http_referrer') ?? $this->crud->route;
+
+        $resolvedId = Status::where('status_name', 'Resolved')->value('id');
+        if ($resolvedId && (int) $entry->status_id === (int) $resolvedId) {
+            Alert::error('Cannot request reassignment for a resolved ticket.')->flash();
+            return redirect($referrer);
+        }
+
+        if ($entry->pendingReassignmentRequest) {
+            Alert::error('This ticket already has a pending reassignment request.')->flash();
+            return redirect($referrer);
+        }
+
+        $toDepartmentId = $request->get('to_department_id');
+        $toDivisionId = $request->get('to_division_id');
+
+        if (!$toDepartmentId || !$toDivisionId) {
+            Alert::error('Please select a target department and division.')->flash();
+            return redirect($referrer);
+        }
+
+        $divisionBelongs = Division::where('id', $toDivisionId)
+            ->where('department_id', $toDepartmentId)
+            ->exists();
+
+        if (!$divisionBelongs) {
+            Alert::error('The selected division does not belong to the selected department.')->flash();
+            return redirect($referrer);
+        }
+
+        if ((int) $toDepartmentId === (int) $entry->department_id && (int) $toDivisionId === (int) $entry->division_id) {
+            Alert::error('Please select a different department or division to reassign to.')->flash();
+            return redirect($referrer);
+        }
+
+        $reassignment = TicketReassignmentRequest::create([
+            'ticket_id' => $entry->id,
+            'requested_by' => $user->id,
+            'from_department_id' => $entry->department_id,
+            'from_division_id' => $entry->division_id,
+            'to_department_id' => $toDepartmentId,
+            'to_division_id' => $toDivisionId,
+            'reason' => $request->get('reassign_reason'),
+            'status' => TicketReassignmentRequest::STATUS_PENDING,
+        ]);
+
+        app(TicketNotificationService::class)->notifyReassignmentRequested($entry, $reassignment, $user);
+
+        Alert::success('Reassignment request sent.')->flash();
+
+        return redirect($referrer);
+    }
+
+    private function handleReassignCancel($request)
+    {
+        $entry = $this->crud->getEntry($request->id);
+        $user = backpack_user();
+        $referrer = $request->get('_http_referrer') ?? $this->crud->route;
+
+        $reassignment = $entry->pendingReassignmentRequest;
+
+        if (!$reassignment) {
+            Alert::error('There is no pending reassignment request to cancel.')->flash();
+            return redirect($referrer);
+        }
+
+        $canCancel = $user->hasRole('admin') || (int) $user->id === (int) $reassignment->requested_by;
+
+        if (!$canCancel) {
+            abort(403, 'Only the requester can cancel this reassignment request.');
+        }
+
+        $reassignment->update(['status' => TicketReassignmentRequest::STATUS_CANCELLED]);
+
+        Alert::success('Reassignment request cancelled.')->flash();
+
+        return redirect($referrer);
+    }
+
+    private function handleReassignAccept($request)
+    {
+        $entry = $this->crud->getEntry($request->id);
+        $user = backpack_user();
+        $referrer = $request->get('_http_referrer') ?? $this->crud->route;
+
+        $reassignment = $entry->pendingReassignmentRequest;
+
+        if (!$reassignment) {
+            Alert::error('There is no pending reassignment request to accept.')->flash();
+            return redirect($referrer);
+        }
+
+        if (!$this->isReceivingHead($reassignment, $user)) {
+            abort(403, 'Only the receiving department/division head can accept this reassignment.');
+        }
+
+        // 1-3: move the ticket and clear the assignee. Part 0a's saving() guard
+        // lets this survive (issue_id isn't dirty, so the auto-fill won't clobber
+        // it), and the existing isDirty('assigned_to') hook flips status to
+        // Unassigned automatically.
+        $entry->department_id = $reassignment->to_department_id;
+        $entry->division_id = $reassignment->to_division_id;
+        $entry->assigned_to = null;
+        $entry->save();
+
+        // 4. Reuse the existing skill+load auto-assignment service — do not
+        // reimplement matching logic here.
+        $assigned = app(TicketAutoAssignmentService::class)->assignTicket($entry);
+
+        // 5. Mark the request accepted.
+        $reassignment->update([
+            'status' => TicketReassignmentRequest::STATUS_ACCEPTED,
+            'responded_by' => $user->id,
+            'responded_at' => now(),
+        ]);
+
+        // 6. Notify the requester; the newly assigned staff (if any) is notified
+        // via the existing notifyTicketAssigned path fired from Ticket::updated().
+        app(TicketNotificationService::class)->notifyReassignmentAccepted($entry, $reassignment, $user);
+
+        if ($assigned) {
+            $entry->refresh()->loadMissing('assignee');
+            $staffName = optional($entry->assignee)->name ?? 'a staff member';
+            Alert::success("Reassignment accepted and auto-assigned to {$staffName}.")->flash();
+        } else {
+            Alert::success('Reassignment accepted. No eligible staff found in the new division — ticket left unassigned.')->flash();
+        }
+
+        return redirect($referrer);
+    }
+
+    private function handleReassignReject($request)
+    {
+        $entry = $this->crud->getEntry($request->id);
+        $user = backpack_user();
+        $referrer = $request->get('_http_referrer') ?? $this->crud->route;
+
+        $reassignment = $entry->pendingReassignmentRequest;
+
+        if (!$reassignment) {
+            Alert::error('There is no pending reassignment request to reject.')->flash();
+            return redirect($referrer);
+        }
+
+        if (!$this->isReceivingHead($reassignment, $user)) {
+            abort(403, 'Only the receiving department/division head can reject this reassignment.');
+        }
+
+        $reassignment->update([
+            'status' => TicketReassignmentRequest::STATUS_REJECTED,
+            'responded_by' => $user->id,
+            'responded_at' => now(),
+            'response_note' => $request->get('response_note'),
+        ]);
+
+        app(TicketNotificationService::class)->notifyReassignmentRejected($entry, $reassignment, $user);
+
+        Alert::success('Reassignment request rejected.')->flash();
+
+        return redirect($referrer);
+    }
+
     public function update()
     {
         $request = $this->crud->getRequest();
+        $action = $request->get('_ticket_action');
 
-        // 1. Handle Reopen Ticket
-        if ($request->has('reopen_ticket')) {
-            $entry = $this->crud->getEntry($request->id);
-
-            if ((int) backpack_user()->id !== (int) $entry->user_id) {
-                abort(403, 'Only the ticket creator can reopen this ticket.');
-            }
-
-            $reopenedId = Status::where('status_name', 'Reopened')->value('id');
-
-            if (!$reopenedId) {
-                abort(500, 'Reopened status not found.');
-            }
-
-            $entry->status_id = $reopenedId;
-            $entry->save();
-
-            Alert::success('Ticket reopened successfully.')->flash();
-
-            return redirect($request->get('_http_referrer') ?? $this->crud->route);
+        switch ($action) {
+            case 'reopen':
+                return $this->handleReopen($request);
+            case 'resolve':
+                return $this->handleResolve($request);
+            case 'quick_assign':
+                return $this->handleQuickAssign($request);
+            case 'reassign_request':
+                return $this->handleReassignRequest($request);
+            case 'reassign_cancel':
+                return $this->handleReassignCancel($request);
+            case 'reassign_accept':
+                return $this->handleReassignAccept($request);
+            case 'reassign_reject':
+                return $this->handleReassignReject($request);
         }
 
-        // 2. Handle Resolve Ticket
-        if ($request->has('status_id') && !$request->has('message') && !$request->has('assigned_to') && !$request->has('reopen_ticket')) {
-            $entry = $this->crud->getEntry($request->id);
-            $entry->status_id = $request->status_id;
-            $entry->save();
-
-            Alert::success('Ticket resolved successfully.')->flash();
-
-            return redirect($request->get('_http_referrer') ?? $this->crud->route);
-        }
-
-        // 3. Handle Quick Assign
-        if ($request->has('assigned_to') && !$request->has('message')) {
-            $entry = $this->crud->getEntry($request->id);
-            $entry->assigned_to = $request->assigned_to;
-            $entry->save();
-
-            Alert::success('Staff assigned successfully.')->flash();
-
-            return redirect($request->get('_http_referrer') ?? $this->crud->route);
-        }
-
-        // 4. Handle Office Reassignment
-        if ($request->has('department_id') && !$request->has('message')) {
-            $entry = $this->crud->getEntry($request->id);
-
-            $entry->department_id = $request->department_id;
-            $entry->division_id = $request->division_id;
-            $entry->assigned_to = null;
-
-            $entry->save();
-
-            Alert::success('Ticket reassigned to new office successfully.')->flash();
-
-            return redirect($this->crud->route);
-        }
-
-        // 5. Default Backpack Update — with attachment removal handling
+        // Default Backpack Update — with attachment removal handling
         $request = $this->crud->getRequest();
 
         // Collect only retained string paths from the hidden inputs.
@@ -499,8 +743,8 @@ class TicketCrudController extends CrudController
             : (json_decode($entry->getRawOriginal('attachments'), true) ?? []);
 
         foreach (array_diff($oldPaths, $retainedPaths) as $removedPath) {
-            if (!empty($removedPath) && \Storage::disk('public')->exists($removedPath)) {
-                \Storage::disk('public')->delete($removedPath);
+            if (!empty($removedPath) && Storage::disk('public')->exists($removedPath)) {
+                Storage::disk('public')->delete($removedPath);
             }
         }
 
@@ -516,13 +760,29 @@ class TicketCrudController extends CrudController
         $this->crud->setShowContentClass('col-md-8');
         $user = backpack_user();
 
+        // Eager-load relations used below to avoid N+1 queries.
+        // Backpack's getModelWithCrudPanelQuery() discards ->with() on the query
+        // builder for the Show operation, so load directly on the fetched entry.
+        $this->crud->getCurrentEntry()->load([
+            'status', 'priority', 'user', 'issue', 'department', 'division', 'pendingReassignmentRequest',
+        ]);
+
         $resolvedId = Status::where('status_name', 'Resolved')->value('id');
         $reopenedId = Status::where('status_name', 'Reopened')->value('id');
 
         CRUD::column('reference_id')->label('Reference Id');
         CRUD::column('user_id')->type('select')->entity('user')->attribute('name')->label('Created by');
-        CRUD::column('issue_id')->type('select')->entity('issue')->attribute('issue_description')->label('Issue');
-        CRUD::column('custom_issue');
+        CRUD::addColumn([
+            'name'     => 'issue_id',
+            'label'    => 'Issue',
+            'type'     => 'closure',
+            'function' => function ($entry) {
+                if ($entry->is_custom_issue) {
+                    return e($entry->custom_issue ?: '-');
+                }
+                return e(optional($entry->issue)->issue_description ?? '-');
+            },
+        ]);
         CRUD::column('message');
         CRUD::column('department_id')->type('select')->entity('department')->attribute('department_name')->label('Department')->limit(75);
         CRUD::column('division_id')->type('select')->entity('division')->attribute('division_name')->label('Division');
@@ -628,6 +888,7 @@ class TicketCrudController extends CrudController
                             {$csrf}
                             {$method}
                             <input type='hidden' name='_http_referrer' value='".url()->current()."'>
+                            <input type='hidden' name='_ticket_action' value='quick_assign'>
                             <div class='form-group mb-0'>
                                 <select name='assigned_to' class='form-control form-control-sm' style='width: 250px;'>
                                     {$options}
@@ -643,84 +904,12 @@ class TicketCrudController extends CrudController
             ]);
         }
 
-        if ($user->hasAnyRole(['admin', 'dept_head', 'div_head']) && $this->crud->getCurrentEntry()->is_custom_issue == 1) {
+        if ($user->hasAnyRole(['admin', 'dept_head', 'div_head'])) {
             CRUD::addColumn([
-                'name'     => 'office_reassignment',
+                'name'     => 'reassignment_widget',
                 'label'    => 'Reassign',
-                'type'     => 'closure',
-                'wrapper'  => [
-                    'class' => 'reassign-row-wrapper'
-                ],
-                'function' => function($entry) {
-                    $departments = \App\Models\Department::all();
-                    // Fetch divisions grouped by department to make filtering easier for JS
-                    $divisions = \App\Models\Division::all();
-
-                    $formUrl = url($this->crud->route.'/'.$entry->id);
-                    $csrf = csrf_field();
-                    $method = method_field('PUT');
-
-                    $dept_options = '<option value="">- Select Department -</option>';
-                    foreach ($departments as $department) {
-                        $selected = ($entry->department_id == $department->id) ? 'selected' : '';
-                        $dept_options .= "<option value='{$department->id}' {$selected}>{$department->department_name}</option>";
-                    }
-
-                    // We will populate divisions via JavaScript, but we need the initial state
-                    $div_options = '<option value="">- Select Division -</option>';
-                    foreach ($divisions as $division) {
-                        $selected = ($entry->division_id == $division->id) ? 'selected' : '';
-                        $div_options .= "<option value='{$division->id}' {$selected}>{$division->division_name}</option>";
-                    }
-
-                    return "
-                        <form action='{$formUrl}' method='POST' class='form-inline' id='reassignForm-{$entry->id}'>
-                            {$csrf}
-                            {$method}
-                            <input type='hidden' name='_http_referrer' value='".url()->current()."'>
-                            <div class='form-group mb-0'>
-                                <select name='department_id' id='dept_select-{$entry->id}' class='form-control form-control-sm' style='width: 250px;'>
-                                    {$dept_options}
-                                </select>
-                                &nbsp;
-                                <select name='division_id' id='div_select-{$entry->id}' class='form-control form-control-sm' style='width: 250px;'>
-                                    {$div_options}
-                                </select>
-                                <button type='submit' class='btn btn-sm btn-success ml-1'>
-                                    <i class='la la-save'></i>
-                                </button>
-                            </div>
-                        </form>
-
-                        <script>
-                            (function() {
-                                const divisions = ". $divisions->toJson() .";
-                                const deptSelect = document.getElementById('dept_select-{$entry->id}');
-                                const divSelect = document.getElementById('div_select-{$entry->id}');
-
-                                deptSelect.addEventListener('change', function() {
-                                    const selectedDeptId = this.value;
-
-                                    // Clear and Reset Division Dropdown
-                                    divSelect.innerHTML = '<option value=\"\">- Select Division -</option>';
-
-                                    if (selectedDeptId) {
-                                        // Filter divisions belonging to this department
-                                        const filtered = divisions.filter(d => d.department_id == selectedDeptId);
-
-                                        filtered.forEach(div => {
-                                            let option = document.createElement('option');
-                                            option.value = div.id;
-                                            option.text = div.division_name;
-                                            divSelect.appendChild(option);
-                                        });
-                                    }
-                                });
-                            })();
-                        </script>
-                    ";
-                },
-                'escaped' => false,
+                'type'     => 'view',
+                'view'     => 'admin.ticket.reassignment_widget',
             ]);
         }
 
@@ -766,6 +955,7 @@ class TicketCrudController extends CrudController
                                         {$csrf}
                                         {$method}
                                         <input type='hidden' name='_http_referrer' value='".url()->current()."'>
+                                        <input type='hidden' name='_ticket_action' value='resolve'>
                                         <input type='hidden' name='status_id' value='{$resolvedId}'>
 
                                         <div class='modal-body text-left'>
@@ -814,6 +1004,7 @@ class TicketCrudController extends CrudController
                                         {$csrf}
                                         {$method}
                                         <input type='hidden' name='_http_referrer' value='".url()->current()."'>
+                                        <input type='hidden' name='_ticket_action' value='reopen'>
                                         <input type='hidden' name='reopen_ticket' value='1'>
 
                                         <div class='modal-body text-left'>

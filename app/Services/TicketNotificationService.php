@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Ticket;
+use App\Models\TicketReassignmentRequest;
 use App\Models\User;
 use App\Notifications\TicketSystemNotification;
 use Illuminate\Support\Collection;
@@ -260,6 +261,87 @@ class TicketNotificationService
                 'extra' => [
                     'ticket_id' => $ticket->id,
                     'type' => 'ticket_status_changed',
+                ],
+            ];
+        });
+    }
+
+    protected function reassignmentReceivers(TicketReassignmentRequest $request): Collection
+    {
+        return User::where(function ($q) use ($request) {
+            $q->where(function ($q2) use ($request) {
+                $q2->whereHas('roles', fn ($r) => $r->where('name', 'div_head'))
+                    ->where('division_id', $request->to_division_id);
+            })
+            ->orWhere(function ($q2) use ($request) {
+                $q2->whereHas('roles', fn ($r) => $r->where('name', 'dept_head'))
+                    ->where('department_id', $request->to_department_id);
+            })
+            ->orWhereHas('roles', fn ($r) => $r->where('name', 'admin'));
+        })->get();
+    }
+
+    public function notifyReassignmentRequested(Ticket $ticket, TicketReassignmentRequest $request, ?User $actor = null): void
+    {
+        $request->loadMissing(['toDivision', 'toDepartment']);
+
+        $recipients = $this->excludeActor($this->reassignmentReceivers($request), $actor);
+
+        $toLabel = optional($request->toDivision)->division_name
+            ?? optional($request->toDepartment)->department_name
+            ?? 'your office';
+
+        $this->notifyUsers($recipients, 'notify_reassignment_requested', function ($user) use ($ticket, $toLabel, $request) {
+            return [
+                'title' => 'Reassignment Request',
+                'message' => "Ticket {$ticket->reference_id} is awaiting your approval to be reassigned to {$toLabel}.",
+                'url' => $this->ticketUrl($ticket),
+                'extra' => [
+                    'ticket_id' => $ticket->id,
+                    'reassignment_request_id' => $request->id,
+                    'type' => 'reassignment_requested',
+                ],
+            ];
+        });
+    }
+
+    public function notifyReassignmentAccepted(Ticket $ticket, TicketReassignmentRequest $request, ?User $actor = null): void
+    {
+        $request->loadMissing(['requester']);
+
+        $recipients = $this->excludeActor(collect([$request->requester]), $actor);
+
+        $this->notifyUsers($recipients, 'notify_reassignment_responded', function ($user) use ($ticket, $request) {
+            return [
+                'title' => 'Reassignment Approved',
+                'message' => "Your request to reassign ticket {$ticket->reference_id} was approved.",
+                'url' => $this->ticketUrl($ticket),
+                'extra' => [
+                    'ticket_id' => $ticket->id,
+                    'reassignment_request_id' => $request->id,
+                    'type' => 'reassignment_accepted',
+                ],
+            ];
+        });
+    }
+
+    public function notifyReassignmentRejected(Ticket $ticket, TicketReassignmentRequest $request, ?User $actor = null): void
+    {
+        $request->loadMissing(['requester']);
+
+        $recipients = $this->excludeActor(collect([$request->requester]), $actor);
+
+        $note = $request->response_note ? " Reason: {$request->response_note}" : '';
+
+        $this->notifyUsers($recipients, 'notify_reassignment_responded', function ($user) use ($ticket, $note, $request) {
+            return [
+                'title' => 'Reassignment Rejected',
+                'message' => "Your request to reassign ticket {$ticket->reference_id} was rejected.{$note}",
+                'url' => $this->ticketUrl($ticket),
+                'extra' => [
+                    'ticket_id' => $ticket->id,
+                    'reassignment_request_id' => $request->id,
+                    'type' => 'reassignment_rejected',
                 ],
             ];
         });

@@ -60,8 +60,8 @@
     position: fixed;
     bottom: 90px;
     right: 30px;
-    width: 500px;
-    height: 500px;
+    width: 600px;
+    height: 600px;
     max-width: calc(100vw - 20px);
     max-height: calc(100vh - 110px);
     background: #fff;
@@ -174,6 +174,23 @@
     border: 1px solid #f5c6cb;
     border-bottom-left-radius: 4px;
 }
+
+/* Copy response button — lives inside .hrf-feedback beside the Helpful?
+   thumbs, so these rules are scoped under it to win over the generic
+   `.hrf-feedback button` styling below. */
+.hrf-feedback .hrf-copy-btn {
+    background: #eef2f8;
+    border: 1px solid #c8d0e0;
+    color: #375DA7;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    line-height: 1;
+    margin-left: auto;
+    transition: background 0.15s;
+}
+.hrf-feedback .hrf-copy-btn:hover { background: #dde6f4; }
 
 /* Source citations */
 .hrf-sources { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
@@ -385,9 +402,9 @@
 
     {{-- Quick suggestion chips --}}
     <div id="hrf-suggestions">
-        <button type="button" class="hrf-chip" onclick="hrFloat.ask('What are my leave entitlements?')">🏖️ Leave</button>
-        <button type="button" class="hrf-chip" onclick="hrFloat.ask('What is the Code of Conduct for government employees?')">📋 Code of Conduct</button>
-        <button type="button" class="hrf-chip" onclick="hrFloat.ask('What are my GSIS and PhilHealth benefits?')">💼 Benefits</button>
+        <button type="button" class="hrf-chip" onclick="hrFloat.ask('Can you give me all types of leave?')">🏖️ Leave</button>
+        {{-- <button type="button" class="hrf-chip" onclick="hrFloat.ask('What is the Code of Conduct for government employees?')">📋 Code of Conduct</button> --}}
+        {{-- <button type="button" class="hrf-chip" onclick="hrFloat.ask('What are my GSIS and PhilHealth benefits?')">💼 Benefits</button> --}}
     </div>
 
     {{-- Input --}}
@@ -448,6 +465,7 @@
             bubbleUser: 'hrf-bubble-user',
             bubbleBot: 'hrf-bubble-bot',
             bubbleBotError: 'hrf-bubble-error',
+            copyBtn: 'hrf-copy-btn',
             sourcesWrap: 'hrf-sources',
             sourcePill: 'hrf-source-pill',
             notGroundedBanner: 'hrf-not-grounded',
