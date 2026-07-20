@@ -10,6 +10,8 @@ class HrChatLog extends Model
 
     protected $fillable = [
         'user_id',
+        'session_id',
+        'conversation_id',
         'question',
         'answer',
         'matched_chunk_ids',
@@ -20,6 +22,7 @@ class HrChatLog extends Model
         'matched_chunk_ids' => 'array',
         'feedback'          => 'integer',
         'user_id'           => 'integer',
+        'conversation_id'   => 'integer',
     ];
 
     // FIX: Added relationship to User so logs can be joined to employee info
@@ -27,6 +30,11 @@ class HrChatLog extends Model
     public function user()
     {
         return $this->belongsTo(\App\Models\User::class, 'user_id');
+    }
+
+    public function conversation()
+    {
+        return $this->belongsTo(HrConversation::class, 'conversation_id');
     }
 
     // FIX: Added a scope for filtering helpful/unhelpful answers.

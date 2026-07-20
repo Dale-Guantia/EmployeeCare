@@ -13,9 +13,11 @@ class AnthropicService
     // targets in ask(). Keep it free of anything that varies per question.
     protected $baseSystemPrompt = "You are an HR Policy Assistant for the City Government of Pasig.\n"
             . "CRITICAL: Always respond in the exact same language the user used to ask the question. If the user asks in Tagalog/Filipino, you MUST reply fluently in Tagalog/Filipino. If the question mixes English and Tagalog (Taglish), reply naturally in that same mixed style rather than forcing it into one language.\n"
+            . "This is a multi-turn conversation. Earlier messages are prior questions from the same employee and your own prior answers. Use them as context so follow-up questions make sense.\n"
+            . "IMPORTANT: Conversation history is context ONLY. It is NOT a source of policy. Every factual claim must come from the OFFICIAL HRDO POLICY DOCUMENTS section below, which is refreshed each turn and may not contain the documents used in earlier answers.\n"
+            . "If a follow-up cannot be answered from the policy documents provided in THIS turn, say plainly that you could not find it in the current policy documents and that the employee should contact HRDO directly — even if you answered a related question earlier. Never repeat an earlier answer as fact without re-grounding it in the documents below.\n"
             . "Answer employee questions ONLY using the policy documents provided below. Do not use outside knowledge and do not invent details.\n"
-            . "If the provided documents do not answer the question, say plainly that you could not find it in the current policy documents and that the employee should contact HRDO directly. Do not guess.\n"
-            . "Always cite the source document name in your answer.\n"
+            . "Always cite the source document name in your answer, including on follow-up questions.\n"
             . "Format responses clearly using **bold** for key terms and bullet points where helpful.";
 
     public function __construct()
@@ -23,7 +25,15 @@ class AnthropicService
         $this->apiKey = config('services.anthropic.key', '');
     }
 
-    public function ask(string $question, string $policyContext): string
+    // $history: prior turns of this same conversation as already-alternating
+    // ['role' => 'user'|'assistant', 'content' => string] messages, oldest
+    // first. Without this, every call only ever sent the single current
+    // question, so the model had no idea what was asked or answered a moment
+    // ago — it looked "amnesiac" even though HrChatLog was already persisting
+    // the transcript. The caller (HrChatController) builds this from recent
+    // session-scoped log rows; the default of [] keeps this backward-compatible
+    // with any other caller.
+    public function ask(string $question, string $policyContext, array $history = []): string
     {
         if (empty($this->apiKey)) {
             Log::error('[AnthropicService] ANTHROPIC_API_KEY is not set.');
@@ -32,6 +42,27 @@ class AnthropicService
 
         $dynamicSystemBlock = "\n\n## OFFICIAL HRDO POLICY DOCUMENTS:\n"
             . $this->truncatePolicyContext($policyContext);
+
+        // Cap history at 6 messages (3 exchanges). Keeps token cost bounded and
+        // prevents old topics from confusing the current question.
+        $history = array_slice($history, -6);
+
+        // Defensive: the API rejects malformed history. Enforce shape.
+        $history = array_values(array_filter($history, function ($m) {
+            return is_array($m)
+                && in_array($m['role'] ?? null, ['user', 'assistant'], true)
+                && is_string($m['content'] ?? null)
+                && trim($m['content']) !== '';
+        }));
+
+        // The API requires the first message to have role 'user'.
+        if (!empty($history) && $history[0]['role'] !== 'user') {
+            array_shift($history);
+        }
+
+        $messages = array_merge($history, [
+            ['role' => 'user', 'content' => $question],
+        ]);
 
         try {
             $response = Http::timeout(60)
@@ -66,9 +97,7 @@ class AnthropicService
                         ],
                     ],
 
-                    'messages' => [
-                        ['role' => 'user', 'content' => $question],
-                    ],
+                    'messages' => $messages,
                 ]);
 
             if ($response->failed()) {

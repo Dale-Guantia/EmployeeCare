@@ -89,6 +89,9 @@ return [
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
+            // Add these if you get SSL/certificate errors (common with ODBC 18):
+            'encrypt' => 'yes',
+            'trust_server_certificate' => true,
         ],
         'connectsession' => [
             'driver'   => 'sqlsrv',
@@ -96,7 +99,7 @@ return [
             'port'     => '1433',
             'database' => 'hrisdb',
             'username' => env('DB_USERNAME','forge'),
-            'password' => env('DB_PASSWORD', ''),  
+            'password' => env('DB_PASSWORD', ''),
             'charset'  => 'utf8',
             'prefix'   => '',
         ],

@@ -387,10 +387,10 @@
         <div id="hrf-header-icon"><i class="la la-robot"></i></div>
         <div id="hrf-header-title">
             <p class="hrf-name">HRDO Assistant</p>
-            <p class="hrf-sub">Pasig City Government · AI-Powered</p>
+            <p class="hrf-sub">City Government of Pasig · AI-Powered</p>
         </div>
         <div id="hrf-header-actions">
-            <button onclick="hrFloat.clearView()" title="Clears the chat view only — your question history is still saved" aria-label="Clear view"><i class="la la-eraser"></i></button>
+            <button onclick="hrFloat.newChat()" title="Start a new conversation — the assistant won't recall this chat afterward" aria-label="New chat"><i class="la la-plus"></i></button>
             <button onclick="hrFloat.close()" title="Close" aria-label="Close chat"><i class="la la-times"></i></button>
         </div>
     </div>
@@ -454,6 +454,8 @@
             feedback: @json(route('hr.chat.feedback')),
             history: @json(route('hr.chat.history')),
             clearHistory: @json(route('hr.chat.clear_history')),
+            conversations: @json(route('hr.chat.conversations')),
+            conversationMessages: @json(route('hr.chat.conversation.messages', ['id' => ':id'])),
         },
         csrf: @json(csrf_token()),
         userName: @json(backpack_user()->name),
@@ -548,6 +550,30 @@
         window.hrFloat.autoResize(input);
     }
 
+    // Restores the user's most recently ACTIVE conversation (not just their
+    // last 20 messages across every conversation — that flat view could
+    // interleave unrelated topics and never actually set currentConversationId,
+    // so a follow-up would silently start yet another new conversation).
+    // Loading a single real conversation via loadConversation() keeps what's
+    // on screen and what the next message continues in sync.
+    // Resolves true if a conversation was restored, false if the user has none.
+    function restoreMostRecentConversation() {
+        return fetch(chat.cfg.endpoints.conversations)
+            .then(function (res) { return res.json(); })
+            .then(function (conversations) {
+                if (!conversations || !conversations.length) return false;
+
+                // Ignore the endpoint's starred-first ordering here — the
+                // widget wants whichever conversation was truly touched most
+                // recently, star or not.
+                var mostRecent = conversations.reduce(function (a, b) {
+                    return new Date(a.last_message_at || 0) > new Date(b.last_message_at || 0) ? a : b;
+                });
+
+                return chat.loadConversation(mostRecent.id).then(function () { return true; });
+            });
+    }
+
     window.hrFloat = {
 
         /* ── Open / close ─────────────────────────────── */
@@ -567,15 +593,17 @@
 
             if (!hasWelcome && !chat.historyLoaded) {
                 showSkeleton();
-                chat.loadHistory().then(function (logs) {
+                restoreMostRecentConversation().then(function (restored) {
                     hideSkeleton();
-                    if (!logs || !logs.length) {
-                        showWelcome();
-                    } else {
+                    chat.historyLoaded = true;
+                    if (restored) {
                         hideSuggestions();
+                    } else {
+                        showWelcome();
                     }
                 })['catch'](function () {
                     hideSkeleton();
+                    chat.historyLoaded = true;
                     showWelcome();
                 });
             }
@@ -593,10 +621,13 @@
             sessionStorage.removeItem(OPEN_KEY);
         },
 
-        // Visual reset only — see HrChatCore.clearView(). Does not delete
-        // saved history; "Open full HR Assistant page" will still show it.
-        clearView: function() {
-            chat.clearView();
+        // Detaches from the active conversation so the next message starts a
+        // brand-new conversation server-side (this widget instance's own
+        // history, independent of the full page's active conversation).
+        // chat.startNewConversation() clears the thread and re-shows the
+        // welcome message via the onClearView hook.
+        newChat: function() {
+            chat.startNewConversation();
             document.getElementById('hrf-suggestions').style.display = '';
             document.getElementById('hrf-input').value = '';
             sessionStorage.removeItem(DRAFT_KEY);

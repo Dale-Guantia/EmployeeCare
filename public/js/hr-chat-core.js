@@ -59,11 +59,28 @@
         this.cfg = config;
         this.loading = false;
         this.historyLoaded = false;
+        // Which hr_conversations row subsequent ask()/send() calls attach to.
+        // null means "no conversation yet" — the next send starts one.
+        this.currentConversationId = null;
     }
 
     HrChat.prototype.el = function (key) {
         var id = this.cfg.ids[key];
         return id ? document.getElementById(id) : null;
+    };
+
+    HrChat.prototype.getConversation = function () {
+        return this.currentConversationId;
+    };
+
+    HrChat.prototype.setConversation = function (id) {
+        this.currentConversationId = id || null;
+    };
+
+    // Fills a ":id" placeholder in an endpoint template, e.g.
+    // "/hr-assistant/conversations/:id/messages" -> ".../42/messages".
+    HrChat.prototype._urlFor = function (template, id) {
+        return template.replace(':id', id);
     };
 
     HrChat.prototype.ensureMarkdown = function () {
@@ -218,13 +235,19 @@
         fetch(this.cfg.endpoints.ask, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.cfg.csrf },
-            body: JSON.stringify({ question: text }),
+            body: JSON.stringify({ question: text, conversation_id: self.currentConversationId }),
         })
             .then(function (res) { return res.json(); })
             .then(function (data) {
                 typing.remove();
                 self._appendAi(data.answer, data.sources || [], data.log_id);
                 self._setLoading(false);
+                // The greet-back path returns no conversation_id (it's never
+                // logged), so the current conversation — if any — is left as-is.
+                if (data.conversation_id) {
+                    self.currentConversationId = data.conversation_id;
+                    if (self.cfg.onConversationChanged) self.cfg.onConversationChanged(data.conversation_id);
+                }
                 if (self.cfg.onAfterAnswer) self.cfg.onAfterAnswer();
             })
             ['catch'](function () {
@@ -251,13 +274,52 @@
         this._send(question);
     };
 
-    // Visual reset only — does not create a new server-side conversation.
-    // HrChatLog has no conversation grouping, so this intentionally does not
-    // call any "new conversation" endpoint. See project notes.
+    // Visual reset only — does not touch the active conversation. Use
+    // startNewConversation() to actually detach from the current conversation
+    // so the next message starts a fresh one.
     HrChat.prototype.clearView = function () {
         var thread = this.el('thread');
         if (thread) thread.innerHTML = '';
         if (this.cfg.onClearView) this.cfg.onClearView();
+    };
+
+    // Detaches from the active conversation (the next send() creates a new
+    // one server-side) and resets the visible thread. Safe to call even where
+    // no conversation endpoints are configured (the widget) — it's just local
+    // state plus the existing visual reset.
+    HrChat.prototype.startNewConversation = function () {
+        this.currentConversationId = null;
+        this.historyLoaded = false;
+        this.clearView();
+        if (this.cfg.onConversationChanged) this.cfg.onConversationChanged(null);
+    };
+
+    // Loads a saved conversation's full transcript and makes it the active
+    // one. Full-page only — requires cfg.endpoints.conversationMessages.
+    HrChat.prototype.loadConversation = function (id) {
+        var self = this;
+        if (!this.cfg.endpoints.conversationMessages) {
+            return Promise.reject(new Error('conversationMessages endpoint not configured'));
+        }
+
+        return this.ensureMarkdown()['catch'](function () {}).then(function () {
+            return fetch(self._urlFor(self.cfg.endpoints.conversationMessages, id)).then(function (res) {
+                return res.json();
+            });
+        }).then(function (data) {
+            var thread = self.el('thread');
+            if (thread) thread.innerHTML = '';
+
+            var messages = data.messages || [];
+            messages.forEach(function (log) {
+                self._appendUser(log.question);
+                self._appendAi(log.answer, log.sources || [], log.id, false);
+            });
+
+            self.currentConversationId = id;
+            if (self.cfg.onConversationChanged) self.cfg.onConversationChanged(id);
+            return data;
+        });
     };
 
     HrChat.prototype._fetchLogs = function () {
@@ -363,6 +425,10 @@
             icon: 'warning',
             buttons: ['Cancel', 'Yes, clear it'],
             dangerMode: true,
+            // SweetAlert's .swal-text defaults to text-align:left; centered
+            // via a scoped CSS rule (see hr_chat.blade.php) keyed off this
+            // class, so other swal() confirms on the page are unaffected.
+            className: 'hrc-confirm-modal',
         }).then(function (confirmed) { return !!confirmed; });
     };
 

@@ -89,6 +89,13 @@ Route::group([
     Route::get('hr-assistant/history', [HrChatController::class, 'history'])->name('hr.chat.history');
     Route::delete('hr-assistant/clear-history', [HrChatController::class, 'clearHistory'])->name('hr.chat.clear_history');
 
+    // Conversation management (full-page sidebar). The widget keeps using the
+    // flat `history` route above and never calls these.
+    Route::get('hr-assistant/conversations', [HrChatController::class, 'conversations'])->name('hr.chat.conversations');
+    Route::get('hr-assistant/conversations/{id}/messages', [HrChatController::class, 'conversationMessages'])->name('hr.chat.conversation.messages');
+    Route::patch('hr-assistant/conversations/{id}', [HrChatController::class, 'updateConversation'])->name('hr.chat.conversation.update');
+    Route::delete('hr-assistant/conversations/{id}', [HrChatController::class, 'deleteConversation'])->name('hr.chat.conversation.delete');
+
     // Policy document manager
     // Custom routes for upload and update (not standard CRUD)
     Route::get('hr-policy-documents/upload', [HrPolicyDocumentCrudController::class, 'uploadForm'])->name('hr.policy.upload.form');
