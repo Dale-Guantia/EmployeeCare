@@ -11,6 +11,18 @@ class TicketAutoAssignmentService
 {
     public function assignTicket(Ticket $ticket)
     {
+        // The Eloquent "created" event (which is what routes into this method
+        // via TicketObserver) fires from inside performInsert(), BEFORE
+        // syncOriginal() runs back in save(). That means $ticket->original is
+        // still empty here, so every attribute — including the identity
+        // column "id" that insertAndSetId() just set — reads as dirty. The
+        // save() below would then emit an UPDATE that assigns "id" to itself.
+        // MySQL tolerates that as a no-op; SQL Server's IDENTITY column
+        // rejects it outright ("Cannot update identity column"). Syncing here
+        // rebases dirty-tracking onto the just-inserted row so only the
+        // fields this method actually changes end up in the UPDATE.
+        $ticket->syncOriginal();
+
         // 1. Base Query: Find all "hr_staff" within the specific Department
         $query = User::role('hr_staff')->where('department_id', $ticket->department_id);
 

@@ -94,7 +94,7 @@
             </div>
         </div>
     @elseif ($isRequester)
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#reassignCancelModal{{ $ticket->id }}">
+        <button type="button" class="btn btn-sm btn-secondary" data-toggle="modal" data-target="#reassignCancelModal{{ $ticket->id }}">
             <i class="la la-ban"></i> Cancel Request
         </button>
 

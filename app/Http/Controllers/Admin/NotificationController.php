@@ -63,7 +63,10 @@ class NotificationController extends Controller
 
     public function index()
     {
-        $notifications = backpack_user()->notifications()->latest()->paginate(20);
+        // notifications() already orders by created_at desc (see feed() above) —
+        // an extra ->latest() here would add a duplicate ORDER BY created_at,
+        // which SQL Server rejects outright (MySQL tolerates it silently).
+        $notifications = backpack_user()->notifications()->paginate(20);
 
         return view('admin.notifications.index', [
             'title' => 'Notifications',

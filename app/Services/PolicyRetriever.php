@@ -28,7 +28,7 @@ class PolicyRetriever
             $bindings  = [];
 
             foreach ($keywords as $word) {
-                $scoreExpr .= ($scoreExpr ? ' + ' : '') . '(content LIKE ?)';
+                $scoreExpr .= ($scoreExpr ? ' + ' : '') . 'CASE WHEN content LIKE ? THEN 1 ELSE 0 END';
                 $bindings[] = '%' . $word . '%';
             }
 

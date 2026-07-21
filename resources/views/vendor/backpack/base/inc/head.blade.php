@@ -66,6 +66,33 @@
                 padding-top: 0 !important;
             }
         }
+
+        /* Ticket show/preview: prevent long values (department names, attachment
+           filenames) from overflowing their table row instead of wrapping. */
+        .ticket-show table.table td,
+        .ticket-show table.table th {
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        @media (max-width: 576px) {
+            /* Stack label above value per row so neither column has to fight
+               the other for width on narrow screens. */
+            .ticket-show table.table td,
+            .ticket-show table.table th {
+                display: block;
+                width: 100% !important;
+                white-space: normal;
+            }
+
+            .ticket-show table.table th {
+                padding-bottom: 0;
+            }
+
+            .ticket-show table.table td {
+                padding-top: 4px;
+            }
+        }
     </style>
 
     @yield('after_styles')

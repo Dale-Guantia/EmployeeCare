@@ -105,6 +105,10 @@ class ReportsController extends Controller
             ->limit(10)
             ->get();
 
+        $diffMinutesSql = DB::connection()->getDriverName() === 'sqlsrv'
+            ? 'DATEDIFF(MINUTE, tickets.created_at, tickets.resolved_at)'
+            : 'TIMESTAMPDIFF(MINUTE, tickets.created_at, tickets.resolved_at)';
+
         $ticketOverview = DB::table('issues')
             ->join('divisions', 'issues.division_id', '=', 'divisions.id')
             ->leftJoin('tickets', function ($join) use ($startDate, $endDate) {
@@ -123,7 +127,7 @@ class ReportsController extends Controller
                     AVG(
                         CASE
                             WHEN tickets.resolved_at IS NOT NULL
-                            THEN TIMESTAMPDIFF(MINUTE, tickets.created_at, tickets.resolved_at)
+                            THEN {$diffMinutesSql}
                             ELSE NULL
                         END
                     ) as avg_resolve_minutes

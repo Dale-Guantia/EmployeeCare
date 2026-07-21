@@ -513,7 +513,10 @@ class TicketCrudController extends CrudController
         $entry = $this->crud->getEntry($request->id);
         $user = backpack_user();
 
-        $canAssign = $user->hasAnyRole(['admin', 'dept_head', 'div_head']);
+        // Must match the role list that renders the "Assign Staff" form in
+        // setupShowOperation() (quick_assign column) — hr_staff can see and
+        // submit that form, so it has to be allowed here too.
+        $canAssign = $user->hasAnyRole(['admin', 'dept_head', 'div_head', 'hr_staff']);
 
         if (!$canAssign) {
             abort(403, 'You are not allowed to assign staff to this ticket.');
@@ -867,7 +870,28 @@ class TicketCrudController extends CrudController
                 'name'     => 'quick_assign',
                 'label'    => 'Assign Staff',
                 'type'     => 'closure',
-                'function' => function($entry) {
+                'function' => function($entry) use ($resolvedId) {
+                    // Mirrors the Discussion panel's lock (see TicketChat::getIsResolvedProperty()):
+                    // a resolved ticket is frozen until reopened, so the assignment
+                    // control stays visible but non-interactive rather than a live form.
+                    $isResolved = $resolvedId && (int) $entry->status_id === (int) $resolvedId;
+
+                    if ($isResolved) {
+                        $currentName = e(optional($entry->assignee)->name ?? '— Unassigned —');
+
+                        return "
+                            <div class='form-inline'>
+                                <select class='form-control form-control-sm' style='width: 250px;' disabled>
+                                    <option selected>{$currentName}</option>
+                                </select>
+                                <button type='button' class='btn btn-sm btn-success ml-1' disabled>
+                                    <i class='la la-save'></i>
+                                </button>
+                            </div>
+                            <small class='text-muted d-block mt-1'>Reopen the ticket to reassign.</small>
+                        ";
+                    }
+
                     $hrStaff = \App\Models\User::role('hr_staff')
                         ->where('department_id', $entry->department_id)
                         ->where('division_id', $entry->division_id)
@@ -928,10 +952,17 @@ class TicketCrudController extends CrudController
                 |--------------------------------------------------------------------------
                 | Resolve Button
                 |--------------------------------------------------------------------------
-                | Visible to admin / dept_head / div_head / hr_staff if ticket is not yet resolved
+                | Visible to admin / dept_head / div_head / hr_staff if ticket is not yet resolved.
+                | Must match handleResolve()'s $canResolve exactly (role alone isn't
+                | enough there — dept_head/div_head/hr_staff are also scoped to their
+                | own department/division/assignment) or this button shows for users
+                | who will get a 403 the moment they click it.
                 */
 
-                $canResolve = $user->hasAnyRole(['admin', 'dept_head', 'div_head', 'hr_staff']);
+                $canResolve = $user->hasRole('admin')
+                    || ($user->hasRole('dept_head') && (int) $user->department_id === (int) $entry->department_id)
+                    || ($user->hasRole('div_head') && (int) $user->division_id === (int) $entry->division_id)
+                    || ($user->hasRole('hr_staff') && (int) $user->id === (int) $entry->assigned_to);
                 $isResolved = (int) $entry->status_id === (int) $resolvedId;
 
                 if ($canResolve && !$isResolved && $resolvedId) {

@@ -10,6 +10,7 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class User extends Authenticatable
 {
@@ -102,17 +103,21 @@ class User extends Authenticatable
 
     public function overdueTickets()
     {
+        $diffHoursSql = DB::connection()->getDriverName() === 'sqlsrv'
+            ? 'DATEDIFF(HOUR, created_at, resolved_at)'
+            : 'TIMESTAMPDIFF(HOUR, created_at, resolved_at)';
+
         return $this->hasMany(\App\Models\Ticket::class, 'assigned_to')
-            ->where(function ($query) {
+            ->where(function ($query) use ($diffHoursSql) {
                 $query->where(function ($q) {
                     // Case A: Still open and older than 3 days
                     $q->where('status_id', '!=', 1)
                     ->where('created_at', '<', now()->subDays(3));
                 })
-                ->orWhere(function ($q) {
+                ->orWhere(function ($q) use ($diffHoursSql) {
                     // Case B: Resolved, but it took more than 72 hours (3 days)
                     $q->where('status_id', 1)
-                    ->whereRaw('TIMESTAMPDIFF(HOUR, created_at, resolved_at) > 72');
+                    ->whereRaw("{$diffHoursSql} > 72");
                 });
             });
     }

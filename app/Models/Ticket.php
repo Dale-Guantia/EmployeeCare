@@ -105,12 +105,18 @@ class Ticket extends Model
                     $model->resolved_by = backpack_auth()->check() ? backpack_user()->id : null;
                     $model->reopened_at = null;
                 }
-
                 // When reopened
-                if ($reopenedStatusId && (int) $model->status_id === (int) $reopenedStatusId) {
+                elseif ($reopenedStatusId && (int) $model->status_id === (int) $reopenedStatusId) {
                     $model->reopened_at = now();
                     $model->resolved_at = null;
                     $model->resolved_by = null;
+                }
+                // Any other status change (e.g. the auto-assign hook above flipping
+                // a Reopened ticket to Pending on reassignment) moves the ticket out
+                // of the Reopened state without going through either branch above —
+                // clear the now-stale reopened_at so it doesn't linger.
+                elseif ($model->reopened_at !== null) {
+                    $model->reopened_at = null;
                 }
             }
         });
