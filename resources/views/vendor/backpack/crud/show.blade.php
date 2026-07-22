@@ -27,7 +27,7 @@
 
 @section('content')
     <div class="row">
-        <div class="{{ $crud->getShowContentClass() }} @if($entry instanceof \App\Models\Ticket) ticket-show @endif">
+`        <div class="{{ $crud->getShowContentClass() }} @if($entry instanceof \App\Models\Ticket) ticket-show @endif">
 
             {{-- Default box --}}
             <div>

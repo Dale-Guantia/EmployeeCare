@@ -1,10 +1,27 @@
 {{-- This file is used to store sidebar items, inside the Backpack admin panel --}}
-@if(!backpack_user()->hasRole('employee'))
+@if(backpack_user()->hasRole('employee'))
+    {{-- Employees have no Dashboard link, so Create Ticket leads the sidebar --}}
+    @can('ticket.view')
+    <li class="nav-item">
+        <a class="nav-link" href="{{ route('submit-ticket.show') }}">
+            <i class="nav-icon la la-paper-plane"></i> Create Ticket
+        </a>
+    </li>
+    @endcan
+@else
     <li class="nav-item">
         <a class="nav-link" href="{{ backpack_url('dashboard') }}">
             <i class="nav-icon la la-home"></i> {{ trans('backpack::base.dashboard') }}
         </a>
     </li>
+
+    @can('ticket.view')
+    <li class="nav-item">
+        <a class="nav-link" href="{{ route('submit-ticket.show') }}">
+            <i class="nav-icon la la-paper-plane"></i> Create Ticket
+        </a>
+    </li>
+    @endcan
 @endif
 
 @can('ticket.view')

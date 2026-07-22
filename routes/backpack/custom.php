@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\NotificationController;
 use \App\Http\Controllers\Admin\ArtaSurveyReportsController;
 use App\Http\Controllers\Admin\HrChatController;
 use App\Http\Controllers\Admin\HrPolicyDocumentCrudController;
+use App\Http\Controllers\Admin\SubmitTicketController;
 
 // Register routes
 Route::group([
@@ -46,6 +47,10 @@ Route::group([
     'namespace' => 'App\Http\Controllers\Admin',
 ], function () {
     Route::get('dashboard', [DashboardController::class, 'dashboard'])->name('backpack.dashboard');
+
+    // Submit Ticket landing page — friendly front door to the existing
+    // ticket create form, and the employee role's dashboard landing page.
+    Route::get('submit-ticket', [SubmitTicketController::class, 'show'])->name('submit-ticket.show');
 
     // CRUD routes
     Route::crud('ticket', 'TicketCrudController');

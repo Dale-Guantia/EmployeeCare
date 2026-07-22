@@ -8,9 +8,9 @@ class DashboardController extends Controller
 {
     public function dashboard()
     {
-        // If the user is an employee, redirect them straight to the tickets list
+        // If the user is an employee, redirect them to the Submit Ticket landing page
         if (backpack_user()->hasRole('employee')) {
-            return redirect(backpack_url('ticket'));
+            return redirect()->route('submit-ticket.show');
         }
 
         // Otherwise, load the normal Backpack dashboard for Admins and Heads
