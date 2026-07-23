@@ -50,14 +50,20 @@ class ArtaSurveyReportsController extends Controller
         // Calculated in points (1 inch = 72 points) -> 8.5 * 72 = 612, 13 * 72 = 936
         $customPaperSize = array(0, 0, 612, 936);
 
-        $pdf = Pdf::loadView('admin.pdf.arta_survey_pdf', array_merge($data, [
-            'reportStartDate' => $startDate->format('F j, Y'),
-            'reportEndDate' => $endDate->format('F j, Y'),
-        ]))->setPaper($customPaperSize, 'landscape');
+        try {
+            $pdf = Pdf::loadView('admin.pdf.arta_survey_pdf', array_merge($data, [
+                'reportStartDate' => $startDate->format('F j, Y'),
+                'reportEndDate' => $endDate->format('F j, Y'),
+            ]))->setPaper($customPaperSize, 'landscape');
 
-        return $pdf->stream(
-            'arta-survey-report-' . $startDate->format('Ymd') . '-to-' . $endDate->format('Ymd') . '.pdf'
-        );
+            return $pdf->stream(
+                'arta-survey-report-' . $startDate->format('Ymd') . '-to-' . $endDate->format('Ymd') . '.pdf'
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[ArtaSurveyReportsController] PDF generation failed: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'Could not generate the PDF report. Try a narrower date range, or contact support if this continues.');
+        }
     }
 
     protected function getReportData($startDate = null, $endDate = null)

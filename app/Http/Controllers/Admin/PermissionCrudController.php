@@ -13,5 +13,17 @@ class PermissionCrudController extends VendorPermissionCrudController
         if (!backpack_user()->can('permission.view')) {
             abort(403);
         }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('permission.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('permission.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('permission.delete')) {
+            $this->crud->allowAccess('delete');
+        }
     }
 }

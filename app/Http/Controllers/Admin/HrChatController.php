@@ -27,6 +27,13 @@ class HrChatController extends Controller
     public function index()
     {
         // Top 5 most frequently asked questions — shown as suggestions in the sidebar
+        //
+        // Groups the entire hr_chat_logs table by the free-text `question`
+        // column — accepted as low-priority per the audit: this runs once per
+        // HR Assistant page load (not per-message), and grouping by exact
+        // free-text is inherently low-yield anyway (questions are rarely
+        // identical strings), so a caching layer here isn't warranted yet.
+        // Revisit if this page's load time becomes noticeable as chat volume grows.
         $topPrompts = HrChatLog::select('question')
             ->selectRaw('COUNT(*) as total_count')
             ->groupBy('question')
@@ -160,7 +167,7 @@ class HrChatController extends Controller
         } catch (\Throwable $e) {
             Log::error('[HrChatController] ask() failed: ' . $e->getMessage(), [
                 'user_id'  => backpack_user()->id ?? null,
-                'question' => $request->input('question'),
+                'question' => \Illuminate\Support\Str::limit((string) $request->input('question'), 50),
             ]);
 
             return response()->json([

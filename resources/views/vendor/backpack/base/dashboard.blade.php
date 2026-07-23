@@ -2,7 +2,7 @@
 
 @php
 
-$latestTickets = App\Models\Ticket::latest()->take(10)->get();
+$latestTickets = App\Models\Ticket::with(['user', 'issue', 'status', 'priority'])->latest()->take(10)->get();
 
 $abbreviationMap = [
     'Administrative'           => 'Admin',
@@ -57,9 +57,9 @@ $colors = $statusData->pluck('status_color');
 // ReportsController uses for the Reports page's "All Time" period, so this
 // logic lives in one place instead of drifting between the two pages.
 
-$dashResolvedStatusId = (int) \App\Models\Status::where('status_name', 'Resolved')->value('id');
-$dashPendingStatusId = (int) \App\Models\Status::where('status_name', 'Pending')->value('id');
-$dashReopenedStatusId = (int) \App\Models\Status::where('status_name', 'Reopened')->value('id');
+$dashResolvedStatusId = (int) \App\Models\Status::idByName('Resolved');
+$dashPendingStatusId = (int) \App\Models\Status::idByName('Pending');
+$dashReopenedStatusId = (int) \App\Models\Status::idByName('Reopened');
 
 $dashAllTickets = \App\Models\Ticket::with(['department', 'division', 'issue'])
     ->get(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at']);
@@ -217,7 +217,7 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
                                         <td>{{ $ticket->message ?? 'N/A'}}</td>
                                         <td>
                                             @if($ticket->status)
-                                                <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #444;">
+                                                <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #000000;">
                                                     {{ $ticket->status->status_name }}
                                                 </span>
                                             @else
@@ -226,7 +226,7 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
                                         </td>
                                         <td>
                                             @if($ticket->priority)
-                                                <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #444;">
+                                                <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #000000;">
                                                     {{ $ticket->priority->priority_name }}
                                                 </span>
                                             @else
@@ -328,9 +328,9 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
 
 <script>
 
-const divisionLabels = {!! json_encode($divisionLabels) !!};
-const divisionCounts = {!! json_encode($divisionCounts) !!};
-const divisionColors = {!! json_encode($divisionColors) !!};
+const divisionLabels = @json($divisionLabels);
+const divisionCounts = @json($divisionCounts);
+const divisionColors = @json($divisionColors);
 
 const statusLabels = @json($labels);
 const statusData = @json($data);

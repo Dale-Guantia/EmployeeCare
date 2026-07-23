@@ -2,9 +2,6 @@
 
 namespace App\Listeners;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
-
 class UpdateLastLoginAt
 {
     /**
@@ -25,8 +22,15 @@ class UpdateLastLoginAt
      */
     public function handle($event)
     {
-        $event->user->update([
-            'last_login_at' => now(),
-        ]);
+        try {
+            $event->user->update([
+                'last_login_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error(
+                '[UpdateLastLoginAt] Failed to update last_login_at for user ' . optional($event->user)->id . ': ' . $e->getMessage()
+            );
+            // Never let this non-critical side effect block a successful login.
+        }
     }
 }

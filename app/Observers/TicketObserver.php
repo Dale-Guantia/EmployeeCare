@@ -18,7 +18,17 @@ class TicketObserver
     {
         // If the ticket isn't already assigned manually upon creation...
         if (is_null($ticket->assigned_to)) {
-            $this->assignmentService->assignTicket($ticket);
+            try {
+                $this->assignmentService->assignTicket($ticket);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error(
+                    '[TicketObserver] Auto-assignment failed for ticket ' . $ticket->id . ': ' . $e->getMessage()
+                );
+                // Ticket creation itself already succeeded (this fires from the
+                // "created" event, after the INSERT committed) — leave the
+                // ticket unassigned rather than surface a 500 for something
+                // that already worked from the user's point of view.
+            }
         }
     }
 

@@ -66,9 +66,4 @@ class TicketReassignmentRequest extends Model
     {
         return $this->belongsTo(Division::class, 'to_division_id');
     }
-
-    public function isPending(): bool
-    {
-        return $this->status === self::STATUS_PENDING;
-    }
 }

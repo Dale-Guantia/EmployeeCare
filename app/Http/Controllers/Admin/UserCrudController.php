@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Requests\UserRequest;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use App\Models\Division;
@@ -28,6 +27,18 @@ class UserCrudController extends CrudController
 
         if (!backpack_user()->can('user.view')) {
             abort(403);
+        }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('user.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('user.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('user.delete')) {
+            $this->crud->allowAccess('delete');
         }
     }
 

@@ -25,7 +25,8 @@ class DivisionRequest extends FormRequest
     public function rules()
     {
         return [
-            // 'name' => 'required|min:5|max:255'
+            'division_name' => 'required|string|max:255',
+            'department_id' => 'required|exists:departments,id',
         ];
     }
 

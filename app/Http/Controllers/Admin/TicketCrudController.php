@@ -466,7 +466,7 @@ class TicketCrudController extends CrudController
             abort(403, 'Only the ticket creator can reopen this ticket.');
         }
 
-        $reopenedId = Status::where('status_name', 'Reopened')->value('id');
+        $reopenedId = Status::idByName('Reopened');
 
         if (!$reopenedId) {
             abort(500, 'Reopened status not found.');
@@ -494,7 +494,7 @@ class TicketCrudController extends CrudController
             abort(403, 'You are not allowed to resolve this ticket.');
         }
 
-        $resolvedId = Status::where('status_name', 'Resolved')->value('id');
+        $resolvedId = Status::idByName('Resolved');
 
         if (!$resolvedId) {
             abort(500, 'Resolved status not found.');
@@ -545,7 +545,7 @@ class TicketCrudController extends CrudController
 
         $referrer = $request->get('_http_referrer') ?? $this->crud->route;
 
-        $resolvedId = Status::where('status_name', 'Resolved')->value('id');
+        $resolvedId = Status::idByName('Resolved');
         if ($resolvedId && (int) $entry->status_id === (int) $resolvedId) {
             Alert::error('Cannot request reassignment for a resolved ticket.')->flash();
             return redirect($referrer);
@@ -746,8 +746,17 @@ class TicketCrudController extends CrudController
             : (json_decode($entry->getRawOriginal('attachments'), true) ?? []);
 
         foreach (array_diff($oldPaths, $retainedPaths) as $removedPath) {
-            if (!empty($removedPath) && Storage::disk('public')->exists($removedPath)) {
-                Storage::disk('public')->delete($removedPath);
+            if (empty($removedPath)) {
+                continue;
+            }
+            try {
+                if (Storage::disk('public')->exists($removedPath)) {
+                    Storage::disk('public')->delete($removedPath);
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error(
+                    '[TicketCrudController] Failed to delete removed attachment "' . $removedPath . '": ' . $e->getMessage()
+                );
             }
         }
 
@@ -770,8 +779,8 @@ class TicketCrudController extends CrudController
             'status', 'priority', 'user', 'issue', 'department', 'division', 'pendingReassignmentRequest',
         ]);
 
-        $resolvedId = Status::where('status_name', 'Resolved')->value('id');
-        $reopenedId = Status::where('status_name', 'Reopened')->value('id');
+        $resolvedId = Status::idByName('Resolved');
+        $reopenedId = Status::idByName('Reopened');
 
         CRUD::column('reference_id')->label('Reference Id');
         CRUD::column('user_id')->type('select')->entity('user')->attribute('name')->label('Created by');

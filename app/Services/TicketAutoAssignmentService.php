@@ -46,9 +46,9 @@ class TicketAutoAssignmentService
             $ticket->assigned_to = $bestStaff->id;
 
             // EXPLICIT STATUS UPDATE: Change to "Pending"
-            $pendingStatus = Status::where('status_name', 'Pending')->first();
-            if ($pendingStatus) {
-                $ticket->status_id = $pendingStatus->id;
+            $pendingStatusId = Status::idByName('Pending');
+            if ($pendingStatusId) {
+                $ticket->status_id = $pendingStatusId;
             }
 
             $ticket->save();
@@ -65,15 +65,20 @@ class TicketAutoAssignmentService
     private function analyzeContentAndMatch(Ticket $ticket, $eligibleStaff)
     {
         // Fetch exact IDs for active statuses to prevent hardcoding errors
-        $pendingId = Status::where('status_name', 'Pending')->value('id');
-        $reopenedId = Status::where('status_name', 'Reopened')->value('id');
+        $pendingId = Status::idByName('Pending');
+        $reopenedId = Status::idByName('Reopened');
         $activeStatusIds = array_filter([$pendingId, $reopenedId]);
 
-        // Count active tickets for each staff member to ensure FAIRNESS
-        $staffWithWorkload = $eligibleStaff->map(function ($staff) use ($activeStatusIds) {
-            $staff->active_ticket_count = Ticket::where('assigned_to', $staff->id)
-                                                ->whereIn('status_id', $activeStatusIds)
-                                                ->count();
+        // Count active tickets for each staff member to ensure FAIRNESS.
+        // One grouped aggregate query instead of one COUNT per staff member.
+        $workloadByStaffId = Ticket::whereIn('assigned_to', $eligibleStaff->pluck('id'))
+            ->whereIn('status_id', $activeStatusIds)
+            ->groupBy('assigned_to')
+            ->selectRaw('assigned_to, COUNT(*) as cnt')
+            ->pluck('cnt', 'assigned_to');
+
+        $staffWithWorkload = $eligibleStaff->map(function ($staff) use ($workloadByStaffId) {
+            $staff->active_ticket_count = (int) ($workloadByStaffId[$staff->id] ?? 0);
             return $staff;
         });
 

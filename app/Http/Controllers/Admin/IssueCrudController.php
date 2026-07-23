@@ -33,6 +33,18 @@ class IssueCrudController extends CrudController
         if (!backpack_user()->can('issue.view')) {
             abort(403);
         }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('issue.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('issue.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('issue.delete')) {
+            $this->crud->allowAccess('delete');
+        }
     }
 
     /**

@@ -136,26 +136,24 @@ class ReportsController extends Controller
 
         $data = $this->getReportData($startDate, $endDate, $includeZeroActivity);
 
-        $pdf = Pdf::loadView('admin.pdf.reports_pdf', array_merge($data, [
-            'reportStartDate' => $startDate->format('F j, Y'),
-            'reportEndDate' => $endDate->format('F j, Y'),
-        ]))->setPaper('a4', 'portrait');
+        try {
+            $pdf = Pdf::loadView('admin.pdf.reports_pdf', array_merge($data, [
+                'reportStartDate' => $startDate->format('F j, Y'),
+                'reportEndDate' => $endDate->format('F j, Y'),
+            ]))->setPaper('a4', 'portrait');
 
-        return $pdf->stream(
-            'ticketing-report-' . $startDate->format('Ymd') . '-to-' . $endDate->format('Ymd') . '.pdf'
-        );
+            return $pdf->stream(
+                'ticketing-report-' . $startDate->format('Ymd') . '-to-' . $endDate->format('Ymd') . '.pdf'
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[ReportsController] PDF generation failed: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'Could not generate the PDF report. Try a narrower date range, or contact support if this continues.');
+        }
     }
 
     protected function getReportData($startDate = null, $endDate = null, $includeZeroActivity = false)
     {
-        $ticketQuery = Ticket::query();
-
-        if ($startDate && $endDate) {
-            $ticketQuery->whereBetween('created_at', [$startDate, $endDate]);
-        }
-
-        $ticketIds = (clone $ticketQuery)->pluck('id');
-
         $users = User::with('division')
             ->where('department_id', 1)
             ->withCount([
@@ -177,7 +175,7 @@ class ReportsController extends Controller
             ])
             ->get();
 
-        $staffResolvedStatusId = (int) \App\Models\Status::where('status_name', 'Resolved')->value('id');
+        $staffResolvedStatusId = (int) \App\Models\Status::idByName('Resolved');
 
         $staffResolutionRows = Ticket::where('status_id', $staffResolvedStatusId)
             ->whereNotNull('resolved_by')
@@ -283,9 +281,9 @@ class ReportsController extends Controller
             })->values();
         }
 
-        $resolvedStatusId = (int) Status::where('status_name', 'Resolved')->value('id');
-        $pendingStatusId = (int) Status::where('status_name', 'Pending')->value('id');
-        $reopenedStatusId = (int) Status::where('status_name', 'Reopened')->value('id');
+        $resolvedStatusId = (int) Status::idByName('Resolved');
+        $pendingStatusId = (int) Status::idByName('Pending');
+        $reopenedStatusId = (int) Status::idByName('Reopened');
 
         // $startDate/$endDate now mean exactly what they say: null on both
         // means genuinely all-time (no filter), matching the same semantics

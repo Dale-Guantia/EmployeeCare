@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -96,25 +95,25 @@ class User extends Authenticatable
 
     public function resolvedTickets()
     {
-        // Replace 'assigned_to_user_id' with the actual FK in your tickets table
         return $this->hasMany(Ticket::class, 'resolved_by')
-                    ->where('status_id', 1); // 1 = Resolved based on your DB
+                    ->where('status_id', Status::idByName('Resolved'));
     }
 
     public function overdueTickets()
     {
         $diffHoursSql = SqlDialectHelper::diffHoursSql('created_at', 'resolved_at');
+        $resolvedStatusId = Status::idByName('Resolved');
 
         return $this->hasMany(\App\Models\Ticket::class, 'assigned_to')
-            ->where(function ($query) use ($diffHoursSql) {
-                $query->where(function ($q) {
+            ->where(function ($query) use ($diffHoursSql, $resolvedStatusId) {
+                $query->where(function ($q) use ($resolvedStatusId) {
                     // Case A: Still open and older than 3 days
-                    $q->where('status_id', '!=', 1)
+                    $q->where('status_id', '!=', $resolvedStatusId)
                     ->where('created_at', '<', now()->subDays(3));
                 })
-                ->orWhere(function ($q) use ($diffHoursSql) {
+                ->orWhere(function ($q) use ($diffHoursSql, $resolvedStatusId) {
                     // Case B: Resolved, but it took more than 72 hours (3 days)
-                    $q->where('status_id', 1)
+                    $q->where('status_id', $resolvedStatusId)
                     ->whereRaw("{$diffHoursSql} > 72");
                 });
             });

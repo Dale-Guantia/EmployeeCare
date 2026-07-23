@@ -33,6 +33,18 @@ class PriorityCrudController extends CrudController
         if (!backpack_user()->can('priority.view')) {
             abort(403);
         }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('priority.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('priority.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('priority.delete')) {
+            $this->crud->allowAccess('delete');
+        }
     }
 
     /**

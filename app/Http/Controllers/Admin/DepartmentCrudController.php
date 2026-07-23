@@ -33,6 +33,18 @@ class DepartmentCrudController extends CrudController
         if (!backpack_user()->can('department.view')) {
             abort(403);
         }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('department.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('department.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('department.delete')) {
+            $this->crud->allowAccess('delete');
+        }
     }
 
     /**

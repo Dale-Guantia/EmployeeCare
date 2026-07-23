@@ -51,14 +51,20 @@ class SurveyReportsController extends Controller
 
         $data = $this->getReportData($startDate, $endDate, $includeZeroActivity);
 
-        $pdf = Pdf::loadView('admin.pdf.survey_pdf', array_merge($data, [
-            'reportStartDate' => $startDate->format('F j, Y'),
-            'reportEndDate' => $endDate->format('F j, Y'),
-        ]))->setPaper('a4', 'portrait');
+        try {
+            $pdf = Pdf::loadView('admin.pdf.survey_pdf', array_merge($data, [
+                'reportStartDate' => $startDate->format('F j, Y'),
+                'reportEndDate' => $endDate->format('F j, Y'),
+            ]))->setPaper('a4', 'portrait');
 
-        return $pdf->stream(
-            'customer-survey-report-' . $startDate->format('Ymd') . '-to-' . $endDate->format('Ymd') . '.pdf'
-        );
+            return $pdf->stream(
+                'customer-survey-report-' . $startDate->format('Ymd') . '-to-' . $endDate->format('Ymd') . '.pdf'
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[SurveyReportsController] PDF generation failed: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'Could not generate the PDF report. Try a narrower date range, or contact support if this continues.');
+        }
     }
 
     protected function getReportData($startDate = null, $endDate = null, $includeZeroActivity = false)

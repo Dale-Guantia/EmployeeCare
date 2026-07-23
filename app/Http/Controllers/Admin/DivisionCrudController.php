@@ -33,6 +33,18 @@ class DivisionCrudController extends CrudController
         if (!backpack_user()->can('division.view')) {
             abort(403);
         }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('division.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('division.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('division.delete')) {
+            $this->crud->allowAccess('delete');
+        }
     }
 
     /**

@@ -3,7 +3,6 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Services\OcrService;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Diagnostic command: verifies OCR tools are installed and the pipeline works.

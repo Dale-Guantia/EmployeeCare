@@ -57,17 +57,18 @@ class TicketChat extends Component
 
         $this->validate([
             'comment' => 'required_without:attachments|nullable',
-            'attachments.*' => 'nullable|max:10240',
+            'attachments.*' => 'nullable|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,txt|max:20480',
         ], [
             'comment.required_without' => 'Please enter a message or attach a file.',
-            'attachments.*.max' => 'Each attachment must not exceed 10MB.',
+            'attachments.*.mimes' => 'Allowed file types: jpg, jpeg, png, pdf, doc, docx, xls, xlsx, txt.',
+            'attachments.*.max' => 'Each attachment must not exceed 20MB.',
         ]);
 
         $paths = [];
 
         if ($this->attachments) {
             foreach ($this->attachments as $file) {
-                $filename = time() . '_' . $file->getClientOriginalName();
+                $filename = \App\Services\AttachmentStorage::randomizedFilename($file);
 
                 $paths[] = $file->storeAs(
                     'attachments',

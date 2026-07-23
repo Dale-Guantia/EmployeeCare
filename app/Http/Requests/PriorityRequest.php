@@ -25,7 +25,8 @@ class PriorityRequest extends FormRequest
     public function rules()
     {
         return [
-            // 'name' => 'required|min:5|max:255'
+            'priority_name' => 'required|string|max:255|unique:priorities,priority_name,' . $this->route('id'),
+            'priority_color' => 'required|string|max:20',
         ];
     }
 

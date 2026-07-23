@@ -80,24 +80,24 @@ class Ticket extends Model
             // Auto-set status when assignee changes
             if ($model->isDirty('assigned_to')) {
                 if (!empty($model->assigned_to)) {
-                    $assignedStatus = Status::where('status_name', 'Pending')->first();
+                    $assignedStatusId = Status::idByName('Pending');
 
-                    if ($assignedStatus && !$model->isDirty('status_id')) {
-                        $model->status_id = $assignedStatus->id;
+                    if ($assignedStatusId && !$model->isDirty('status_id')) {
+                        $model->status_id = $assignedStatusId;
                     }
                 } else {
-                    $unassignedStatus = Status::where('status_name', 'Unassigned')->first();
+                    $unassignedStatusId = Status::idByName('Unassigned');
 
-                    if ($unassignedStatus && !$model->isDirty('status_id')) {
-                        $model->status_id = $unassignedStatus->id;
+                    if ($unassignedStatusId && !$model->isDirty('status_id')) {
+                        $model->status_id = $unassignedStatusId;
                     }
                 }
             }
 
             // Handle resolved / reopened timestamps
             if ($model->isDirty('status_id')) {
-                $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
-                $reopenedStatusId = Status::where('status_name', 'Reopened')->value('id');
+                $resolvedStatusId = Status::idByName('Resolved');
+                $reopenedStatusId = Status::idByName('Reopened');
 
                 // When resolved
                 if ($resolvedStatusId && (int) $model->status_id === (int) $resolvedStatusId) {
@@ -141,8 +141,17 @@ class Ticket extends Model
             $filesToDelete = array_diff($oldFiles, $newFiles);
 
             foreach ($filesToDelete as $file) {
-                if (!empty($file) && Storage::disk($disk)->exists($file)) {
-                    Storage::disk($disk)->delete($file);
+                if (empty($file)) {
+                    continue;
+                }
+                try {
+                    if (Storage::disk($disk)->exists($file)) {
+                        Storage::disk($disk)->delete($file);
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error(
+                        '[Ticket] Failed to delete removed attachment "' . $file . '": ' . $e->getMessage()
+                    );
                 }
             }
         });
@@ -159,8 +168,17 @@ class Ticket extends Model
             $files = is_array($files) ? array_values(array_filter($files)) : [];
 
             foreach ($files as $file) {
-                if (!empty($file) && Storage::disk($disk)->exists($file)) {
-                    Storage::disk($disk)->delete($file);
+                if (empty($file)) {
+                    continue;
+                }
+                try {
+                    if (Storage::disk($disk)->exists($file)) {
+                        Storage::disk($disk)->delete($file);
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error(
+                        '[Ticket] Failed to delete attachment "' . $file . '" for deleted ticket: ' . $e->getMessage()
+                    );
                 }
             }
         });
@@ -181,7 +199,7 @@ class Ticket extends Model
                 $ticket->loadMissing('status');
                 app(TicketNotificationService::class)->notifyTicketStatusChanged($ticket, $actor);
 
-                $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
+                $resolvedStatusId = Status::idByName('Resolved');
 
                 if ($resolvedStatusId && (int) $ticket->status_id === (int) $resolvedStatusId) {
                     $pending = $ticket->reassignmentRequests()
@@ -221,9 +239,16 @@ class Ticket extends Model
         if (request()->hasFile('attachments')) {
             foreach ((array) request()->file('attachments') as $file) {
                 if ($file && $file->isValid()) {
-                    $fileName = time() . '_' . $file->getClientOriginalName();
-                    $path     = $file->storeAs($destination_path, $fileName, $disk);
-                    $base[]   = $path;
+                    try {
+                        $fileName = \App\Services\AttachmentStorage::randomizedFilename($file);
+                        $path     = $file->storeAs($destination_path, $fileName, $disk);
+                        $base[]   = $path;
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error(
+                            '[Ticket] Failed to store attachment "' . $file->getClientOriginalName() . '": ' . $e->getMessage()
+                        );
+                        // Skip this one file rather than failing the whole save.
+                    }
                 }
             }
         }
@@ -237,14 +262,11 @@ class Ticket extends Model
             return [
                 'text'  => '-',
                 'class' => 'badge badge-secondary',
-                'style' => 'background-color:#6c757d; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
             ];
         }
 
-        static $resolvedStatusId = null;
-        if ($resolvedStatusId === null) {
-            $resolvedStatusId = Status::where('status_name', 'Resolved')->value('id');
-        }
+        $resolvedStatusId = Status::idByName('Resolved');
         $createdAt = Carbon::parse($this->created_at);
 
         // CASE A: Resolved ticket
@@ -253,7 +275,7 @@ class Ticket extends Model
                 return [
                     'text'  => 'Resolved',
                     'class' => 'badge badge-success',
-                    'style' => 'background-color:#28a745; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                    'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
                 ];
             }
 
@@ -270,14 +292,14 @@ class Ticket extends Model
                 return [
                     'text'  => "Resolved overdue",
                     'class' => 'badge badge-danger',
-                    'style' => 'background-color:#dc3545; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                    'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
                 ];
             }
 
             return [
                 'text'  => 'Resolved on time',
                 'class' => 'badge badge-success',
-                'style' => 'background-color:#28a745; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
             ];
         }
 
@@ -295,7 +317,7 @@ class Ticket extends Model
             return [
                 'text'  => "{$days}d {$hours}h {$minutes}m overdue",
                 'class' => 'badge badge-danger',
-                'style' => 'background-color:#dc3545; color:#fff; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
             ];
         }
 
@@ -308,7 +330,7 @@ class Ticket extends Model
         return [
             'text'  => "{$days}d {$hours}h {$minutes}m left",
             'class' => 'badge badge-warning',
-            'style' => 'background-color:#ffc107; color:#000; padding:5px 10px; border-radius:4px; font-weight:bold;',
+            'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
         ];
     }
 

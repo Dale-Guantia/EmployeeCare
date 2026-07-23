@@ -33,6 +33,18 @@ class StatusCrudController extends CrudController
         if (!backpack_user()->can('status.view')) {
             abort(403);
         }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('status.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('status.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('status.delete')) {
+            $this->crud->allowAccess('delete');
+        }
     }
 
     /**

@@ -63,7 +63,7 @@ class TicketRequest extends FormRequest
         return [
             // Attachments
             'attachments.*.mimes' => 'Allowed file types: jpg, jpeg, png, pdf, doc, docx, xls, xlsx.',
-            'attachments.*.max'   => 'Each attachment must not exceed 2MB.',
+            'attachments.*.max'   => 'Each attachment must not exceed 20MB.',
 
             // Department & Division
             'department_id.required_if' => 'Please select a Department when submitting a custom issue.',

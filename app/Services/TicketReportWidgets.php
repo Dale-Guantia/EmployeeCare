@@ -272,15 +272,16 @@ class TicketReportWidgets
 
         $reassignedCount = count($reassignedTicketIds);
 
-        $hrDepartmentId = (int) Department::where('department_name', 'City Human Resource Development Office')->value('id');
+        $hrDepartmentId = (int) optional(Department::allCached()->firstWhere('department_name', 'City Human Resource Development Office'))->id;
 
         // Zero-fill every HR division up front so the chart always shows a
         // stable, complete set of bars rather than only the divisions that
         // happened to have a ticket in this range.
         $byDivision = [];
         if ($hrDepartmentId) {
-            Division::where('department_id', $hrDepartmentId)
-                ->orderBy('division_name')
+            Division::allCached()
+                ->where('department_id', $hrDepartmentId)
+                ->sortBy('division_name')
                 ->pluck('division_name')
                 ->each(function ($name) use (&$byDivision) {
                     $byDivision[$name] = ['total' => 0, 'reassigned' => 0];

@@ -92,7 +92,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
         $request->validate([
             'title'          => 'required|string|max:255',
-            'category'       => 'required|string',
+            'category'       => 'required|in:general,leave,benefits,performance',
             'effective_date' => 'nullable|date',
             'pdf_file'       => 'required|file|mimes:pdf|max:20480', // 20MB max
         ]);
@@ -130,7 +130,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
         $rules = [
             'title'          => 'required|string|max:255',
-            'category'       => 'required|string',
+            'category'       => 'required|in:general,leave,benefits,performance',
             'effective_date' => 'nullable|date',
             'pdf_file'       => 'nullable|file|mimes:pdf|max:20480',
         ];
@@ -211,7 +211,17 @@ class HrPolicyDocumentCrudController extends CrudController
         $this->crud->hasAccessOrFail('delete');
 
         $document = HrPolicyDocument::findOrFail($id);
-        app(PolicyIngestService::class)->destroy($document);
+
+        try {
+            app(PolicyIngestService::class)->destroy($document);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[HrPolicyDocumentCrudController] Failed to delete document ' . $id . ': ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not delete this document: ' . $e->getMessage(),
+            ], 500);
+        }
 
         return response()->json(['success' => true]);
     }

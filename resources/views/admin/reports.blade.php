@@ -250,7 +250,7 @@
                                 <td>{{ $ticket->message ?? 'N/A'}}</td>
                                 <td>
                                     @if($ticket->status)
-                                        <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #444;">
+                                        <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #000000;">
                                             {{ $ticket->status->status_name }}
                                         </span>
                                     @else
@@ -259,7 +259,7 @@
                                 </td>
                                 <td>
                                     @if($ticket->priority)
-                                        <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #444;">
+                                        <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #000000;">
                                             {{ $ticket->priority->priority_name }}
                                         </span>
                                     @else

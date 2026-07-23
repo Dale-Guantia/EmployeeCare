@@ -34,10 +34,10 @@ class SurveyController extends Controller
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
             'issue_id' => 'required|exists:issues,id',
-            'timeliness_rating' => 'required|string',
-            'handling_rating' => 'required|string',
-            'quality_rating' => 'required|string',
-            'overall_rating' => 'required|string',
+            'timeliness_rating' => 'required|in:Very Dissatisfied,Dissatisfied,Satisfied,Very Satisfied',
+            'handling_rating' => 'required|in:Very Dissatisfied,Dissatisfied,Satisfied,Very Satisfied',
+            'quality_rating' => 'required|in:Very Dissatisfied,Dissatisfied,Satisfied,Very Satisfied',
+            'overall_rating' => 'required|in:Very Dissatisfied,Dissatisfied,Satisfied,Very Satisfied',
         ]);
 
         if ($validator->fails()) {

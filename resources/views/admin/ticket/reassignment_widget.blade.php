@@ -3,7 +3,7 @@
     $user = backpack_user();
     $pending = $ticket->pendingReassignmentRequest;
 
-    $resolvedId = \App\Models\Status::where('status_name', 'Resolved')->value('id');
+    $resolvedId = \App\Models\Status::idByName('Resolved');
     $isResolved = $resolvedId && (int) $ticket->status_id === (int) $resolvedId;
 
     $isOwningHead = $user->hasRole('admin')
@@ -21,8 +21,8 @@
     );
 
     $formUrl = url(config('backpack.base.route_prefix') . '/ticket/' . $ticket->id);
-    $departments = \App\Models\Department::all();
-    $divisions = \App\Models\Division::all();
+    $departments = \App\Models\Department::allCached();
+    $divisions = \App\Models\Division::allCached();
 @endphp
 
 @if ($pending)
@@ -173,7 +173,7 @@
 
     <script>
         (function() {
-            var allDivisions = {!! $divisions->toJson() !!};
+            var allDivisions = @json($divisions);
             var deptSelect = document.getElementById('reassign_to_department_{{ $ticket->id }}');
             var divSelect = document.getElementById('reassign_to_division_{{ $ticket->id }}');
 

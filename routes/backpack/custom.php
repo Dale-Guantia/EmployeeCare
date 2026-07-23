@@ -87,19 +87,22 @@ Route::group([
     Route::post('my-account/notifications', [MyAccountController::class, 'postNotificationsForm'])->name('backpack.account.notifications');
     Route::post('my-account/notification-settings', [MyAccountController::class, 'updateNotificationSettings'])->name('backpack.account.notification_settings');
 
-    // Chatbot Routes
-    Route::get('hr-assistant',       [HrChatController::class, 'index'])->name('hr.chat.index');
-    Route::post('hr-assistant/ask',  [HrChatController::class, 'ask'])->name('hr.chat.ask');
-    Route::post('hr-assistant/feedback', [HrChatController::class, 'feedback'])->name('hr.chat.feedback');
-    Route::get('hr-assistant/history', [HrChatController::class, 'history'])->name('hr.chat.history');
-    Route::delete('hr-assistant/clear-history', [HrChatController::class, 'clearHistory'])->name('hr.chat.clear_history');
+    // Chatbot Routes — rate-limited so a single user can't spam the paid
+    // Anthropic API or exhaust the shared rate limit for everyone else.
+    Route::middleware('throttle:hr-chat')->group(function () {
+        Route::get('hr-assistant',       [HrChatController::class, 'index'])->name('hr.chat.index');
+        Route::post('hr-assistant/ask',  [HrChatController::class, 'ask'])->name('hr.chat.ask');
+        Route::post('hr-assistant/feedback', [HrChatController::class, 'feedback'])->name('hr.chat.feedback');
+        Route::get('hr-assistant/history', [HrChatController::class, 'history'])->name('hr.chat.history');
+        Route::delete('hr-assistant/clear-history', [HrChatController::class, 'clearHistory'])->name('hr.chat.clear_history');
 
-    // Conversation management (full-page sidebar). The widget keeps using the
-    // flat `history` route above and never calls these.
-    Route::get('hr-assistant/conversations', [HrChatController::class, 'conversations'])->name('hr.chat.conversations');
-    Route::get('hr-assistant/conversations/{id}/messages', [HrChatController::class, 'conversationMessages'])->name('hr.chat.conversation.messages');
-    Route::patch('hr-assistant/conversations/{id}', [HrChatController::class, 'updateConversation'])->name('hr.chat.conversation.update');
-    Route::delete('hr-assistant/conversations/{id}', [HrChatController::class, 'deleteConversation'])->name('hr.chat.conversation.delete');
+        // Conversation management (full-page sidebar). The widget keeps using the
+        // flat `history` route above and never calls these.
+        Route::get('hr-assistant/conversations', [HrChatController::class, 'conversations'])->name('hr.chat.conversations');
+        Route::get('hr-assistant/conversations/{id}/messages', [HrChatController::class, 'conversationMessages'])->name('hr.chat.conversation.messages');
+        Route::patch('hr-assistant/conversations/{id}', [HrChatController::class, 'updateConversation'])->name('hr.chat.conversation.update');
+        Route::delete('hr-assistant/conversations/{id}', [HrChatController::class, 'deleteConversation'])->name('hr.chat.conversation.delete');
+    });
 
     // Policy document manager
     // Custom routes for upload and update (not standard CRUD)

@@ -148,7 +148,7 @@ class AnthropicService
 
         } catch (\Exception $e) {
             Log::error('[AnthropicService] Exception: ' . $e->getMessage(), [
-                'question' => $question,
+                'question' => \Illuminate\Support\Str::limit($question, 50),
             ]);
             return 'Could not connect to the AI service. Please check your internet connection and try again.';
         }

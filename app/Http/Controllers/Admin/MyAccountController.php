@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use Backpack\CRUD\app\Http\Controllers\MyAccountController as BackpackMyAccountController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -51,24 +50,35 @@ class MyAccountController extends BackpackMyAccountController
         // If the array is empty (user deleted all tags), it defaults to an empty array []
         $user->skills = $request->input('skills', []);
 
-        if ($request->boolean('remove_avatar')) {
-            if ($user->avatar_url && Storage::disk('public')->exists($user->avatar_url)) {
-                Storage::disk('public')->delete($user->avatar_url);
+        $avatarError = null;
+
+        try {
+            if ($request->boolean('remove_avatar')) {
+                if ($user->avatar_url && Storage::disk('public')->exists($user->avatar_url)) {
+                    Storage::disk('public')->delete($user->avatar_url);
+                }
+
+                $user->avatar_url = null;
             }
 
-            $user->avatar_url = null;
-        }
+            if ($request->hasFile('avatar')) {
+                if ($user->avatar_url && Storage::disk('public')->exists($user->avatar_url)) {
+                    Storage::disk('public')->delete($user->avatar_url);
+                }
 
-        if ($request->hasFile('avatar')) {
-            if ($user->avatar_url && Storage::disk('public')->exists($user->avatar_url)) {
-                Storage::disk('public')->delete($user->avatar_url);
+                $path = $request->file('avatar')->store('avatars', 'public');
+                $user->avatar_url = $path;
             }
-
-            $path = $request->file('avatar')->store('avatars', 'public');
-            $user->avatar_url = $path;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[MyAccountController] Avatar update failed for user ' . $user->id . ': ' . $e->getMessage());
+            $avatarError = 'Your other account details were saved, but the avatar could not be updated. Please try again.';
         }
 
         $user->save();
+
+        if ($avatarError) {
+            return redirect()->back()->with('error', $avatarError);
+        }
 
         return redirect()->back()->with('success', trans('backpack::base.account_updated'));
     }

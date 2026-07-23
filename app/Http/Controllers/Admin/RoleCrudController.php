@@ -19,6 +19,18 @@ class RoleCrudController extends VendorRoleCrudController
         if (!backpack_user()->can('role.view')) {
             abort(403);
         }
+
+        $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        if (backpack_user()->can('role.create')) {
+            $this->crud->allowAccess('create');
+        }
+        if (backpack_user()->can('role.update')) {
+            $this->crud->allowAccess('update');
+        }
+        if (backpack_user()->can('role.delete')) {
+            $this->crud->allowAccess('delete');
+        }
     }
 
     public function setupCreateOperation()

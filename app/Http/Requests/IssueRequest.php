@@ -25,7 +25,11 @@ class IssueRequest extends FormRequest
     public function rules()
     {
         return [
-            // 'name' => 'required|min:5|max:255'
+            'department_id' => 'required|exists:departments,id',
+            'division_id' => 'required|exists:divisions,id',
+            'priority_id' => 'required|exists:priorities,id',
+            'issue_description' => 'required|string|max:255',
+            'icon' => 'nullable|string|max:255',
         ];
     }
 

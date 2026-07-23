@@ -25,7 +25,8 @@ class StatusRequest extends FormRequest
     public function rules()
     {
         return [
-            // 'name' => 'required|min:5|max:255'
+            'status_name' => 'required|string|max:255|unique:statuses,status_name,' . $this->route('id'),
+            'status_color' => 'required|string|max:20',
         ];
     }
 
