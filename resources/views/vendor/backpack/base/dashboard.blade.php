@@ -1,97 +1,56 @@
 @extends(backpack_view('blank'))
 
-@php
-
-$latestTickets = App\Models\Ticket::with(['user', 'issue', 'status', 'priority'])->latest()->take(10)->get();
-
-$abbreviationMap = [
-    'Administrative'           => 'Admin',
-    'Claims and Benefits'      => 'Claims',
-    'Information Technology'   => 'IT',
-    'Learning and Development' => 'L&D',
-    'Performance Management'   => 'PM',
-    'Payroll'                  => 'Payroll',
-    'Records'                  => 'Records',
-    'RSP'                      => 'RSP',
-];
-
-// Define specific colors for each abbreviation
-$colorPalette = [
-    'Admin'     => '#FF6384', // Pinkish
-    'Claims'    => '#36A2EB', // Blue
-    'IT'        => '#4BC0C0', // Teal
-    'L&D'       => '#FFCE56', // Yellow
-    'PM'        => '#9966FF', // Purple
-    'Payroll'   => '#FF9F40', // Orange
-    'Records'   => '#C9CBCF', // Grey
-    'RSP'       => '#4D5360', // Dark Grey
-];
-
-$ticketsPerDivisionRaw = \App\Models\Division::leftJoin('tickets', 'tickets.division_id', '=', 'divisions.id')
-    ->join('departments', 'divisions.department_id', '=', 'departments.id')
-    ->where('divisions.division_name', '!=', 'Department Head')
-    ->selectRaw('divisions.division_name, COUNT(tickets.id) as total')
-    ->groupBy('divisions.division_name')
-    ->orderBy('divisions.division_name')
-    ->get();
-
-$divisionLabels = [];
-$divisionCounts = [];
-$divisionColors = [];
-
-foreach ($ticketsPerDivisionRaw as $item) {
-    $shortName = $abbreviationMap[$item->division_name] ?? $item->division_name;
-    $divisionLabels[] = $shortName;
-    $divisionCounts[] = $item->total;
-    $divisionColors[] = $colorPalette[$shortName] ?? '#36A2EB';
-}
-
-$statusData = \App\Models\Status::withCount('tickets')->get();
-$labels = $statusData->pluck('status_name');
-$data = $statusData->pluck('tickets_count');
-$colors = $statusData->pluck('status_color');
-
-// --- Reports widgets, fixed to all-time ---
-// Reuses App\Services\TicketReportWidgets — the exact same SLA/overdue
-// rule, resolution-time bucketing, and reassignment scoping that
-// ReportsController uses for the Reports page's "All Time" period, so this
-// logic lives in one place instead of drifting between the two pages.
-
-$dashResolvedStatusId = (int) \App\Models\Status::idByName('Resolved');
-$dashPendingStatusId = (int) \App\Models\Status::idByName('Pending');
-$dashReopenedStatusId = (int) \App\Models\Status::idByName('Reopened');
-
-$dashAllTickets = \App\Models\Ticket::with(['department', 'division', 'issue'])
-    ->get(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at']);
-
-$dashEarliestCreatedAt = $dashAllTickets->min('created_at');
-$dashWidgetStart = $dashEarliestCreatedAt ? \Carbon\Carbon::parse($dashEarliestCreatedAt)->startOfDay() : now()->startOfDay();
-$dashWidgetEnd = now()->endOfDay();
-
-$dashVolumeTrend = \App\Services\TicketReportWidgets::buildVolumeTrendWidget($dashAllTickets, $dashWidgetStart, $dashWidgetEnd, 'month');
-$volumeTrendLabels = $dashVolumeTrend['labels'];
-$volumeTrendCounts = $dashVolumeTrend['counts'];
-
-$dashResolutionDistribution = \App\Services\TicketReportWidgets::buildResolutionDistributionWidget($dashAllTickets, $dashResolvedStatusId);
-$resolutionLabels = $dashResolutionDistribution['labels'];
-$resolutionCounts = $dashResolutionDistribution['counts'];
-
-$dashSlaBreakdown = \App\Services\TicketReportWidgets::buildSlaBreakdownWidget($dashAllTickets, $dashResolvedStatusId);
-$overdueByIssue = $dashSlaBreakdown['by_issue'];
-
-$dashReassignment = \App\Services\TicketReportWidgets::buildReassignmentWidget($dashAllTickets, $dashWidgetStart, $dashWidgetEnd);
-$reassignedCount = $dashReassignment['reassigned_count'];
-$reassignmentTotal = $dashReassignment['total'];
-$reassignmentRate = $dashReassignment['rate'];
-$reassignDivisionLabels = $dashReassignment['division_labels'];
-$reassignDivisionRates = $dashReassignment['division_rates'];
-
-$dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $dashResolvedStatusId, $dashPendingStatusId, $dashReopenedStatusId);
-@endphp
-
 @section('content')
 
     <div class="container-fluid">
+        @if($periodError)
+            <div class="row mb-2">
+                <div class="col-12">
+                    <div class="alert alert-warning py-2 mb-0">{{ $periodError }}</div>
+                </div>
+            </div>
+        @endif
+
+        <div class="row mb-3 align-items-end" id="dashboardPeriodControl">
+            <div class="col-auto">
+                <label for="dashPeriodSelect" class="small text-muted text-uppercase font-weight-bold mb-1">Date Range</label>
+                <select id="dashPeriodSelect" class="form-control form-control-sm">
+                    <option value="all" {{ $activePeriod === 'all' ? 'selected' : '' }}>All Time</option>
+                    <option value="month" {{ $activePeriod === 'month' ? 'selected' : '' }}>This Month</option>
+                    <option value="half" {{ $activePeriod === 'half' ? 'selected' : '' }}>Semestral</option>
+                    <option value="custom" {{ $activePeriod === 'custom' ? 'selected' : '' }}>Custom</option>
+                </select>
+            </div>
+
+            <div class="col-auto" id="dashHalfToggleWrap" style="{{ $activePeriod === 'half' ? '' : 'display:none;' }}">
+                <label for="dashHalfSelect" class="small text-muted text-uppercase font-weight-bold mb-1">Half</label>
+                <select id="dashHalfSelect" class="form-control form-control-sm">
+                    <option value="h1" {{ $activeHalf === 'h1' ? 'selected' : '' }}>Jan &ndash; Jun {{ $activeYear }}</option>
+                    <option value="h2" {{ $activeHalf === 'h2' ? 'selected' : '' }}>Jul &ndash; Dec {{ $activeYear }}</option>
+                </select>
+            </div>
+
+            <div class="col-auto" id="dashCustomRangeWrap" style="{{ $activePeriod === 'custom' ? '' : 'display:none;' }}">
+                <div class="form-row align-items-end">
+                    <div class="col-auto">
+                        <label for="dashCustomStart" class="small text-muted text-uppercase font-weight-bold mb-1">Start Date</label>
+                        <input type="date" id="dashCustomStart" class="form-control form-control-sm" value="{{ request('start') }}">
+                    </div>
+                    <div class="col-auto">
+                        <label for="dashCustomEnd" class="small text-muted text-uppercase font-weight-bold mb-1">End Date</label>
+                        <input type="date" id="dashCustomEnd" class="form-control form-control-sm" value="{{ request('end') }}">
+                    </div>
+                    <div class="col-auto">
+                        <button type="button" id="dashCustomApplyBtn" class="btn btn-sm btn-primary">Apply</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-auto ml-auto">
+                <small class="text-muted">Data shown for: {{ $dashWidgetStart->format('M j, Y') }} &ndash; {{ $dashWidgetEnd->format('M j, Y') }}</small>
+            </div>
+        </div>
+
         <div class="row">
             <div class="col-sm-6 col-md-2">
                 <div class="card text-white bg-dark">
@@ -115,7 +74,7 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
                 <div class="card text-white bg-warning">
                     <div class="card-body">
                         <div class="h1 text-muted text-right"><i class="nav-icon la la-ticket"></i></div>
-                            <div class="text-value">{{ \App\Models\Ticket::count() }}</div><small class="text-muted text-uppercase font-weight-bold">Total Tickets</small>
+                            <div class="text-value">{{ $dashKpis['total'] }}</div><small class="text-muted text-uppercase font-weight-bold">Total Tickets</small>
                     </div>
                 </div>
             </div>
@@ -180,7 +139,7 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-header font-weight-bold">
-                        Resolution Time Distribution <small class="text-muted">(all time)</small>
+                        Resolution Time Distribution
                     </div>
                     <div class="card-body" style="height:300px; position: relative;">
                         <canvas id="dashResolutionDistributionChart"></canvas>
@@ -245,12 +204,12 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
         </div>
         <!-- End of Latest Tickets -->
 
-        {{-- Reports widgets (all-time) --}}
+        {{-- Reports widgets (scoped to the selected date range) --}}
         <div class="row">
             <div class="col-md-8 mb-4">
                 <div class="card h-100">
                     <div class="card-header font-weight-bold">
-                        Ticket Volume Trend <small class="text-muted">(all time)</small>
+                        Ticket Volume Trend
                     </div>
                     <div class="card-body" style="height:300px; position: relative;">
                         <canvas id="dashVolumeTrendChart"></canvas>
@@ -261,7 +220,7 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
             <div class="col-md-4 mb-4">
                 <div class="card h-100">
                     <div class="card-header font-weight-bold">
-                        Overdue vs On-Time by Issue Type <small class="text-muted">(all time)</small>
+                        Overdue vs On-Time by Issue Type
                     </div>
                     <div class="card-body table-responsive" style="min-height: 320px; max-height: 320px; overflow-y: auto; font-size: 0.85rem;">
                         <table class="table table-sm">
@@ -290,14 +249,14 @@ $dashKpis = \App\Services\TicketReportWidgets::buildKpiWidget($dashAllTickets, $
                     <div class="card-body text-center d-flex flex-column justify-content-center" style="min-height: 300px;">
                         <div class="text-value">{{ $reassignmentRate }}%</div>
                         <small class="text-muted text-uppercase font-weight-bold">Reassignment Rate</small>
-                        <div class="text-muted small mt-1">{{ $reassignedCount }} of {{ $reassignmentTotal }} tickets (all time)</div>
+                        <div class="text-muted small mt-1">{{ $reassignedCount }} of {{ $reassignmentTotal }} tickets</div>
                     </div>
                 </div>
             </div>
             <div class="col-md-8 mb-4">
                 <div class="card h-100">
                     <div class="card-header font-weight-bold">
-                        Reassignment by Division <small class="text-muted">(all time)</small>
+                        Reassignment by Division
                     </div>
                     <div class="card-body" style="min-height: 300x;">
                         <div style="height: 280px; position: relative;">
@@ -332,9 +291,9 @@ const divisionLabels = @json($divisionLabels);
 const divisionCounts = @json($divisionCounts);
 const divisionColors = @json($divisionColors);
 
-const statusLabels = @json($labels);
-const statusData = @json($data);
-const statusColors = @json($colors);
+const statusLabels = @json($statusLabels);
+const statusData = @json($statusData);
+const statusColors = @json($statusColors);
 
 const ctx = document.getElementById('divisionChart');
 
@@ -416,7 +375,7 @@ new Chart(ctxStatus, {
     }
 });
 
-// --- Reports widgets (all-time), mirrored from the Reports page ---
+// --- Reports widgets, scoped to the selected date range ---
 
 const dashReportColorPalette = ['#FF6384', '#36A2EB', '#4BC0C0', '#FFCE56', '#9966FF', '#FF9F40', '#C9CBCF', '#4D5360'];
 
@@ -492,6 +451,17 @@ if (dashReassignDivisionEl && dashReassignDivisionLabels.length) {
     });
 }
 
+function buildDashboardUrl(params) {
+    const url = new URL(window.location.href);
+    url.search = '';
+    Object.keys(params).forEach(function (key) {
+        if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+            url.searchParams.set(key, params[key]);
+        }
+    });
+    return url.toString();
+}
+
 $(document).ready(function () {
     $('#latestTicketsTable').DataTable({
         pageLength: 10,
@@ -505,6 +475,44 @@ $(document).ready(function () {
     });
 
     $('.latest-title').html('<h5 class="mb-2 font-weight-bold">Latest Tickets</h5>');
+
+    const periodSelect = document.getElementById('dashPeriodSelect');
+    const halfSelect = document.getElementById('dashHalfSelect');
+    const halfWrap = document.getElementById('dashHalfToggleWrap');
+    const customWrap = document.getElementById('dashCustomRangeWrap');
+    const customStart = document.getElementById('dashCustomStart');
+    const customEnd = document.getElementById('dashCustomEnd');
+    const customApplyBtn = document.getElementById('dashCustomApplyBtn');
+
+    if (periodSelect) {
+        periodSelect.addEventListener('change', function () {
+            const period = periodSelect.value;
+            if (halfWrap) halfWrap.style.display = period === 'half' ? '' : 'none';
+            if (customWrap) customWrap.style.display = period === 'custom' ? '' : 'none';
+
+            if (period === 'all' || period === 'month') {
+                window.location.href = buildDashboardUrl({ period: period });
+            } else if (period === 'half') {
+                window.location.href = buildDashboardUrl({ period: 'half', half: halfSelect.value });
+            }
+        });
+    }
+
+    if (halfSelect) {
+        halfSelect.addEventListener('change', function () {
+            window.location.href = buildDashboardUrl({ period: 'half', half: halfSelect.value });
+        });
+    }
+
+    if (customApplyBtn) {
+        customApplyBtn.addEventListener('click', function () {
+            window.location.href = buildDashboardUrl({
+                period: 'custom',
+                start: customStart.value,
+                end: customEnd.value
+            });
+        });
+    }
 });
 
 </script>
