@@ -10,7 +10,7 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
+use App\Services\SqlDialectHelper;
 
 class User extends Authenticatable
 {
@@ -103,9 +103,7 @@ class User extends Authenticatable
 
     public function overdueTickets()
     {
-        $diffHoursSql = DB::connection()->getDriverName() === 'sqlsrv'
-            ? 'DATEDIFF(HOUR, created_at, resolved_at)'
-            : 'TIMESTAMPDIFF(HOUR, created_at, resolved_at)';
+        $diffHoursSql = SqlDialectHelper::diffHoursSql('created_at', 'resolved_at');
 
         return $this->hasMany(\App\Models\Ticket::class, 'assigned_to')
             ->where(function ($query) use ($diffHoursSql) {
@@ -120,6 +118,11 @@ class User extends Authenticatable
                     ->whereRaw("{$diffHoursSql} > 72");
                 });
             });
+    }
+
+    public function assignedTickets()
+    {
+        return $this->hasMany(Ticket::class, 'assigned_to');
     }
 
     public function department()
