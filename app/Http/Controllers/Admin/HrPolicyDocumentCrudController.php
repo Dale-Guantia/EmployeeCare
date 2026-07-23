@@ -8,6 +8,7 @@ use App\Services\PolicyIngestService;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Illuminate\Http\Request;
+use Prologue\Alerts\Facades\Alert;
 
 class HrPolicyDocumentCrudController extends CrudController
 {
@@ -105,10 +106,10 @@ class HrPolicyDocumentCrudController extends CrudController
 
             IngestPolicyDocumentJob::dispatch($document->id);
 
-            \Alert::success("Policy \"{$document->title}\" uploaded. Processing in the background — refresh this list in a moment to see its status.")->flash();
+            Alert::success("Policy \"{$document->title}\" uploaded. Processing in the background — refresh this list in a moment to see its status.")->flash();
 
         } catch (\Throwable $e) {
-            \Alert::error('Upload failed: ' . $e->getMessage())->flash();
+            Alert::error('Upload failed: ' . $e->getMessage())->flash();
         }
 
         return redirect(backpack_url('hr-policy-documents'));
@@ -153,10 +154,10 @@ class HrPolicyDocumentCrudController extends CrudController
                 $msg = 'Policy metadata updated.';
             }
 
-            \Alert::success($msg)->flash();
+            Alert::success($msg)->flash();
 
         } catch (\Throwable $e) {
-            \Alert::error('Update failed: ' . $e->getMessage())->flash();
+            Alert::error('Update failed: ' . $e->getMessage())->flash();
         }
 
         return redirect(backpack_url('hr-policy-documents'));
@@ -223,6 +224,10 @@ class HrPolicyDocumentCrudController extends CrudController
             ], 500);
         }
 
-        return response()->json(['success' => true]);
+        // Backpack's default delete AJAX handler checks `result == 1` to
+        // decide whether to redraw the DataTable — a JSON object here would
+        // be treated as notification-bubble data instead, so the row would
+        // stay visible until a manual page refresh.
+        return 1;
     }
 }
