@@ -40,13 +40,105 @@ body {
     z-index: -1;
 }
 
-#installSurveyApp {
+.survey-app-controls {
     position: fixed;
+    top: 0.75rem;
+    right: 0.75rem;
+    top: max(0.75rem, env(safe-area-inset-top));
+    right: max(0.75rem, env(safe-area-inset-right));
     z-index: 1000;
-    padding: 0;
-    border: none;
+    max-width: calc(100% - 1.5rem);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.survey-app-tools {
+    position: relative;
+}
+
+.survey-app-tools summary {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    list-style: none;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.55);
+    color: #334155;
+    opacity: 0.45;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.survey-app-tools summary::-webkit-details-marker {
+    display: none;
+}
+
+.survey-app-tools summary:hover,
+.survey-app-tools summary:focus-visible,
+.survey-app-tools[open] summary {
+    opacity: 1;
+    background: #fff;
+    border-color: #cbd5e1;
+}
+
+.survey-app-tools summary:focus-visible {
+    outline: 2px solid #0056b3;
+    outline-offset: 2px;
+}
+
+.survey-app-tools-panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    width: 210px;
+    max-width: calc(100vw - 1.5rem);
+    padding: 0.35rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+}
+
+#installSurveyApp,
+#fullscreenSurvey {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 40px;
+    padding: 0.4rem 0.6rem;
+    border: 0;
+    border-radius: 0.25rem;
     background: transparent;
+    color: #334155;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+#installSurveyApp[hidden] {
+    display: none;
+}
+
+#installSurveyApp:hover,
+#installSurveyApp:focus-visible,
+#fullscreenSurvey:hover,
+#fullscreenSurvey:focus-visible {
+    background: #f1f5f9;
+    color: #0056b3;
+}
+
+.survey-fullscreen-message {
+    max-width: 360px;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background: #fff;
     color: #000;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
     font-size: 0.9rem;
 }
 

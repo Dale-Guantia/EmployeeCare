@@ -26,6 +26,7 @@ Route::get('/', function () {
 // Survey Form Routes
 Route::get('/survey', [SurveyController::class, 'showForm'])->name('survey.form');
 Route::post('/survey', [SurveyController::class, 'submitForm'])->name('survey.submit');
+Route::get('/survey/csrf-token', [SurveyController::class, 'csrfToken'])->name('survey.csrf');
 
 // Survey Form Routes
 Route::get('/arta-form', [ArtaController::class, 'showForm'])->name('arta.form');

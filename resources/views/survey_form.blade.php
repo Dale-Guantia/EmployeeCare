@@ -19,7 +19,44 @@
     <title>Customer Satisfaction Survey</title>
 </head>
 <body>
-    <button id="installSurveyApp" type="button" class="btn btn-warning is-hidden">Install App</button>
+    <div class="survey-app-controls">
+        <details id="surveyAppTools" class="survey-app-tools">
+            <summary aria-label="Survey display and installation options" title="Display and installation options">
+                <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+            </summary>
+            <div class="survey-app-tools-panel" role="group" aria-label="Survey display and installation">
+                <button id="fullscreenSurvey" type="button" class="btn" aria-pressed="false" aria-describedby="surveyFullscreenMessage">
+                    <i class="fas fa-expand" aria-hidden="true"></i>
+                    <span id="surveyFullscreenLabel">Enter Fullscreen</span>
+                </button>
+                <button id="installSurveyApp" type="button" class="btn" aria-controls="surveyInstallHelp">
+                    <i class="fas fa-download" aria-hidden="true"></i> Install App
+                </button>
+            </div>
+        </details>
+        <p id="surveyFullscreenMessage" class="survey-fullscreen-message" role="status" aria-live="polite" hidden></p>
+    </div>
+
+    <div class="modal fade" id="surveyInstallHelp" tabindex="-1" aria-labelledby="surveyInstallHelpTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="surveyInstallHelpTitle">Install HRDO Survey</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="surveyInstallHelpMessage" class="mb-3" role="status" aria-live="polite">Chrome has not offered installation yet. Keep this page open for a moment, then try Install App again.</p>
+                    <p class="mb-2">On an Android tablet, open this survey directly in Chrome. Tap the three dots beside the address bar, not Chrome's Settings page, then look for Install app or Add to Home screen.</p>
+                    <p class="mb-2">On an iPad, open the survey in Safari and choose Share &rarr; Add to Home Screen.</p>
+                    <p class="text-muted">If HRDO Survey is already installed, open its icon from the home screen. If no install option appears, refresh this page once and try again in an up-to-date browser.</p>
+                </div>
+                <div class="modal-footer">
+                    <button id="installSurveyNow" type="button" class="btn btn-primary is-hidden">Install now</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <video id="background-video" autoplay loop muted playsinline preload="metadata" poster="{{ asset('assets/blue.webp') }}">
         <source src="{{ asset('assets/blue.webm') }}" type="video/webm">
@@ -30,6 +67,17 @@
     </video>
 
     <div class="survey-shell">
+        <div id="survey-connectivity" class="alert alert-warning flex-shrink-0 is-hidden" role="status" aria-live="polite">
+            <span id="survey-connectivity-message"></span>
+            <button id="retrySurveySubmission" type="button" class="btn btn-primary btn-sm is-hidden" onclick="submitForm()">Submit survey</button>
+        </div>
+        @if($errors->any())
+            <div class="alert alert-danger flex-shrink-0" role="alert">
+                @foreach($errors->all() as $error)
+                    <div>{{ $error }}</div>
+                @endforeach
+            </div>
+        @endif
         <header class="survey-header" id="surveyHeader">
             <div class="center-logo-container d-flex justify-content-center w-100">
                 <picture>
@@ -42,7 +90,7 @@
             <h1 class="survey-title">Customer Satisfaction Survey</h1>
         </header>
 
-        <form action="{{ route('survey.submit') }}" method="POST" class="survey-form">
+        <form action="{{ route('survey.submit') }}" method="POST" class="survey-form" data-csrf-url="{{ route('survey.csrf') }}">
             @csrf
 
             <div id="surveyCarousel" class="carousel slide" data-bs-ride="false" data-bs-interval="false">
@@ -54,14 +102,9 @@
                             <h3 class="slide-title">Select Division / Pumili ng Dibisyon:</h3>
 
                             <div class="division-buttons-grid">
-                                <button type="button" class="btn btn-it division-btn" data-division-id="2">INFORMATION TECHNOLOGY</button>
-                                <button type="button" class="btn btn-admin division-btn" data-division-id="3">ADMINISTRATIVE</button>
-                                <button type="button" class="btn btn-records division-btn" data-division-id="5">RECORDS</button>
-                                <button type="button" class="btn btn-payroll division-btn" data-division-id="4">PAYROLL</button>
-                                <button type="button" class="btn btn-claims division-btn" data-division-id="6">CLAIMS &amp; BENEFITS</button>
-                                <button type="button" class="btn btn-rsp division-btn" data-division-id="7">RSP</button>
-                                <button type="button" class="btn btn-ld division-btn" data-division-id="8">LEARNING &amp; DEVELOPMENT</button>
-                                <button type="button" class="btn btn-pm division-btn" data-division-id="9">PERFORMANCE MANAGEMENT</button>
+                                @foreach($divisions as $division)
+                                    <button type="button" class="btn {{ $divisionStyles[$division->division_name] ?? 'btn-admin' }} division-btn" data-division-id="{{ $division->id }}">{{ strtoupper($division->division_name) }}</button>
+                                @endforeach
                                 <button type="button" class="btn btn-all division-btn active" data-division-id="all">ALL DIVISIONS</button>
                             </div>
                         </div>
@@ -309,11 +352,9 @@
                     {{-- Slide 8: QR --}}
                     <div class="carousel-item" id="qr-timeout-slide">
                         <div class="question-slide question-slide--qr">
-                            @if(session('success'))
-                                <div id="success-message" class="alert alert-success success-message fw-bold px-3" role="alert">
-                                    {{ session('success') }}
-                                </div>
-                            @endif
+                            <div id="success-message" class="alert alert-success success-message fw-bold px-3" role="status" @if(!session('success')) hidden @endif>
+                                {{ session('success') }}
+                            </div>
 
                             <h3 class="slide-title slide-title--blue mt-3">Scan the QR code to fill out the comments and suggestions form</h3>
 
@@ -322,7 +363,7 @@
                             </div>
 
                             <div class="mt-2">
-                                <button type="button" class="btn btn-primary go-back-btn-large px-5" onclick="window.location.reload()">Rate Again</button>
+                                <button type="button" class="btn btn-primary go-back-btn-large px-5" onclick="resetSurvey()">Rate Again</button>
                             </div>
                         </div>
                     </div>

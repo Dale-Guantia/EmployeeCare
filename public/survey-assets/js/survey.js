@@ -1,4 +1,5 @@
 const surveyCarouselEl = document.getElementById('surveyCarousel');
+const surveyForm = document.querySelector('.survey-form');
 const surveyCarousel = new bootstrap.Carousel(surveyCarouselEl, {
     touch: false,
     interval: false,
@@ -9,6 +10,12 @@ let servicePage = 0;
 let staffPage = 0;
 let isSubmittingSurvey = false;
 let ratingTimeout = null; // Added to prevent double-click jumping
+let surveyStarted = false;
+let submissionFailed = false;
+let surveyWorkerRegistration = null;
+let surveyCompleted = false;
+let surveyResetTimeout = null;
+const QR_SLIDE_INDEX = 7;
 
 let $currentServiceSet = $();
 let $currentStaffSet = $();
@@ -48,17 +55,173 @@ function prevSlide() {
     surveyCarousel.prev();
 }
 
-function submitForm() {
-    if (isSubmittingSurvey) return;
+function showConnectivityNotice(message, canRetry = false) {
+    document.getElementById('survey-connectivity-message').textContent = message;
+    document.getElementById('survey-connectivity').classList.remove('is-hidden');
+    document.getElementById('retrySurveySubmission').classList.toggle('is-hidden', !canRetry);
+}
+
+function updateConnectivityNotice() {
+    if (submissionFailed) {
+        showConnectivityNotice('Your response has not been confirmed as saved. When connected, press Submit survey to try again.', true);
+    } else if (navigator.onLine === false) {
+        showConnectivityNotice('You are offline. You can view the survey, but must reconnect before submitting.');
+    } else if (!surveyForm.querySelector('input[name="_token"]').value) {
+        showConnectivityNotice('You are viewing a saved survey. Submitting requires a connection to the survey server.');
+    } else {
+        document.getElementById('survey-connectivity').classList.add('is-hidden');
+    }
+}
+
+async function submitForm() {
+    if (isSubmittingSurvey || surveyCompleted) return;
+
+    // Carousel indicators can skip questions; return to the first missing answer.
+    const missingInput = Array.from(surveyForm.querySelectorAll('input[required]'))
+        .find(input => !input.checkValidity());
+    if (missingInput) {
+        const slides = Array.from(surveyCarouselEl.querySelectorAll('.carousel-item'));
+        surveyCarousel.to(slides.indexOf(missingInput.closest('.carousel-item')));
+        showConnectivityNotice('Please answer every question before submitting.');
+        return;
+    }
+
+    if (navigator.onLine === false) {
+        submissionFailed = true;
+        updateConnectivityNotice();
+        return;
+    }
 
     isSubmittingSurvey = true;
+    document.getElementById('retrySurveySubmission').disabled = true;
 
     document.querySelectorAll('.rating-option').forEach(option => {
         option.style.pointerEvents = 'none';
         option.style.opacity = '0.7'; // Visual feedback that form is submitting
     });
 
-    document.querySelector('form').submit();
+    const controller = new AbortController();
+    let requestTimeout = setTimeout(() => controller.abort(), 10000);
+    try {
+        // Never submit an offline HTML token: get the current session token from the network.
+        const response = await fetch(surveyForm.dataset.csrfUrl, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+        });
+        if (!response.ok || response.redirected) throw new Error('Token refresh failed');
+        const data = await response.json();
+        if (typeof data.token !== 'string' || !data.token) throw new Error('Missing survey token');
+
+        surveyForm.querySelector('input[name="_token"]').value = data.token;
+        clearTimeout(requestTimeout);
+        requestTimeout = setTimeout(() => controller.abort(), 30000);
+
+        // Stay in the same document so the kiosk keeps its fullscreen session.
+        const savedResponse = await fetch(surveyForm.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+            body: new FormData(surveyForm),
+            signal: controller.signal
+        });
+        if (savedResponse.redirected) throw new Error('Unexpected submission redirect');
+        const result = await savedResponse.json();
+        if (savedResponse.status === 422 && result.errors) {
+            submissionFailed = true;
+            const errors = Object.values(result.errors).reduce((all, messages) => all.concat(messages), []);
+            showConnectivityNotice(errors.join(' ') || 'Please check your answers and try again.', true);
+            return;
+        }
+        if (!savedResponse.ok || result.saved !== true) throw new Error('Save not confirmed');
+        submissionFailed = false;
+        surveyCompleted = true;
+        const success = document.getElementById('success-message');
+        success.textContent = result.message || 'Thank you for your feedback!';
+        success.style.display = '';
+        success.hidden = false;
+        updateConnectivityNotice();
+        surveyCarousel.to(QR_SLIDE_INDEX);
+        scheduleSurveyReset();
+    } catch (error) {
+        submissionFailed = true;
+        updateConnectivityNotice();
+    } finally {
+        isSubmittingSurvey = false;
+        document.querySelectorAll('.rating-option').forEach(option => {
+            option.style.pointerEvents = '';
+            option.style.opacity = '';
+        });
+        clearTimeout(requestTimeout);
+        document.getElementById('retrySurveySubmission').disabled = false;
+    }
+}
+
+function scheduleSurveyReset() {
+    clearTimeout(surveyResetTimeout);
+    if (surveyCompleted) surveyResetTimeout = setTimeout(resetSurvey, 60 * 1000);
+}
+
+function resetSurvey() {
+    if (isSubmittingSurvey) return;
+    closeSurveyAppTools();
+    clearTimeout(surveyResetTimeout);
+    clearTimeout(ratingTimeout);
+    surveyResetTimeout = null;
+    ratingTimeout = null;
+    // Preserve the current CSRF token while clearing the previous client's answers.
+    const tokenInput = surveyForm.querySelector('input[name="_token"]');
+    const token = tokenInput.value;
+    surveyForm.reset();
+    tokenInput.value = token;
+    surveyForm.querySelectorAll('input[type="radio"]').forEach(input => { input.checked = false; });
+    surveyForm.querySelectorAll('.division-btn, .staff-avatar, .service-item, .rating-option').forEach(item => {
+        item.classList.remove('active', 'selected');
+        item.style.pointerEvents = '';
+        item.style.opacity = '';
+    });
+    surveyForm.querySelectorAll('.staff-item, .service-item').forEach(item => { item.style.display = 'none'; });
+    $currentServiceSet = $();
+    $currentStaffSet = $();
+    servicePage = 0;
+    staffPage = 0;
+    ['staff-page-indicator', 'service-page-indicator'].forEach(id => {
+        const indicator = document.getElementById(id);
+        if (indicator) indicator.textContent = '';
+    });
+    surveyForm.querySelectorAll('.prev-staff-btn, .next-staff-btn, .prev-service-btn, .next-service-btn').forEach(button => {
+        button.disabled = true;
+        button.classList.add('disabled-visual');
+    });
+    const success = document.getElementById('success-message');
+    success.hidden = true;
+    success.textContent = '';
+    surveyCompleted = false;
+    surveyStarted = false;
+    submissionFailed = false;
+    document.getElementById('retrySurveySubmission').disabled = false;
+    surveyCarousel.to(0);
+    const header = document.getElementById('surveyHeader');
+    if (header) header.style.display = '';
+    updateIndicators(0);
+    updateConnectivityNotice();
+    activateSurveyUpdateIfIdle();
+}
+
+function closeSurveyAppTools() {
+    const tools = document.getElementById('surveyAppTools');
+    if (tools) tools.open = false;
+}
+
+function activateSurveyUpdateIfIdle() {
+    if (!surveyWorkerRegistration || !surveyWorkerRegistration.waiting || isSubmittingSurvey) return;
+    const welcomeSlide = surveyCarouselEl.querySelector('.carousel-item');
+    if ((!surveyStarted && welcomeSlide.classList.contains('active')) ||
+        (surveyCompleted && document.getElementById('qr-timeout-slide').classList.contains('active'))) {
+        surveyWorkerRegistration.waiting.postMessage({ type: 'ACTIVATE_SURVEY_UPDATE' });
+    }
 }
 
 function updateNavButtonState($prevBtn, $nextBtn, currentPage, totalPages) {
@@ -144,6 +307,7 @@ function changeServicePage(direction) {
 
 function selectRating(selectedLabel, inputName, value, isLastQuestion = false) {
     if (isSubmittingSurvey) return;
+    surveyStarted = true;
 
     const row = selectedLabel.closest('.rating-row');
     const labels = row.querySelectorAll('.rating-option');
@@ -250,6 +414,7 @@ $(document).ready(function () {
     });
 
     $('.division-btn').on('click', function () {
+        surveyStarted = true;
         const selectedDivisionId = String($(this).data('division-id'));
 
         $('.division-btn').removeClass('active');
@@ -309,6 +474,8 @@ $(document).ready(function () {
         if ($currentSlide.hasClass('service-slide') && $('input[name="user_id"]:checked').length > 0) {
             renderServiceGrid();
         }
+
+        activateSurveyUpdateIfIdle();
     });
 
     $(window).on('resize orientationchange', function () {
@@ -321,15 +488,25 @@ $(document).ready(function () {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
-    const QR_SLIDE_INDEX = 7;
     const urlParams = new URLSearchParams(window.location.search);
     const qrSlide = document.getElementById('qr-timeout-slide');
     const successMessage = document.getElementById('success-message'); // BUG FIX 2: Look for the message
-    let timeoutId;
+
+    updateConnectivityNotice();
+    window.addEventListener('online', updateConnectivityNotice);
+    window.addEventListener('offline', updateConnectivityNotice);
+    surveyForm.addEventListener('change', function () { surveyStarted = true; });
+    surveyForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submitForm();
+    });
 
     // BUG FIX 2: If the URL has 'thank_you' OR Laravel rendered the success message into the DOM,
     // jump immediately to the QR slide so the user can actually see the message!
-    if ((urlParams.has('thank_you') || successMessage) && surveyCarouselEl) {
+    const isCachedSurvey = !surveyForm.querySelector('input[name="_token"]').value;
+    const isThankYouPage = !isCachedSurvey && (urlParams.has('thank_you') || Boolean(successMessage && !successMessage.hidden && successMessage.textContent.trim()));
+    surveyCompleted = isThankYouPage;
+    if (isThankYouPage && surveyCarouselEl) {
         if (urlParams.has('thank_you')) {
             history.replaceState({}, document.title, window.location.pathname);
         }
@@ -337,6 +514,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Remove transitions temporarily so the jump is instant on page load
         document.querySelector('.carousel-inner').style.transition = 'none';
         surveyCarousel.to(QR_SLIDE_INDEX);
+        scheduleSurveyReset();
 
         setTimeout(() => {
              document.querySelector('.carousel-inner').style.transition = '';
@@ -346,45 +524,190 @@ document.addEventListener('DOMContentLoaded', function () {
     if (surveyCarouselEl && qrSlide) {
         surveyCarouselEl.addEventListener('slid.bs.carousel', function () {
             if (qrSlide.classList.contains('active')) {
-                clearTimeout(timeoutId);
-
-                timeoutId = setTimeout(() => {
-                    window.location.reload();
-                }, 1 * 60 * 1000);
+                scheduleSurveyReset();
             } else {
-                clearTimeout(timeoutId);
+                clearTimeout(surveyResetTimeout);
             }
         });
     }
 
     if ('serviceWorker' in navigator) {
+        // Warm the normal document once on first control; never reload an active survey.
+        if (!navigator.serviceWorker.controller && !isThankYouPage && !window.location.search) {
+            navigator.serviceWorker.addEventListener('controllerchange', function () {
+                fetch('/survey', { credentials: 'same-origin', cache: 'no-store' }).catch(function () {
+                    // The precached offline page remains available if the server is unreachable.
+                });
+            }, { once: true });
+        }
+
         window.addEventListener('load', function () {
             navigator.serviceWorker.register('/sw-survey.js', {
-                scope: '/survey'
+                scope: '/survey',
+                updateViaCache: 'none'
+            }).then(function (registration) {
+                surveyWorkerRegistration = registration;
+                activateSurveyUpdateIfIdle();
+                function watchInstallingWorker() {
+                    const worker = registration.installing;
+                    if (!worker) return;
+                    worker.addEventListener('statechange', function () {
+                        if (worker.state === 'installed') activateSurveyUpdateIfIdle();
+                    });
+                }
+                registration.addEventListener('updatefound', watchInstallingWorker);
+                watchInstallingWorker();
             }).catch(function (error) {
                 console.error('Service worker registration failed:', error);
             });
         });
     }
 
+    const fullscreenBtn = document.getElementById('fullscreenSurvey');
+    const fullscreenLabel = document.getElementById('surveyFullscreenLabel');
+    const fullscreenMessage = document.getElementById('surveyFullscreenMessage');
+    const appTools = document.getElementById('surveyAppTools');
+    if (appTools) {
+        document.addEventListener('click', function (event) {
+            if (!appTools.contains(event.target)) closeSurveyAppTools();
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeSurveyAppTools();
+        });
+    }
+
+    function currentFullscreenElement() {
+        return document.fullscreenElement || document.webkitFullscreenElement;
+    }
+
+    function updateFullscreenControls() {
+        const active = Boolean(currentFullscreenElement());
+        fullscreenLabel.textContent = active ? 'Exit Fullscreen' : 'Enter Fullscreen';
+        fullscreenBtn.setAttribute('aria-pressed', String(active));
+    }
+
+    function showFullscreenMessage(message) {
+        fullscreenMessage.textContent = message;
+        fullscreenMessage.hidden = false;
+    }
+
+    fullscreenBtn.addEventListener('click', async function () {
+        if (fullscreenBtn.disabled) return;
+        closeSurveyAppTools();
+        fullscreenMessage.hidden = true;
+        const root = document.documentElement;
+        const active = Boolean(currentFullscreenElement());
+        const method = active
+            ? (document.exitFullscreen || document.webkitExitFullscreen)
+            : (root.requestFullscreen || root.webkitRequestFullscreen);
+        if (!method || (!active && (document.fullscreenEnabled === false || document.webkitFullscreenEnabled === false))) {
+            showFullscreenMessage('This browser does not allow fullscreen for this page. Try an up-to-date browser. Fullscreen does not require installing the app.');
+            return;
+        }
+        fullscreenBtn.disabled = true;
+        try {
+            // Request immediately from the tap; browsers require user activation.
+            if (active) {
+                await method.call(document);
+            } else if (root.requestFullscreen) {
+                await method.call(root, { navigationUI: 'hide' });
+            } else {
+                await method.call(root);
+            }
+        } catch (error) {
+            showFullscreenMessage('The browser could not enter or exit fullscreen. Tap the button to try again, or try another browser. Your survey answers have not been changed.');
+        } finally {
+            fullscreenBtn.disabled = false;
+            updateFullscreenControls();
+        }
+    });
+    function fullscreenChanged() {
+        fullscreenMessage.hidden = true;
+        updateFullscreenControls();
+    }
+    document.addEventListener('fullscreenchange', fullscreenChanged);
+    document.addEventListener('webkitfullscreenchange', fullscreenChanged);
+    updateFullscreenControls();
+
     let deferredPrompt = null;
     const installBtn = document.getElementById('installSurveyApp');
+    const installNowBtn = document.getElementById('installSurveyNow');
+    const installHelpEl = document.getElementById('surveyInstallHelp');
+    const installHelpMessage = document.getElementById('surveyInstallHelpMessage');
+    const standaloneMode = window.matchMedia ? window.matchMedia('(display-mode: standalone)') : null;
+    let surveyInstalled = Boolean((standaloneMode && standaloneMode.matches) || navigator.standalone);
+
+    function updateInstallControls() {
+        installBtn.hidden = surveyInstalled;
+        installNowBtn.classList.toggle('is-hidden', !deferredPrompt || surveyInstalled);
+        if (window.isSecureContext === false) {
+            installHelpMessage.textContent = 'Installation requires a secure connection. Open the HTTPS survey address on this tablet.';
+        } else if (deferredPrompt) {
+            installHelpMessage.textContent = 'HRDO Survey is ready to install. Tap Install now and confirm in your browser.';
+        } else {
+            installHelpMessage.textContent = 'Chrome has not offered installation yet. Keep this page open for a moment, then try Install App again. Your browser must offer installation before this page can open its install prompt.';
+        }
+    }
+
+    function showInstallHelp() {
+        updateInstallControls();
+        bootstrap.Modal.getOrCreateInstance(installHelpEl).show();
+    }
+
+    async function installSurvey() {
+        if (surveyInstalled || installBtn.disabled) return;
+        closeSurveyAppTools();
+        if (!deferredPrompt) {
+            showInstallHelp();
+            return;
+        }
+
+        const prompt = deferredPrompt;
+        deferredPrompt = null;
+        installBtn.disabled = true;
+        installNowBtn.disabled = true;
+        const helpModal = bootstrap.Modal.getInstance(installHelpEl);
+        if (helpModal) helpModal.hide();
+        let promptFailed = false;
+        try {
+            // A captured browser event can be prompted only once, from this user click.
+            await prompt.prompt();
+            await prompt.userChoice;
+        } catch (error) {
+            promptFailed = true;
+        } finally {
+            installBtn.disabled = false;
+            installNowBtn.disabled = false;
+            updateInstallControls();
+            if (promptFailed) {
+                showInstallHelp();
+                installHelpMessage.textContent = 'The browser could not open installation. Refresh the survey and tap Install App again.';
+            }
+        }
+    }
+
+    updateInstallControls();
+    installBtn.addEventListener('click', installSurvey);
+    installNowBtn.addEventListener('click', installSurvey);
 
     window.addEventListener('beforeinstallprompt', function (e) {
         e.preventDefault();
         deferredPrompt = e;
-
-        if (installBtn) {
-            installBtn.style.display = 'inline-block';
-        }
+        updateInstallControls();
     });
 
-    installBtn?.addEventListener('click', async function () {
-        if (!deferredPrompt) return;
-
-        deferredPrompt.prompt();
-        await deferredPrompt.userChoice;
+    window.addEventListener('appinstalled', function () {
         deferredPrompt = null;
-        installBtn.style.display = 'none';
+        surveyInstalled = true;
+        updateInstallControls();
+        const helpModal = bootstrap.Modal.getInstance(installHelpEl);
+        if (helpModal) helpModal.hide();
     });
+
+    if (standaloneMode && standaloneMode.addEventListener) {
+        standaloneMode.addEventListener('change', function (event) {
+            surveyInstalled = event.matches || Boolean(navigator.standalone);
+            updateInstallControls();
+        });
+    }
 });
