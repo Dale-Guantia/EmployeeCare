@@ -5,6 +5,9 @@
 
     RewriteEngine On
 
+    # Legacy ticket files must also be served through authorized download routes.
+    RewriteRule ^storage/attachments(?:/|$) - [F,NC]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

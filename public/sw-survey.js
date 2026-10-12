@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'survey-cache-';
-const CACHE_NAME = CACHE_PREFIX + 'v7';
+const CACHE_NAME = CACHE_PREFIX + 'v8';
 
 // Required, stable resources only. The dynamic document is cached after a normal GET.
 const APP_SHELL = [

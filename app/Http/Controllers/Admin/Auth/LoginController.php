@@ -35,6 +35,7 @@ class LoginController extends BackpackLoginController
         return [
             filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username' => $login,
             'password' => $request->input('password'),
+            'is_active' => true,
         ];
     }
 }

@@ -14,6 +14,7 @@ let surveyStarted = false;
 let submissionFailed = false;
 let surveyWorkerRegistration = null;
 let surveyCompleted = false;
+let surveySubmissionId = null;
 let surveyResetTimeout = null;
 const QR_SLIDE_INDEX = 7;
 
@@ -119,12 +120,22 @@ async function submitForm() {
         requestTimeout = setTimeout(() => controller.abort(), 30000);
 
         // Stay in the same document so the kiosk keeps its fullscreen session.
+        if (!surveySubmissionId) {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 15) | 64;
+            bytes[8] = (bytes[8] & 63) | 128;
+            const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            surveySubmissionId = hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+        }
+        const payload = new FormData(surveyForm);
+        payload.set('submission_id', surveySubmissionId);
         const savedResponse = await fetch(surveyForm.action, {
             method: 'POST',
             credentials: 'same-origin',
             cache: 'no-store',
             headers: { 'Accept': 'application/json' },
-            body: new FormData(surveyForm),
+            body: payload,
             signal: controller.signal
         });
         if (savedResponse.redirected) throw new Error('Unexpected submission redirect');
@@ -199,6 +210,7 @@ function resetSurvey() {
     success.hidden = true;
     success.textContent = '';
     surveyCompleted = false;
+    surveySubmissionId = null;
     surveyStarted = false;
     submissionFailed = false;
     document.getElementById('retrySurveySubmission').disabled = false;

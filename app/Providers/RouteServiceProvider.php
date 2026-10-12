@@ -56,6 +56,13 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting()
     {
+        RateLimiter::for('survey-submissions', function (Request $request) {
+            return [
+                Limit::perMinute(30)->by('survey-session:' . $request->session()->getId()),
+                // Use the actual network peer: wildcard proxy trust must not let a client spoof this ceiling.
+                Limit::perMinute(300)->by('survey-peer:' . $request->server('REMOTE_ADDR')),
+            ];
+        });
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by(optional($request->user())->id ?: $request->ip());
         });

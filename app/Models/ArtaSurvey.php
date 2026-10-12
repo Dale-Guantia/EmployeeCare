@@ -12,6 +12,7 @@ class ArtaSurvey extends Model
     protected $table = 'arta_surveys';
 
     protected $fillable = [
+        'submission_id',
         'client_type',
         'sex',
         'age',

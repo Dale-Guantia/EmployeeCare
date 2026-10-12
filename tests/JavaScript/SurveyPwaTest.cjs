@@ -255,7 +255,10 @@ function pageHarness({ online = true, token = '', missing = false, thankYouQuery
         URLSearchParams, AbortController,
         setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, delay }); return id; },
         clearTimeout: id => timers.delete(id),
-        FormData: class { constructor(target) { assert.equal(target, form); calls.tokensAtSubmit.push(tokenInput.value); } },
+        FormData: class {
+            constructor(target) { assert.equal(target, form); calls.tokensAtSubmit.push(tokenInput.value); this.values = {}; }
+            set(name, value) { this.values[name] = value; }
+        },
         fetch: async (url, options) => { calls.fetches.push({ url, options }); return state.network(url, options); },
         navigator: { onLine: online },
         history: { replaceState: () => {} },
@@ -267,6 +270,7 @@ function pageHarness({ online = true, token = '', missing = false, thankYouQuery
             addEventListener: (name, handler) => { listeners[name] = handler; }
         },
         window: {
+            crypto: require('node:crypto').webcrypto,
             isSecureContext: secure,
             matchMedia: () => ({ matches: standalone, addEventListener: (name, handler) => { listeners['display-mode:' + name] = handler; } }),
             location: { search: thankYouQuery ? '?thank_you=1' : '', pathname: '/survey', reload: () => { calls.reloads++; } },
@@ -653,4 +657,19 @@ test('tools markup uses a closed native disclosure with an accessible icon-only 
     assert.match(view, /<summary aria-label="Survey display and installation options"/);
     assert.match(view, /fas fa-ellipsis-v/);
     assert.match(view, /<\/details>\s*<p id="surveyFullscreenMessage"/);
+});
+
+test('E5 manual retries retain the submission UUID and the next client receives a new UUID', async () => {
+    const h = pageHarness({ token: 'live-token' });
+    h.state.network = async (url, options) => options.method === 'POST'
+        ? new Response(JSON.stringify({ message: 'Retry' }), { status: 500 })
+        : new Response(JSON.stringify({ token: 'live-token' }));
+    await vm.runInContext('submitForm()', h.context);
+    const first = h.calls.fetches.find(call => call.options.method === 'POST').options.body.values.submission_id;
+    assert.match(first, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    await vm.runInContext('submitForm()', h.context);
+    const posts = h.calls.fetches.filter(call => call.options.method === 'POST');
+    assert.equal(posts[1].options.body.values.submission_id, first);
+    vm.runInContext('resetSurvey()', h.context);
+    assert.equal(vm.runInContext('surveySubmissionId', h.context), null);
 });

@@ -5,7 +5,6 @@ namespace App\Models;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 use App\Services\TicketNotificationService;
 use App\Models\Status;
 use App\Models\Issue;
@@ -42,13 +41,101 @@ class Ticket extends Model
         'reopened_at'     => 'datetime',
     ];
 
+    protected $stagedAttachmentPaths = [];
+    protected $initialCreationInProgress = false;
+
+    protected function newReference(): string
+    {
+        return 'TKT-' . strtoupper(bin2hex(random_bytes(3)));
+    }
+
+    public function save(array $options = [])
+    {
+        $existed = $this->exists;
+        $previousCreationState = $this->initialCreationInProgress;
+        if (!$existed) {
+            $this->initialCreationInProgress = true;
+        }
+        try {
+            for ($attempt = 0; $attempt < 5; $attempt++) {
+                try {
+                    $saved = $this->getConnection()->transaction(function () use ($options) {
+                        return parent::save($options);
+                    });
+                    if (!$saved) {
+                        throw new \RuntimeException('Ticket persistence was cancelled.');
+                    }
+                    $ticketId = $this->getKey();
+                    $connectionName = $this->getConnectionName();
+                    app(\App\Services\AttachmentTransactions::class)->track($this->getConnection(), $this->stagedAttachmentPaths, function () use ($ticketId, $connectionName) {
+                        return optional(Ticket::on($connectionName)->find($ticketId))->attachments ?: [];
+                    });
+                    $this->stagedAttachmentPaths = [];
+                    return $saved;
+                } catch (\Illuminate\Database\QueryException $e) {
+                    $code = (int) ($e->errorInfo[1] ?? 0);
+                    $referenceCollision = in_array($code, [19, 1062, 2601, 2627], true)
+                        && preg_match('/(?:tickets\.reference_id|tickets_reference_id_unique)/i', $e->getMessage());
+                    if ($existed || !$referenceCollision || $attempt === 4) {
+                        throw $e;
+                    }
+                    $this->exists = false;
+                    $this->wasRecentlyCreated = false;
+                    unset($this->attributes[$this->getKeyName()]);
+                }
+            }
+        } catch (\Throwable $e) {
+            $ticketId = $this->getKey();
+            \App\Services\AttachmentStorage::discardUnreferenced($this->stagedAttachmentPaths, function () use ($ticketId) {
+                return $ticketId ? (optional($this->newQuery()->find($ticketId))->attachments ?: []) : [];
+            });
+            $this->exists = $existed;
+            if (!$existed) {
+                unset($this->attributes[$this->getKeyName()]);
+            }
+            $this->stagedAttachmentPaths = [];
+            throw $e;
+        } finally {
+            $this->initialCreationInProgress = $previousCreationState;
+        }
+    }
+
+    public function delete()
+    {
+        if (!$this->exists) {
+            return parent::delete();
+        }
+
+        try {
+            return $this->getConnection()->transaction(function () {
+                $deleted = parent::delete();
+                if (!$deleted) {
+                    throw new \RuntimeException('Ticket deletion was cancelled.');
+                }
+                return $deleted;
+            });
+        } catch (\Throwable $e) {
+            $this->exists = true;
+            throw $e;
+        }
+    }
+
     protected static function booted()
     {
+        static::deleting(function ($ticket) {
+            // Delete models individually so comment attachment cleanup is scheduled too.
+            $ticket->comments()->reorder()->chunkById(100, function ($comments) {
+                foreach ($comments as $comment) {
+                    if (!$comment->delete()) {
+                        throw new \RuntimeException('Ticket comment deletion was cancelled.');
+                    }
+                }
+            });
+        });
+
         static::creating(function ($model) {
             // 1. Generate unique Reference ID
-            do {
-                $reference = 'TKT-' . strtoupper(substr(uniqid(), -6));
-            } while (self::where('reference_id', $reference)->exists());
+            $reference = $model->newReference();
 
             $model->reference_id = $reference;
 
@@ -115,15 +202,18 @@ class Ticket extends Model
                 // a Reopened ticket to Pending on reassignment) moves the ticket out
                 // of the Reopened state without going through either branch above —
                 // clear the now-stale reopened_at so it doesn't linger.
-                elseif ($model->reopened_at !== null) {
+                else {
                     $model->reopened_at = null;
+                    $model->resolved_at = null;
+                    $model->resolved_by = null;
                 }
             }
         });
 
-        static::updating(function ($ticket) {
-            $disk = 'public';
-
+        static::updated(function ($ticket) {
+            if (!$ticket->wasChanged('attachments')) {
+                return;
+            }
             $oldFiles = $ticket->getOriginal('attachments');
             $newFiles = $ticket->attachments ?? [];
 
@@ -140,25 +230,12 @@ class Ticket extends Model
 
             $filesToDelete = array_diff($oldFiles, $newFiles);
 
-            foreach ($filesToDelete as $file) {
-                if (empty($file)) {
-                    continue;
-                }
-                try {
-                    if (Storage::disk($disk)->exists($file)) {
-                        Storage::disk($disk)->delete($file);
-                    }
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error(
-                        '[Ticket] Failed to delete removed attachment "' . $file . '": ' . $e->getMessage()
-                    );
-                }
-            }
+            $ticket->getConnection()->afterCommit(function () use ($filesToDelete) {
+                \App\Services\AttachmentStorage::deleteFiles($filesToDelete);
+            });
         });
 
-        static::deleting(function ($ticket) {
-            $disk = 'public';
-
+        static::deleted(function ($ticket) {
             $files = $ticket->attachments ?? [];
 
             if (is_string($files)) {
@@ -167,20 +244,9 @@ class Ticket extends Model
 
             $files = is_array($files) ? array_values(array_filter($files)) : [];
 
-            foreach ($files as $file) {
-                if (empty($file)) {
-                    continue;
-                }
-                try {
-                    if (Storage::disk($disk)->exists($file)) {
-                        Storage::disk($disk)->delete($file);
-                    }
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error(
-                        '[Ticket] Failed to delete attachment "' . $file . '" for deleted ticket: ' . $e->getMessage()
-                    );
-                }
-            }
+            $ticket->getConnection()->afterCommit(function () use ($files) {
+                \App\Services\AttachmentStorage::deleteFiles($files);
+            });
         });
 
         static::created(function ($ticket) {
@@ -197,7 +263,11 @@ class Ticket extends Model
 
             if ($ticket->wasChanged('status_id')) {
                 $ticket->loadMissing('status');
-                app(TicketNotificationService::class)->notifyTicketStatusChanged($ticket, $actor);
+                // Auto-assignment establishes the initial Pending state during creation.
+                // Keep assignment/creation notifications, and notify subsequent status changes.
+                if (!$ticket->initialCreationInProgress) {
+                    app(TicketNotificationService::class)->notifyTicketStatusChanged($ticket, $actor);
+                }
 
                 $resolvedStatusId = Status::idByName('Resolved');
 
@@ -214,11 +284,37 @@ class Ticket extends Model
         });
     }
 
+    public function scopeVisibleTo($query, $user)
+    {
+        if (!$user || !$user->is_active || !$user->can('ticket.view')) {
+            return $query->whereRaw('1 = 0');
+        }
+        if ($user->hasRole('admin')) {
+            return $query;
+        }
+
+        return $query->where(function ($query) use ($user) {
+            $query->where('user_id', $user->id);
+            if ($user->hasRole('dept_head') && $user->department_id) {
+                $query->orWhere('department_id', $user->department_id)
+                    ->orWhereHas('pendingReassignmentRequest', function ($pending) use ($user) {
+                        $pending->where('to_department_id', $user->department_id);
+                    });
+            }
+            if ($user->hasRole('div_head') && $user->division_id) {
+                $query->orWhere('division_id', $user->division_id)
+                    ->orWhereHas('pendingReassignmentRequest', function ($pending) use ($user) {
+                        $pending->where('to_division_id', $user->division_id);
+                    });
+            }
+            if ($user->hasRole('hr_staff')) {
+                $query->orWhere('assigned_to', $user->id);
+            }
+        });
+    }
+
     public function setAttachmentsAttribute($value)
     {
-        $disk             = 'public';
-        $destination_path = 'attachments';
-
         // $value is the retained paths array passed by the controller.
         // Start from this list only — do NOT read $this->attachments here,
         // as that would re-merge the old DB value and undo any removals.
@@ -237,20 +333,9 @@ class Ticket extends Model
 
         // Append any newly uploaded files
         if (request()->hasFile('attachments')) {
-            foreach ((array) request()->file('attachments') as $file) {
-                if ($file && $file->isValid()) {
-                    try {
-                        $fileName = \App\Services\AttachmentStorage::randomizedFilename($file);
-                        $path     = $file->storeAs($destination_path, $fileName, $disk);
-                        $base[]   = $path;
-                    } catch (\Throwable $e) {
-                        \Illuminate\Support\Facades\Log::error(
-                            '[Ticket] Failed to store attachment "' . $file->getClientOriginalName() . '": ' . $e->getMessage()
-                        );
-                        // Skip this one file rather than failing the whole save.
-                    }
-                }
-            }
+            $paths = \App\Services\AttachmentStorage::storeFiles((array) request()->file('attachments'));
+            $this->stagedAttachmentPaths = array_merge($this->stagedAttachmentPaths, $paths);
+            $base = array_merge($base, $paths);
         }
 
         $this->attributes['attachments'] = json_encode(array_values($base));

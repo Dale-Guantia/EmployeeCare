@@ -31,7 +31,8 @@
         <header class="survey-header" id="surveyHeader"></header>
 
         <form action="{{ route('arta.submit') }}" method="POST" class="survey-form w-100">
-            @csrf
+                    @csrf
+                    <input type="hidden" name="submission_id" value="{{ old('submission_id', (string) \Illuminate\Support\Str::uuid()) }}">
 
             <div id="surveyCarousel" class="carousel slide" data-bs-ride="false" data-bs-interval="false">
                 <div class="carousel-inner">

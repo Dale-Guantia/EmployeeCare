@@ -14,7 +14,7 @@ use App\Models\TicketReassignmentRequest;
 use App\Models\User;
 use App\Services\TicketAutoAssignmentService;
 use App\Services\TicketNotificationService;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Class TicketCrudController
@@ -48,42 +48,27 @@ class TicketCrudController extends CrudController
 
         $user = backpack_user();
 
-        // If Admin, don't add any filters
-        if ($user->hasRole('admin')) {
-            $this->crud->allowAccess(['create','update','delete','show']);
-            return;
+        $this->crud->allowAccess('show');
+        $operations = [];
+        if ($user->hasAnyRole(['admin', 'dept_head'])) {
+            $operations = ['create', 'update', 'delete'];
+        } elseif ($user->hasRole('div_head')) {
+            $operations = ['create', 'update'];
+        } elseif ($user->hasAnyRole(['hr_staff', 'employee'])) {
+            $operations = ['create'];
         }
-        // Use a nested "Where" clause to handle "Owned by me" OR "Assigned to my scope"
-        $this->crud->addClause('where', function($query) use ($user) {
-            // 1. Always let everyone see their own created tickets
-            $query->where('user_id', $user->id);
-            // 2. Add scope-based visibility
-            if ($user->hasRole('dept_head')) {
-                $query->orWhere('department_id', $user->department_id);
-                // Also let a receiving dept_head see tickets pending transfer into their department
-                $query->orWhereHas('pendingReassignmentRequest', function ($q) use ($user) {
-                    $q->where('to_department_id', $user->department_id);
-                });
-                $this->crud->allowAccess(['create','update','delete','show']);
+        foreach ($operations as $operation) {
+            if ($user->can('ticket.' . $operation)) {
+                $this->crud->allowAccess($operation);
             }
-            if ($user->hasRole('div_head')) {
-                $query->orWhere('division_id', $user->division_id);
-                // Also let a receiving div_head see tickets pending transfer into their division
-                $query->orWhereHas('pendingReassignmentRequest', function ($q) use ($user) {
-                    $q->where('to_division_id', $user->division_id);
-                });
-                $this->crud->allowAccess(['create','show', 'update']);
-            }
-            if ($user->hasRole('hr_staff')) {
-                // HR Staff ONLY sees tickets assigned specifically to them
-                $query->orWhere('assigned_to', $user->id);
-                $this->crud->allowAccess(['create','show']);
-            }
-            if ($user->hasRole('employee')) {
-                $query;
-                $this->crud->allowAccess(['create','show']);
-            }
-        });
+        }
+        $this->crud->addClause('visibleTo', $user);
+    }
+
+    public function destroy($id)
+    {
+        $this->crud->hasAccessOrFail('delete');
+        return $this->crud->getEntry($id)->delete();
     }
 
     protected function setupListOperation()
@@ -204,7 +189,7 @@ class TicketCrudController extends CrudController
             'type'      => 'view', // Tell Backpack to use a custom view
             'view'      => 'vendor.backpack.crud.fields.modern_upload', // Point to your new file
             'upload'    => true,
-            'disk'      => 'public',
+            'disk'      => \App\Services\AttachmentStorage::DISK,
         ]);
         CRUD::addField([
             'label'     => "Department",
@@ -340,7 +325,7 @@ class TicketCrudController extends CrudController
         $html .= '<ul style="list-style: none; padding-left: 0; margin-bottom: 0;">';
 
         foreach ($ticket->attachments as $file) {
-            $url = asset('storage/' . $file);
+            $url = \App\Services\AttachmentStorage::ticketUrl($ticket, $file);
             $html .= "
             <li style='margin-bottom: 5px;'>
                 <a href='{$url}' target='_blank' class='text-primary' style='text-decoration: none;'>
@@ -403,7 +388,7 @@ class TicketCrudController extends CrudController
                 'value' => $this->renderAttachments($ticket),
             ]);
         }
-        if ($user->hasAnyRole(['admin', 'dept_head', 'div_head'])) {
+        if (\App\Services\TicketAssignmentRules::canAssign($user)) {
             // Get the current ticket being edited
             $entry = $this->crud->getCurrentEntry();
 
@@ -416,15 +401,8 @@ class TicketCrudController extends CrudController
                 'attribute' => 'name',
                 'allows_null' => true,
                 'options'   => (function ($query) use ($entry) {
-                    // 1. If we are in "Create" mode or ticket has no data, return empty or all HR
-                    if (!$entry) {
-                        return $query->role('hr_staff');
-                    }
-                    // 2. Filter HR staff to match the TICKET'S location exactly
-                    return $query->role('hr_staff')
-                                ->where('department_id', $entry->department_id)
-                                ->where('division_id', $entry->division_id)
-                                ->get();
+                    // Use the same eligibility rules as the assignment endpoint.
+                    return \App\Services\TicketAssignmentRules::candidates(backpack_user(), $entry)->get();
                 }),
             ]);
         }
@@ -467,6 +445,8 @@ class TicketCrudController extends CrudController
         }
 
         $reopenedId = Status::idByName('Reopened');
+
+        abort_unless((int) $entry->status_id === (int) Status::idByName('Resolved'), 409, 'Only resolved tickets can be reopened.');
 
         if (!$reopenedId) {
             abort(500, 'Reopened status not found.');
@@ -513,15 +493,15 @@ class TicketCrudController extends CrudController
         $entry = $this->crud->getEntry($request->id);
         $user = backpack_user();
 
-        // Must match the role list that renders the "Assign Staff" form in
-        // setupShowOperation() (quick_assign column) — hr_staff can see and
-        // submit that form, so it has to be allowed here too.
-        $canAssign = $user->hasAnyRole(['admin', 'dept_head', 'div_head', 'hr_staff']);
+        $canAssign = \App\Services\TicketAssignmentRules::canAssign($user);
 
         if (!$canAssign) {
             abort(403, 'You are not allowed to assign staff to this ticket.');
         }
 
+        $request->validate([
+            'assigned_to' => \App\Services\TicketAssignmentRules::validation($user, $entry),
+        ]);
         $entry->assigned_to = $request->get('assigned_to') ?: null;
         $entry->save();
 
@@ -589,7 +569,9 @@ class TicketCrudController extends CrudController
             'status' => TicketReassignmentRequest::STATUS_PENDING,
         ]);
 
-        app(TicketNotificationService::class)->notifyReassignmentRequested($entry, $reassignment, $user);
+        DB::afterCommit(function () use ($entry, $reassignment, $user) {
+            app(TicketNotificationService::class)->notifyReassignmentRequested($entry, $reassignment, $user);
+        });
 
         Alert::success('Reassignment request sent.')->flash();
 
@@ -661,7 +643,9 @@ class TicketCrudController extends CrudController
 
         // 6. Notify the requester; the newly assigned staff (if any) is notified
         // via the existing notifyTicketAssigned path fired from Ticket::updated().
-        app(TicketNotificationService::class)->notifyReassignmentAccepted($entry, $reassignment, $user);
+        DB::afterCommit(function () use ($entry, $reassignment, $user) {
+            app(TicketNotificationService::class)->notifyReassignmentAccepted($entry, $reassignment, $user);
+        });
 
         if ($assigned) {
             $entry->refresh()->loadMissing('assignee');
@@ -698,16 +682,34 @@ class TicketCrudController extends CrudController
             'response_note' => $request->get('response_note'),
         ]);
 
-        app(TicketNotificationService::class)->notifyReassignmentRejected($entry, $reassignment, $user);
+        DB::afterCommit(function () use ($entry, $reassignment, $user) {
+            app(TicketNotificationService::class)->notifyReassignmentRejected($entry, $reassignment, $user);
+        });
 
         Alert::success('Reassignment request rejected.')->flash();
 
         return redirect($referrer);
     }
 
+    private function runReassignmentAction($method, $request)
+    {
+        return DB::transaction(function () use ($method, $request) {
+            // Every transition locks the same parent row and reads fresh pending state.
+            $this->crud->entry = Ticket::visibleTo(backpack_user())
+                ->lockForUpdate()->findOrFail($request->id);
+            $this->crud->entry->setRelation('pendingReassignmentRequest',
+                $this->crud->entry->pendingReassignmentRequest()->lockForUpdate()->first());
+
+            return $this->{$method}($request);
+        });
+    }
+
     public function update()
     {
         $request = $this->crud->getRequest();
+        $id = $request->route('id');
+        abort_unless((string) $this->crud->getCurrentEntryId() === (string) $id, 404);
+        $request->merge(['id' => $id]);
         $action = $request->get('_ticket_action');
 
         switch ($action) {
@@ -718,52 +720,16 @@ class TicketCrudController extends CrudController
             case 'quick_assign':
                 return $this->handleQuickAssign($request);
             case 'reassign_request':
-                return $this->handleReassignRequest($request);
+                return $this->runReassignmentAction('handleReassignRequest', $request);
             case 'reassign_cancel':
-                return $this->handleReassignCancel($request);
+                return $this->runReassignmentAction('handleReassignCancel', $request);
             case 'reassign_accept':
-                return $this->handleReassignAccept($request);
+                return $this->runReassignmentAction('handleReassignAccept', $request);
             case 'reassign_reject':
-                return $this->handleReassignReject($request);
+                return $this->runReassignmentAction('handleReassignReject', $request);
         }
 
-        // Default Backpack Update — with attachment removal handling
-        $request = $this->crud->getRequest();
-
-        // Collect only retained string paths from the hidden inputs.
-        // Files the user removed via ✕ will be absent here.
-        $retainedPaths = collect($request->input('attachments', []))
-            ->filter(function ($item) {
-                return is_string($item) && !empty($item);
-            })
-            ->values()
-            ->all();
-
-        // Delete removed files from disk
-        $entry    = $this->crud->getEntry($request->id);
-        $oldPaths = is_array($entry->attachments)
-            ? $entry->attachments
-            : (json_decode($entry->getRawOriginal('attachments'), true) ?? []);
-
-        foreach (array_diff($oldPaths, $retainedPaths) as $removedPath) {
-            if (empty($removedPath)) {
-                continue;
-            }
-            try {
-                if (Storage::disk('public')->exists($removedPath)) {
-                    Storage::disk('public')->delete($removedPath);
-                }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error(
-                    '[TicketCrudController] Failed to delete removed attachment "' . $removedPath . '": ' . $e->getMessage()
-                );
-            }
-        }
-
-        // Pass only the retained paths — the mutator will append new uploads on top
-        $request->merge(['attachments' => $retainedPaths]);
-        $this->crud->setRequest($request);
-
+        // Backpack authorizes and validates before writing; model cleanup runs after commit.
         return $this->traitUpdate();
     }
 
@@ -855,7 +821,7 @@ class TicketCrudController extends CrudController
 
                 $output = '';
                 foreach ($entry->attachments as $path) {
-                    $url = asset('storage/' . $path);
+                    $url = \App\Services\AttachmentStorage::ticketUrl($entry, $path);
                     $fileName = basename($path);
                     $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
@@ -874,12 +840,12 @@ class TicketCrudController extends CrudController
             'escaped' => false,
         ]);
 
-        if ($user->hasAnyRole(['admin', 'dept_head', 'div_head', 'hr_staff'])) {
+        if (\App\Services\TicketAssignmentRules::canAssign($user)) {
             CRUD::addColumn([
                 'name'     => 'quick_assign',
                 'label'    => 'Assign Staff',
                 'type'     => 'closure',
-                'function' => function($entry) use ($resolvedId) {
+                'function' => function($entry) use ($resolvedId, $user) {
                     // Mirrors the Discussion panel's lock (see TicketChat::getIsResolvedProperty()):
                     // a resolved ticket is frozen until reopened, so the assignment
                     // control stays visible but non-interactive rather than a live form.
@@ -901,10 +867,7 @@ class TicketCrudController extends CrudController
                         ";
                     }
 
-                    $hrStaff = \App\Models\User::role('hr_staff')
-                        ->where('department_id', $entry->department_id)
-                        ->where('division_id', $entry->division_id)
-                        ->get();
+                    $hrStaff = \App\Services\TicketAssignmentRules::candidates($user, $entry)->get();
 
                     $formUrl = url($this->crud->route.'/'.$entry->id);
                     $csrf = csrf_field();

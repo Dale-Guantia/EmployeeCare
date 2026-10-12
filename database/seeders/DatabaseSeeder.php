@@ -11,15 +11,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
+        $seeders = [
             RolesAndPermissionsSeeder::class,
             DepartmentTableSeeder::class,
             DivisionTableSeeder::class,
-            UsersTableSeeder::class,
+        ];
+        if (app()->environment(['local', 'testing'])) {
+            $seeders[] = UsersTableSeeder::class;
+        }
+
+        $this->call(array_merge($seeders, [
             PriorityTableSeeder::class,
             StatusTableSeeder::class,
             IssueTableSeeder::class,
             // TicketTableSeeder::class, // Optional test data only. Enable if needed.
-        ]);
+        ]));
     }
 }

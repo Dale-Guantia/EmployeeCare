@@ -94,7 +94,7 @@ class DashboardController extends Controller
         $statusCounts = $statusData->pluck('tickets_count');
         $statusColors = $statusData->pluck('status_color');
 
-        $latestTickets = Ticket::with(['user', 'issue', 'status', 'priority'])
+        $latestTickets = Ticket::visibleTo(backpack_user())->with(['user', 'issue', 'status', 'priority'])
             ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
                 $query->whereBetween('created_at', [$startDate, $endDate]);
             })
@@ -117,19 +117,14 @@ class DashboardController extends Controller
             $widgetEnd = now()->endOfDay();
         }
 
-        $widgetTickets = Ticket::with(['department', 'division', 'issue'])
-            ->whereBetween('created_at', [$widgetStart, $widgetEnd])
-            ->get(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']);
-
-        // All-time is open-ended by nature, so it always buckets by month
-        // regardless of how much data currently falls inside it.
         $forceBucketUnit = (!$startDate && !$endDate) ? 'month' : null;
-
-        $dashKpis = TicketReportWidgets::buildKpiWidget($widgetTickets, $resolvedStatusId, $pendingStatusId, $reopenedStatusId);
-        $dashVolumeTrend = TicketReportWidgets::buildVolumeTrendWidget($widgetTickets, $widgetStart, $widgetEnd, $forceBucketUnit);
-        $dashResolutionDistribution = TicketReportWidgets::buildResolutionDistributionWidget($widgetTickets, $resolvedStatusId);
-        $dashSlaBreakdown = TicketReportWidgets::buildSlaBreakdownWidget($widgetTickets, $resolvedStatusId);
-        $dashReassignment = TicketReportWidgets::buildReassignmentWidget($widgetTickets, $widgetStart, $widgetEnd);
+        $widgets = \App\Services\TicketReportQueries::widgets(Ticket::whereBetween('created_at', [$widgetStart, $widgetEnd])
+            ->select(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']), $widgetStart, $widgetEnd, $forceBucketUnit);
+        $dashKpis = $widgets['kpis'];
+        $dashVolumeTrend = $widgets['volume'];
+        $dashResolutionDistribution = $widgets['resolution'];
+        $dashSlaBreakdown = $widgets['sla'];
+        $dashReassignment = $widgets['reassignment'];
 
         return [
             'latestTickets' => $latestTickets,

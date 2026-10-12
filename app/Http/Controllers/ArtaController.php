@@ -17,6 +17,7 @@ class ArtaController extends Controller
     {
         // 1. Validate the incoming request data
         $validator = Validator::make($request->all(), [
+            'submission_id' => 'required|uuid',
             'client_type'     => 'nullable|in:Citizen,Business,Government',
             'sex'             => 'nullable|in:Male,Female',
             'age'             => 'nullable|integer|min:1|max:100',
@@ -27,16 +28,23 @@ class ArtaController extends Controller
             'cc2'             => 'nullable|integer|between:1,5',
             'cc3'             => 'nullable|integer|between:1,4',
 
-            'sqd0'            => 'nullable|string',
-            'sqd1'            => 'nullable|string',
-            'sqd2'            => 'nullable|string',
-            'sqd3'            => 'nullable|string',
-            'sqd4'            => 'nullable|string',
-            'sqd5'            => 'nullable|string',
-            'sqd6'            => 'nullable|string',
-            'sqd7'            => 'nullable|string',
-            'sqd8'            => 'nullable|string',
+            'sqd0' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd1' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd2' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd3' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd4' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd5' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd6' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd7' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
+            'sqd8' => 'nullable|string|in:Strongly Agree,Agree,Neither,Disagree,Strongly Disagree,N/A',
         ]);
+
+        $validator->after(function ($validator) use ($request) {
+            $answers = array_intersect_key($request->all(), \App\Models\ArtaSurvey::SQD_QUESTIONS);
+            if (!array_filter($answers, function ($answer) { return is_string($answer) && $answer !== ''; })) {
+                $validator->errors()->add('sqd0', 'Please answer at least one service-quality question.');
+            }
+        });
 
         if ($validator->fails()) {
             // Optional: If you want to handle errors on the frontend, you can return them.
@@ -45,7 +53,7 @@ class ArtaController extends Controller
         }
 
         // 2. Extract validated data
-        $data = $request->except('_token');
+        $data = $validator->validated();
 
         // 3. Apply ARTA Business Rule:
         // If CC1 is 4 (Doesn't know what a CC is), CC2 and CC3 must automatically be recorded as N/A
@@ -55,7 +63,11 @@ class ArtaController extends Controller
         }
 
         // 4. Save directly to the database
-        ArtaSurvey::create($data);
+        try {
+            \App\Services\SurveySubmission::save(ArtaSurvey::class, $data);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->route('arta.form')->withErrors($e->errors())->withInput();
+        }
 
         // 5. Redirect back with the specific query parameter 'thank_you=1'
         // that your JavaScript listens for to jump to the QR code slide.

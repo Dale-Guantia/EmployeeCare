@@ -20,7 +20,7 @@
                         <div class="mt-1"> {{-- Removed border-top --}}
                             @foreach($c->attachment as $path)
                                 <div class="py-1">
-                                    <a href="{{ asset('storage/' . $path) }}" target="_blank"
+                                    <a href="{{ \App\Services\AttachmentStorage::commentUrl($c, $path) }}" target="_blank"
                                     class="{{ $c->user_id == backpack_user()->id ? 'text-white' : 'text-primary' }} small d-block"
                                     style="text-decoration: underline;">
                                         <i class="la la-paperclip"></i> {{ basename($path) }}
@@ -53,13 +53,21 @@
             </div>
         @enderror
 
+        @foreach(array_merge($errors->get('attachments'), $errors->get('attachments.*')) as $attachmentErrors)
+            @foreach((array) $attachmentErrors as $message)
+                <div class="alert alert-warning py-2 px-3 mb-2">
+                    <i class="la la-exclamation-triangle"></i> {{ $message }}
+                </div>
+            @endforeach
+        @endforeach
+
         @if ($attachments)
             @foreach($attachments as $index => $file)
                 <div class="alert alert-info py-1 px-2 mb-1 small d-flex justify-content-between align-items-center">
                     <span><i class="la la-file"></i> {{ $file->getClientOriginalName() }}</span>
 
                     @unless($isResolved)
-                        <button type="button" class="close" wire:click="removeUpload({{ $index }})">&times;</button>
+                        <button type="button" class="close" wire:click="removeAttachment({{ $index }})">&times;</button>
                     @endunless
                 </div>
             @endforeach
@@ -85,8 +93,9 @@
             <input
                 type="text"
                 wire:model.defer="comment"
-                wire:keydown.enter="{{ $isResolved ? '' : 'sendComment' }}"
+                wire:keydown.enter.prevent="{{ $isResolved ? '' : 'sendComment' }}"
                 wire:loading.attr="disabled"
+                wire:target="sendComment,attachments"
                 class="form-control"
                 placeholder="{{ $isResolved ? 'Ticket is resolved' : 'Write a reply...' }}"
                 {{ $isResolved ? 'disabled' : '' }}
@@ -94,9 +103,11 @@
 
             <div class="input-group-append">
                 <button
+                    type="button"
                     class="btn btn-primary"
                     wire:click="{{ $isResolved ? '' : 'sendComment' }}"
                     wire:loading.attr="disabled"
+                    wire:target="sendComment,attachments"
                     {{ $isResolved ? 'disabled' : '' }}
                 >
                     <i class="la la-paper-plane"></i>

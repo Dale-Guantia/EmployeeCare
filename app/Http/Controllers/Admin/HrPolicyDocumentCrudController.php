@@ -109,7 +109,8 @@ class HrPolicyDocumentCrudController extends CrudController
             Alert::success("Policy \"{$document->title}\" uploaded. Processing in the background — refresh this list in a moment to see its status.")->flash();
 
         } catch (\Throwable $e) {
-            Alert::error('Upload failed: ' . $e->getMessage())->flash();
+            \Illuminate\Support\Facades\Log::error('[Policy upload] ' . $e->getMessage());
+            Alert::error('Upload failed. Please try again or contact support.')->flash();
         }
 
         return redirect(backpack_url('hr-policy-documents'));
@@ -157,7 +158,8 @@ class HrPolicyDocumentCrudController extends CrudController
             Alert::success($msg)->flash();
 
         } catch (\Throwable $e) {
-            Alert::error('Update failed: ' . $e->getMessage())->flash();
+            \Illuminate\Support\Facades\Log::error('[Policy update] ' . $e->getMessage());
+            Alert::error('Update failed. Please try again or contact support.')->flash();
         }
 
         return redirect(backpack_url('hr-policy-documents'));
@@ -220,7 +222,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
             return response()->json([
                 'success' => false,
-                'message' => 'Could not delete this document: ' . $e->getMessage(),
+                'message' => 'Could not delete this document. Please try again or contact support.',
             ], 500);
         }
 

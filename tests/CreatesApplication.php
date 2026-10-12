@@ -17,6 +17,8 @@ trait CreatesApplication
 
         $app->make(Kernel::class)->bootstrap();
 
+        \Tests\Support\IsolatedDatabase::prepare($app);
+
         return $app;
     }
 }

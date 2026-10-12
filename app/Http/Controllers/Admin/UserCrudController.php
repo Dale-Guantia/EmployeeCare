@@ -150,6 +150,11 @@ class UserCrudController extends CrudController
      */
     protected function addDynamicDropdownFields()
     {
+        $department = request()->input('department_id');
+        CRUD::setValidation([
+            'department_id' => 'nullable|integer|exists:departments,id',
+            'division_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('divisions', 'id')->where('department_id', is_scalar($department) ? $department : null)],
+        ]);
         CRUD::addField([
             'label'      => "Department",
             'type'       => 'select',

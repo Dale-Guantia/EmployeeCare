@@ -106,24 +106,15 @@ class ReportsController extends Controller
 
         $staffResolvedStatusId = (int) \App\Models\Status::idByName('Resolved');
 
-        $staffResolutionRows = Ticket::where('status_id', $staffResolvedStatusId)
+        $staffResolutionQuery = Ticket::where('status_id', $staffResolvedStatusId)
             ->whereNotNull('resolved_by')
             ->whereNotNull('resolved_at')
             ->whereIn('resolved_by', $users->pluck('id'))
             ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
                 $query->whereBetween('created_at', [$startDate, $endDate]);
-            })
-            ->get(['resolved_by', 'created_at', 'resolved_at']);
-
-        $avgResolutionByStaff = $staffResolutionRows
-            ->groupBy('resolved_by')
-            ->map(function ($rows) {
-                $minutes = $rows->map(function ($ticket) {
-                    return Carbon::parse($ticket->created_at)->diffInMinutes(Carbon::parse($ticket->resolved_at));
-                });
-
-                return (int) round($minutes->avg());
             });
+
+        $avgResolutionByStaff = \App\Services\TicketReportQueries::staffResolutionAverages($staffResolutionQuery);
 
         $users->each(function ($user) use ($avgResolutionByStaff) {
             $avgMinutes = (int) ($avgResolutionByStaff[$user->id] ?? 0);
@@ -232,20 +223,15 @@ class ReportsController extends Controller
             $widgetEnd = now()->endOfDay();
         }
 
-        $widgetTickets = Ticket::with(['department', 'division', 'issue'])
-            ->whereBetween('created_at', [$widgetStart, $widgetEnd])
-            ->get(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'assigned_to', 'created_at', 'resolved_at', 'reopened_at']);
-
-        // All-time is open-ended by nature, so it always buckets by month
-        // regardless of how much data currently falls inside it.
         $forceBucketUnit = (!$startDate && !$endDate) ? 'month' : null;
-
-        $reportKpis = TicketReportWidgets::buildKpiWidget($widgetTickets, $resolvedStatusId, $pendingStatusId, $reopenedStatusId);
-        $reportVolumeTrend = TicketReportWidgets::buildVolumeTrendWidget($widgetTickets, $widgetStart, $widgetEnd, $forceBucketUnit);
-        $reportResolutionDistribution = TicketReportWidgets::buildResolutionDistributionWidget($widgetTickets, $resolvedStatusId);
-        $reportSlaBreakdown = TicketReportWidgets::buildSlaBreakdownWidget($widgetTickets, $resolvedStatusId);
-        $reportStatusFunnel = TicketReportWidgets::buildStatusFunnelWidget($widgetTickets);
-        $reportReassignment = TicketReportWidgets::buildReassignmentWidget($widgetTickets, $widgetStart, $widgetEnd);
+        $widgets = \App\Services\TicketReportQueries::widgets(Ticket::whereBetween('created_at', [$widgetStart, $widgetEnd])
+            ->select(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']), $widgetStart, $widgetEnd, $forceBucketUnit);
+        $reportKpis = $widgets['kpis'];
+        $reportVolumeTrend = $widgets['volume'];
+        $reportResolutionDistribution = $widgets['resolution'];
+        $reportSlaBreakdown = $widgets['sla'];
+        $reportReassignment = $widgets['reassignment'];
+        $reportStatusFunnel = $widgets['funnel'];
 
         return [
             'users' => $users,

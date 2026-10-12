@@ -337,6 +337,10 @@
             }
 
             $('#surveyResponsesTable').DataTable({
+                serverSide: true,
+                processing: true,
+                ajax: @json(route('page.survey_reports.responses')),
+                columnDefs: [{ targets: '_all', render: $.fn.dataTable.render.text() }],
                 pageLength: 10,
                 responsive: false,
                 ordering: true,

@@ -7,6 +7,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PolicyIngestService
 {
@@ -27,7 +28,10 @@ class PolicyIngestService
     {
         set_time_limit(0);
 
-        $path     = $file->storeAs('policies', time() . '_' . $file->getClientOriginalName());
+        $path     = $file->storeAs('policies', Str::uuid() . '.pdf');
+        if (!$path) {
+            throw new \RuntimeException('Could not store the policy PDF.');
+        }
         $fullPath = Storage::path($path);
 
         return HrPolicyDocument::create([
@@ -105,10 +109,8 @@ class PolicyIngestService
             $minConfidence = (float) config('ocr.min_confidence', 60);
             $needsReview   = $usedOcr && $confidence !== null && $confidence < $minConfidence;
 
-            // Delete old chunks before re-ingesting (matches previous behavior).
-            $document->chunks()->delete();
-
-            DB::transaction(function () use ($document, $chunks) {
+            DB::transaction(function () use ($document, $chunks, $needsReview, $minConfidence, $usedOcr, $confidence, $pages) {
+                $document->chunks()->delete();
                 foreach ($chunks as $index => $chunk) {
                     HrPolicyChunk::create([
                         'document_id'   => $document->id,
@@ -119,24 +121,23 @@ class PolicyIngestService
                         'search_vector' => $this->buildVector($chunk['text']),
                     ]);
                 }
+                $document->update([
+                    'status'         => $needsReview ? 'needs_review' : 'active',
+                    'chunk_count'    => count($chunks),
+                    'ingest_error'   => $needsReview
+                        ? sprintf(
+                            'OCR confidence %d%% is below the %d%% quality threshold. Review the extracted text below, or re-upload a clearer scan.',
+                            round($confidence),
+                            $minConfidence
+                        )
+                        : null,
+                    'ocr_used'       => $usedOcr,
+                    'ocr_confidence' => $confidence !== null ? (int) round($confidence) : null,
+                    // Persisted page-by-page so a future re-chunk (or another
+                    // document uploading the same file) doesn't require re-OCRing.
+                    'extracted_text' => json_encode($pages),
+                ]);
             });
-
-            $document->update([
-                'status'         => $needsReview ? 'needs_review' : 'active',
-                'chunk_count'    => count($chunks),
-                'ingest_error'   => $needsReview
-                    ? sprintf(
-                        'OCR confidence %d%% is below the %d%% quality threshold. Review the extracted text below, or re-upload a clearer scan.',
-                        round($confidence),
-                        $minConfidence
-                    )
-                    : null,
-                'ocr_used'       => $usedOcr,
-                'ocr_confidence' => $confidence !== null ? (int) round($confidence) : null,
-                // Persisted page-by-page so a future re-chunk (or another
-                // document uploading the same file) doesn't require re-OCRing.
-                'extracted_text' => json_encode($pages),
-            ]);
 
             Log::info("[PolicyIngest] Ingested '{$document->title}': " . count($chunks) . ' chunks'
                 . ($usedOcr ? ' (via OCR, confidence ' . round($confidence ?? 0) . '%)' : ' (via pdfparser)')
@@ -161,23 +162,44 @@ class PolicyIngestService
     {
         set_time_limit(0);
 
-        if ($document->file_path && Storage::exists($document->file_path)) {
-            Storage::delete($document->file_path);
+        $oldPath  = $document->file_path;
+        $path     = $newFile->storeAs('policies', Str::uuid() . '.pdf');
+        if (!$path) {
+            throw new \RuntimeException('Could not store the replacement PDF.');
         }
-
-        $path     = $newFile->storeAs('policies', time() . '_' . $newFile->getClientOriginalName());
         $fullPath = Storage::path($path);
 
-        $document->update([
-            'title'          => $data['title'],
-            'filename'       => $newFile->getClientOriginalName(),
-            'file_path'      => $path,
-            'file_hash'      => hash_file('sha256', $fullPath),
-            'category'       => $data['category'],
-            'effective_date' => $data['effective_date'] ?? null,
-            'status'         => 'pending',
-            'ingest_error'   => null,
-        ]);
+        try {
+            DB::transaction(function () use ($document, $newFile, $data, $path, $fullPath, $oldPath) {
+                $document->update([
+                    'title'          => $data['title'],
+                    'filename'       => $newFile->getClientOriginalName(),
+                    'file_path'      => $path,
+                    'file_hash'      => hash_file('sha256', $fullPath),
+                    'category'       => $data['category'],
+                    'effective_date' => $data['effective_date'] ?? null,
+                    'status'         => 'pending',
+                    'ingest_error'   => null,
+                    'extracted_text' => null,
+                    'ocr_used'       => false,
+                    'ocr_confidence' => null,
+                    'chunk_count'    => 0,
+                ]);
+                DB::afterCommit(function () use ($oldPath) {
+                    $this->deleteStoredFile($oldPath);
+                });
+            });
+        } catch (\Throwable $e) {
+            // A callback can fail after commit; never remove a file the record now references.
+            try {
+                if (!HrPolicyDocument::whereKey($document->id)->where('file_path', $path)->exists()) {
+                    $this->deleteStoredFile($path);
+                }
+            } catch (\Throwable $cleanupError) {
+                Log::error('[PolicyIngest] Could not check replacement cleanup: ' . $cleanupError->getMessage());
+            }
+            throw $e;
+        }
     }
 
     /**
@@ -195,13 +217,28 @@ class PolicyIngestService
      */
     public function destroy(HrPolicyDocument $document): void
     {
-        $document->chunks()->delete();
+        $path = $document->file_path;
+        DB::transaction(function () use ($document, $path) {
+            $document->chunks()->delete();
+            $document->delete();
+            DB::afterCommit(function () use ($path) {
+                $this->deleteStoredFile($path);
+            });
+        });
+    }
 
-        if ($document->file_path && Storage::exists($document->file_path)) {
-            Storage::delete($document->file_path);
+    private function deleteStoredFile($path): void
+    {
+        if ($path) {
+            try {
+                // Older timestamp-based uploads can share a path; preserve any remaining reference.
+                if (!HrPolicyDocument::where('file_path', $path)->exists()) {
+                    Storage::delete($path);
+                }
+            } catch (\Throwable $e) {
+                Log::error('[PolicyIngest] Could not remove a policy PDF: ' . $e->getMessage());
+            }
         }
-
-        $document->delete();
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
@@ -221,6 +258,7 @@ class PolicyIngestService
 
         $match = HrPolicyDocument::where('file_hash', $document->file_hash)
             ->where('id', '!=', $document->id)
+            ->whereIn('status', ['active', 'inactive', 'needs_review'])
             ->whereNotNull('extracted_text')
             ->latest('updated_at')
             ->first();

@@ -1,0 +1,5 @@
+Preview matches:
+php artisan users:sync-avatars --dry-run
+
+Apply them:
+php artisan users:sync-avatars

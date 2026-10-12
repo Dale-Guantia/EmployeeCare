@@ -47,7 +47,8 @@
   @stack('before_scripts')
 
   @include(backpack_view('inc.scripts'))
-  @livewireScripts
+  {{-- Keep Livewire on the current origin, including installations in a subdirectory. --}}
+  @livewireScripts(['asset_url' => request()->getBaseUrl()])
 
   @yield('after_scripts')
   @stack('after_scripts')

@@ -37,6 +37,11 @@ class SurveyReportsController extends Controller
         ], $data));
     }
 
+    public function responses(Request $request)
+    {
+        return response()->json(\App\Services\SurveyResponseTable::data($request));
+    }
+
     public function downloadPdf(Request $request)
     {
         $request->validate([
@@ -69,132 +74,12 @@ class SurveyReportsController extends Controller
 
     protected function getReportData($startDate = null, $endDate = null, $includeZeroActivity = false)
     {
-        $surveyQuery = Survey::with(['staff.division', 'service']);
-
-        if ($startDate && $endDate) {
-            $surveyQuery->whereBetween('created_at', [$startDate, $endDate]);
-        }
-
-        $responses = (clone $surveyQuery)
-            ->latest()
-            ->get();
-
-        $staffs = User::query()
-            ->where(function ($query) {
-                $query->whereHas('roles', function ($roleQuery) {
-                    $roleQuery->where('name', 'hr_staff');
-                })->orWhere(function ($query) {
-                    $query->whereHas('roles', function ($roleQuery) {
-                        $roleQuery->where('name', 'div_head');
-                    })->where('department_id', 1);
-                });
-            })
-            ->with('division')
-            ->get();
-
-        $surveyRatings = $staffs->map(function ($staff) use ($responses) {
-            $staffSurveys = $responses->where('user_id', $staff->id);
-
-            return (object) [
-                'id' => $staff->id,
-                'name' => $staff->name,
-                'division_name' => optional($staff->division)->division_name ?? 'N/A',
-                'total_surveys' => $staffSurveys->count(),
-
-                'very_dissatisfied_count' =>
-                    $staffSurveys->where('timeliness_rating', 'Very Dissatisfied')->count() +
-                    $staffSurveys->where('handling_rating', 'Very Dissatisfied')->count() +
-                    $staffSurveys->where('quality_rating', 'Very Dissatisfied')->count() +
-                    $staffSurveys->where('overall_rating', 'Very Dissatisfied')->count(),
-
-                'dissatisfied_count' =>
-                    $staffSurveys->where('timeliness_rating', 'Dissatisfied')->count() +
-                    $staffSurveys->where('handling_rating', 'Dissatisfied')->count() +
-                    $staffSurveys->where('quality_rating', 'Dissatisfied')->count() +
-                    $staffSurveys->where('overall_rating', 'Dissatisfied')->count(),
-
-                'satisfied_count' =>
-                    $staffSurveys->where('timeliness_rating', 'Satisfied')->count() +
-                    $staffSurveys->where('handling_rating', 'Satisfied')->count() +
-                    $staffSurveys->where('quality_rating', 'Satisfied')->count() +
-                    $staffSurveys->where('overall_rating', 'Satisfied')->count(),
-
-                'very_satisfied_count' =>
-                    $staffSurveys->where('timeliness_rating', 'Very Satisfied')->count() +
-                    $staffSurveys->where('handling_rating', 'Very Satisfied')->count() +
-                    $staffSurveys->where('quality_rating', 'Very Satisfied')->count() +
-                    $staffSurveys->where('overall_rating', 'Very Satisfied')->count(),
-
-                'details' => [
-                    'timeliness' => [
-                        'very_satisfied'    => $staffSurveys->where('timeliness_rating', 'Very Satisfied')->count(),
-                        'satisfied'         => $staffSurveys->where('timeliness_rating', 'Satisfied')->count(),
-                        'dissatisfied'      => $staffSurveys->where('timeliness_rating', 'Dissatisfied')->count(),
-                        'very_dissatisfied' => $staffSurveys->where('timeliness_rating', 'Very Dissatisfied')->count(),
-                    ],
-                    'handling' => [
-                        'very_satisfied'    => $staffSurveys->where('handling_rating', 'Very Satisfied')->count(),
-                        'satisfied'         => $staffSurveys->where('handling_rating', 'Satisfied')->count(),
-                        'dissatisfied'      => $staffSurveys->where('handling_rating', 'Dissatisfied')->count(),
-                        'very_dissatisfied' => $staffSurveys->where('handling_rating', 'Very Dissatisfied')->count(),
-                    ],
-                    'quality' => [
-                        'very_satisfied'    => $staffSurveys->where('quality_rating', 'Very Satisfied')->count(),
-                        'satisfied'         => $staffSurveys->where('quality_rating', 'Satisfied')->count(),
-                        'dissatisfied'      => $staffSurveys->where('quality_rating', 'Dissatisfied')->count(),
-                        'very_dissatisfied' => $staffSurveys->where('quality_rating', 'Very Dissatisfied')->count(),
-                    ],
-                    'overall' => [
-                        'very_satisfied'    => $staffSurveys->where('overall_rating', 'Very Satisfied')->count(),
-                        'satisfied'         => $staffSurveys->where('overall_rating', 'Satisfied')->count(),
-                        'dissatisfied'      => $staffSurveys->where('overall_rating', 'Dissatisfied')->count(),
-                        'very_dissatisfied' => $staffSurveys->where('overall_rating', 'Very Dissatisfied')->count(),
-                    ],
-                ],
-            ];
-        });
-
-        if (! $includeZeroActivity) {
-            $surveyRatings = $surveyRatings
-                ->filter(function ($staff) {
-                    return $staff->total_surveys > 0;
-                })
-                ->values();
-        }
-
-        $summaryCards = [
-            'total_surveys' => $responses->count(),
-            'very_satisfied' =>
-                $responses->where('timeliness_rating', 'Very Satisfied')->count() +
-                $responses->where('handling_rating', 'Very Satisfied')->count() +
-                $responses->where('quality_rating', 'Very Satisfied')->count() +
-                $responses->where('overall_rating', 'Very Satisfied')->count(),
-
-            'satisfied' =>
-                $responses->where('timeliness_rating', 'Satisfied')->count() +
-                $responses->where('handling_rating', 'Satisfied')->count() +
-                $responses->where('quality_rating', 'Satisfied')->count() +
-                $responses->where('overall_rating', 'Satisfied')->count(),
-
-            'dissatisfied' =>
-                $responses->where('timeliness_rating', 'Dissatisfied')->count() +
-                $responses->where('handling_rating', 'Dissatisfied')->count() +
-                $responses->where('quality_rating', 'Dissatisfied')->count() +
-                $responses->where('overall_rating', 'Dissatisfied')->count(),
-
-            'very_dissatisfied' =>
-                $responses->where('timeliness_rating', 'Very Dissatisfied')->count() +
-                $responses->where('handling_rating', 'Very Dissatisfied')->count() +
-                $responses->where('quality_rating', 'Very Dissatisfied')->count() +
-                $responses->where('overall_rating', 'Very Dissatisfied')->count(),
-
-            'staff_rated' => $responses->pluck('user_id')->unique()->count(),
-        ];
-
-        return [
-            'responses' => $responses,
-            'surveyRatings' => $surveyRatings,
-            'summaryCards' => $summaryCards,
-        ];
+        $data = \App\Services\SurveyReportQueries::summary($startDate, $endDate, (bool) $includeZeroActivity);
+        // The PDF contains summaries only; response details use the paginated endpoint.
+        $data['responses'] = Survey::with(['staff.division', 'service'])
+            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('created_at', [$startDate, $endDate]);
+            })->latest()->orderByDesc('id')->limit(10)->get();
+        return $data;
     }
 }

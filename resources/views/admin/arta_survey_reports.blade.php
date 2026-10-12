@@ -148,6 +148,10 @@
             if (reportModal) document.body.appendChild(reportModal);
 
             $('#surveyResponsesTable').DataTable({
+                serverSide: true,
+                processing: true,
+                ajax: @json(route('page.arta_survey_reports.responses')),
+                columnDefs: [{ targets: '_all', render: $.fn.dataTable.render.text() }],
                 pageLength: 10,
                 responsive: true, // Activated Responsive feature
                 ordering: true,

@@ -10,13 +10,12 @@ use App\Models\Status;
 use App\Models\Ticket;
 use App\Models\TicketReassignmentRequest;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Notifications\DatabaseNotification;
 use Tests\TestCase;
 
 class TicketReassignmentTest extends TestCase
 {
-    use DatabaseTransactions;
+    // Each test has its own in-memory database. Real commits exercise after-commit notifications.
 
     private $priority;
     private $unassignedStatus;
@@ -32,6 +31,53 @@ class TicketReassignmentTest extends TestCase
         $this->pendingStatus = Status::firstOrCreate(['status_name' => 'Pending'], ['status_color' => '#ccc']);
         $this->resolvedStatus = Status::firstOrCreate(['status_name' => 'Resolved'], ['status_color' => '#ccc']);
         Status::firstOrCreate(['status_name' => 'Reopened'], ['status_color' => '#ccc']);
+    }
+
+    public function test_acceptance_failure_rolls_back_ticket_request_and_notifications()
+    {
+        [$fromDept, $fromDiv] = $this->makeDeptDiv('RollbackFrom');
+        [$toDept, $toDiv] = $this->makeDeptDiv('RollbackTo');
+        $requester = $this->makeUser('div_head', $fromDept->id, $fromDiv->id);
+        $receiver = $this->makeUser('div_head', $toDept->id, $toDiv->id);
+        $assigned = $this->makeUser('hr_staff', $fromDept->id, $fromDiv->id);
+        $ticket = $this->makeTicket($requester, $fromDept, $fromDiv, ['assigned_to' => $assigned->id]);
+        $this->requestReassignment($requester, $ticket, $toDept, $toDiv);
+        $pending = $ticket->pendingReassignmentRequest()->firstOrFail();
+        $before = $ticket->fresh()->getAttributes();
+        $notificationCount = DatabaseNotification::count();
+        $service = \Mockery::mock(\App\Services\TicketAutoAssignmentService::class);
+        $service->shouldReceive('assignTicket')->once()->andThrow(new \RuntimeException('assignment fixture failure'));
+        $this->app->instance(\App\Services\TicketAutoAssignmentService::class, $service);
+
+        $this->acceptReassignment($receiver, $ticket, $pending->id)->assertStatus(500);
+        $this->assertSame($before, $ticket->fresh()->getAttributes());
+        $this->assertSame(TicketReassignmentRequest::STATUS_PENDING, $pending->fresh()->status);
+        $this->assertSame($notificationCount, DatabaseNotification::count());
+    }
+
+    public function test_new_request_reads_pending_state_again_even_when_entry_was_cached()
+    {
+        [$fromDept, $fromDiv] = $this->makeDeptDiv('StaleFrom');
+        [$toDept, $toDiv] = $this->makeDeptDiv('StaleTo');
+        $actor = $this->makeUser('div_head', $fromDept->id, $fromDiv->id);
+        $ticket = $this->makeTicket($actor, $fromDept, $fromDiv);
+        $stale = $ticket->fresh()->load('pendingReassignmentRequest');
+        $this->assertNull($stale->pendingReassignmentRequest);
+        $this->requestReassignment($actor, $ticket, $toDept, $toDiv)->assertRedirect();
+
+        $crud = new \Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
+        $crud->setModel(Ticket::class);
+        $crud->setRoute('/employee-care/ticket');
+        $crud->entry = $stale;
+        $controller = (new \ReflectionClass(\App\Http\Controllers\Admin\TicketCrudController::class))->newInstanceWithoutConstructor();
+        $controller->crud = $crud;
+        $method = new \ReflectionMethod($controller, 'runReassignmentAction');
+        $method->setAccessible(true);
+        $request = \Illuminate\Http\Request::create('/employee-care/ticket/' . $ticket->id, 'PUT', [
+            'id' => $ticket->id, 'to_department_id' => $toDept->id, 'to_division_id' => $toDiv->id,
+        ]);
+        $method->invoke($controller, 'handleReassignRequest', $request);
+        $this->assertSame(1, TicketReassignmentRequest::where('ticket_id', $ticket->id)->where('status', 'pending')->count());
     }
 
     private function makeDeptDiv(string $tag): array

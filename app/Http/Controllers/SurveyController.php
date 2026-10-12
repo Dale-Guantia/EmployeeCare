@@ -9,7 +9,6 @@ use App\Models\Issue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use Carbon\Carbon;
 
 class SurveyController extends Controller
 {
@@ -73,6 +72,7 @@ class SurveyController extends Controller
     public function submitForm(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'submission_id' => 'required|uuid',
             'user_id' => ['bail', 'required', 'integer', Rule::exists('users', 'id')->where('department_id', self::SURVEY_DEPARTMENT_ID)],
             'issue_id' => ['bail', 'required', 'integer', Rule::exists('issues', 'id')->where('department_id', self::SURVEY_DEPARTMENT_ID)],
             'timeliness_rating' => 'required|in:Very Dissatisfied,Dissatisfied,Satisfied,Very Satisfied',
@@ -109,30 +109,13 @@ class SurveyController extends Controller
             return redirect()->route('survey.form')->withErrors($validator)->withInput();
         }
 
-        /**
-         * Duplicate protection:
-         * If the exact same survey was submitted in the last 10 seconds,
-         * do not create another record.
-         */
-        $duplicateSurvey = Survey::where('user_id', $request->input('user_id'))
-            ->where('issue_id', $request->input('issue_id'))
-            ->where('timeliness_rating', $request->input('timeliness_rating'))
-            ->where('handling_rating', $request->input('handling_rating'))
-            ->where('quality_rating', $request->input('quality_rating'))
-            ->where('overall_rating', $request->input('overall_rating'))
-            ->where('created_at', '>=', Carbon::now()->subSeconds(10))
-            ->first();
-
-        if (! $duplicateSurvey) {
-            Survey::create([
-                'user_id' => $request->input('user_id'),
-                'issue_id' => $request->input('issue_id'),
-                'created_at' => now(),
-                'timeliness_rating' => $request->input('timeliness_rating'),
-                'handling_rating' => $request->input('handling_rating'),
-                'quality_rating' => $request->input('quality_rating'),
-                'overall_rating' => $request->input('overall_rating'),
-            ]);
+        try {
+            \App\Services\SurveySubmission::save(Survey::class, $validator->validated());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['saved' => false, 'errors' => $e->errors()], 422)->header('Cache-Control', 'no-store, private');
+            }
+            return redirect()->route('survey.form')->withErrors($e->errors())->withInput();
         }
 
         if ($request->expectsJson()) {

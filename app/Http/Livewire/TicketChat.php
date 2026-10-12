@@ -18,7 +18,10 @@ class TicketChat extends Component
 
     public function getTicketProperty()
     {
-        return Ticket::with(['status', 'user', 'assignee'])->findOrFail($this->ticketId);
+        $user = backpack_user();
+        abort_unless($user && $user->is_active && $user->can('ticket.view'), 403);
+
+        return Ticket::visibleTo($user)->with(['status', 'user', 'assignee'])->findOrFail($this->ticketId);
     }
 
     public function getIsResolvedProperty()
@@ -38,14 +41,15 @@ class TicketChat extends Component
         ]);
     }
 
-    public function removeUpload($index)
+    public function removeAttachment($index)
     {
         if ($this->isResolved) {
             return;
         }
 
-        unset($this->attachments[$index]);
-        $this->attachments = array_values($this->attachments);
+        if (isset($this->attachments[$index])) {
+            $this->removeUpload('attachments', $this->attachments[$index]->getFilename());
+        }
     }
 
     public function sendComment()
@@ -56,7 +60,8 @@ class TicketChat extends Component
         }
 
         $this->validate([
-            'comment' => 'required_without:attachments|nullable',
+            'comment' => 'required_without:attachments|nullable|string|max:65535',
+            'attachments' => 'nullable|array|max:' . \App\Services\AttachmentStorage::MAX_FILES,
             'attachments.*' => 'nullable|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,txt|max:20480',
         ], [
             'comment.required_without' => 'Please enter a message or attach a file.',
@@ -64,29 +69,28 @@ class TicketChat extends Component
             'attachments.*.max' => 'Each attachment must not exceed 20MB.',
         ]);
 
-        $paths = [];
-
-        if ($this->attachments) {
-            foreach ($this->attachments as $file) {
-                $filename = \App\Services\AttachmentStorage::randomizedFilename($file);
-
-                $paths[] = $file->storeAs(
-                    'attachments',
-                    $filename,
-                    'public'
-                );
-            }
+        $paths = \App\Services\AttachmentStorage::storeFiles($this->attachments ?: []);
+        $createdComment = null;
+        $references = function () use (&$createdComment) {
+            return $createdComment ? (optional(TicketComment::find($createdComment->id))->attachment ?: []) : [];
+        };
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($paths, &$createdComment) {
+                $createdComment = TicketComment::create([
+                    'ticket_id' => $this->ticketId,
+                    'user_id' => backpack_user()->id,
+                    'comment' => $this->comment ?? '',
+                    'attachment' => $paths,
+                ]);
+                app(TicketNotificationService::class)->notifyTicketCommented($this->ticket, backpack_user());
+            });
+            app(\App\Services\AttachmentTransactions::class)->track(\Illuminate\Support\Facades\DB::connection(), $paths, $references);
+        } catch (\Throwable $e) {
+            \App\Services\AttachmentStorage::discardUnreferenced($paths, $references);
+            \Illuminate\Support\Facades\Log::error('[TicketChat] Comment persistence failed.', ['exception' => $e]);
+            $this->addError('attachments', 'The comment and attachments could not be saved. Please try again.');
+            return;
         }
-
-        TicketComment::create([
-            'ticket_id' => $this->ticketId,
-            'user_id' => backpack_user()->id,
-            'comment' => $this->comment ?? '',
-            'attachment' => $paths,
-        ]);
-
-        app(TicketNotificationService::class)
-            ->notifyTicketCommented($this->ticket, backpack_user());
 
         $this->comment = '';
         $this->attachments = [];

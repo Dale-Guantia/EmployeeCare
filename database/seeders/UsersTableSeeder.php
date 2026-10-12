@@ -15,6 +15,10 @@ class UsersTableSeeder extends Seeder
      */
     public function run(): void
     {
+        if (!app()->environment(['local', 'testing'])) {
+            throw new \LogicException('Demonstration accounts may only be seeded locally or in tests.');
+        }
+
         $department = Department::firstOrCreate([
             'department_name' => 'City Human Resource Development Office',
         ]);
@@ -228,7 +232,12 @@ class UsersTableSeeder extends Seeder
         }
 
         $lookup = ['username' => $attributes['username']];
-        $user = User::updateOrCreate($lookup, $attributes);
+        $user = User::firstOrNew($lookup);
+        if ($user->exists) {
+            unset($attributes['password']);
+        }
+        $user->fill($attributes);
+        $user->save();
 
         if (! empty($roleName)) {
             $user->assignRole($roleName);

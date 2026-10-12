@@ -41,6 +41,7 @@ class RolesAndPermissionsSeeder extends Seeder
         }
 
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => $guardName]);
+        Permission::firstOrCreate(['name' => 'ticket.assign', 'guard_name' => $guardName]);
         $deptHead = Role::firstOrCreate(['name' => 'dept_head', 'guard_name' => $guardName]);
         $divHead = Role::firstOrCreate(['name' => 'div_head', 'guard_name' => $guardName]);
         $hrStaff = Role::firstOrCreate(['name' => 'hr_staff', 'guard_name' => $guardName]);

@@ -20,6 +20,16 @@ class TicketComment extends Model
         'attachment' => 'array',
     ];
 
+    protected static function booted()
+    {
+        static::deleted(function ($comment) {
+            $files = $comment->attachment ?: [];
+            $comment->getConnection()->afterCommit(function () use ($files) {
+                \App\Services\AttachmentStorage::deleteFiles($files);
+            });
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

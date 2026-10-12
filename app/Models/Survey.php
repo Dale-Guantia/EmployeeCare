@@ -12,6 +12,7 @@ class Survey extends Model
     protected $table = 'surveys';
 
     protected $fillable = [
+        'submission_id',
         'user_id',
         'issue_id',
         'submission_date',

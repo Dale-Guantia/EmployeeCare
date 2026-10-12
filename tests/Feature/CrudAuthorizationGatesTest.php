@@ -62,19 +62,13 @@ class CrudAuthorizationGatesTest extends TestCase
 
     public function test_dept_head_can_store_issues_but_not_delete()
     {
-        // Note: issue.create (GET, the form view) 500s for every role, including
-        // admin, due to a pre-existing, unrelated Backpack field-config bug
-        // ("Cannot find 'relationship' field view") in IssueCrudController's
-        // department_id/division_id fields. That is not one of the 37 approved
-        // audit findings, so it is left untouched here — this test exercises
-        // the store/destroy authorization gates directly instead of the
-        // broken create view.
         $hrDept = Department::find(1);
         $division = Division::where('department_id', $hrDept->id)->first();
         $priority = Priority::firstOrCreate(['priority_name' => 'Normal'], ['priority_color' => '#ccc']);
         $deptHead = $this->makeUser('dept_head', $hrDept->id);
         $this->actingAs($deptHead, 'web');
 
+        $this->get(route('issue.create'))->assertOk();
         $this->post(route('issue.store'), [
             'department_id' => $hrDept->id,
             'division_id' => $division->id,

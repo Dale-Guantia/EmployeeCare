@@ -1,7 +1,7 @@
 @php
     $field['name'] = $field['name'] ?? 'attachments';
     $field['label'] = $field['label'] ?? 'Attachments';
-    $field['disk'] = $field['disk'] ?? 'public';
+    $field['disk'] = $field['disk'] ?? \App\Services\AttachmentStorage::DISK;
 
     // 1. Retrieve already saved files from the database (Update operation fallback)
     $existingFiles = [];
@@ -39,7 +39,7 @@
                      style="gap: 10px;" data-file-path="{{ $filePath }}">
                     <i class="la la-paperclip text-primary" style="font-size:1.2rem;"></i>
                     <div class="text-truncate mr-2" style="max-width: 75%;">
-                        <a href="{{ Storage::disk($field['disk'])->url($filePath) }}" target="_blank" class="font-weight-bold text-dark">
+                        <a href="{{ \App\Services\AttachmentStorage::ticketUrl($crud->getCurrentEntry(), $filePath) }}" target="_blank" class="font-weight-bold text-dark">
                             {{ $filename }}
                         </a>
                     </div>
@@ -112,13 +112,14 @@ document.addEventListener("DOMContentLoaded", function () {
             item.innerHTML = `
                 <i class="la la-paperclip text-primary" style="font-size:1.2rem;"></i>
                 <div class="text-truncate mr-2" style="max-width: 75%;">
-                    <strong class="text-dark">${file.name}</strong>
+                    <strong class="text-dark" data-upload-filename></strong>
                     <span class="text-dark small ml-1">(${sizeInMB} MB)</span>
                 </div>
                 <button type="button" class="close ml-auto p-0 text-danger" style="font-size: 1.4rem; line-height: 1;">
                     <span aria-hidden="true">&times;</span>
                 </button>
             `;
+            item.querySelector('[data-upload-filename]').textContent = file.name;
 
             item.querySelector('.close').addEventListener('click', (e) => {
                 e.stopPropagation();

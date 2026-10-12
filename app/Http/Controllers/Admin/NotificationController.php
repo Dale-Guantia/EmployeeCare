@@ -45,7 +45,7 @@ class NotificationController extends Controller
 
     public function markAllAsRead()
     {
-        backpack_user()->unreadNotifications->markAsRead();
+        backpack_user()->unreadNotifications()->update(['read_at' => now()]);
 
         return response()->json(['success' => true]);
     }

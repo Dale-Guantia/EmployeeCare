@@ -54,6 +54,10 @@ Route::group([
 
     // CRUD routes
     Route::crud('ticket', 'TicketCrudController');
+    Route::get('ticket/{ticket}/attachments/{index}', 'TicketAttachmentController@show')
+        ->where('index', '[0-9]+')->name('ticket.attachments.show');
+    Route::get('ticket/{ticket}/comments/{comment}/attachments/{index}', 'TicketAttachmentController@comment')
+        ->where('index', '[0-9]+')->name('ticket.comment.attachments.show');
     Route::crud('issue', 'IssueCrudController');
     Route::crud('department', 'DepartmentCrudController');
     Route::crud('division', 'DivisionCrudController');
@@ -67,10 +71,12 @@ Route::group([
 
     // Survey Reports
     Route::get('survey-reports', [SurveyReportsController::class, 'index'])->name('page.survey_reports.index');
+    Route::get('survey-reports/responses', [SurveyReportsController::class, 'responses'])->name('page.survey_reports.responses');
     Route::post('survey-reports/download-pdf', [SurveyReportsController::class, 'downloadPdf'])->name('page.survey_reports.download_pdf');
 
     // ARTA Survey Reports
     Route::get('arta-survey-reports', [ArtaSurveyReportsController::class, 'index'])->name('page.arta_survey_reports.index');
+    Route::get('arta-survey-reports/responses', [ArtaSurveyReportsController::class, 'responses'])->name('page.arta_survey_reports.responses');
     Route::post('arta-survey-reports/download-pdf', [ArtaSurveyReportsController::class, 'downloadPdf'])->name('page.arta_survey_reports.download_pdf');
 
     // Notifications
@@ -85,7 +91,7 @@ Route::group([
     Route::post('my-account/info', [MyAccountController::class, 'postAccountInfoForm'])->name('backpack.account.info.store');
     Route::post('my-account/password', [MyAccountController::class, 'postChangePasswordForm'])->name('backpack.account.password');
     Route::post('my-account/notifications', [MyAccountController::class, 'postNotificationsForm'])->name('backpack.account.notifications');
-    Route::post('my-account/notification-settings', [MyAccountController::class, 'updateNotificationSettings'])->name('backpack.account.notification_settings');
+    Route::post('my-account/notification-settings', [MyAccountController::class, 'postNotificationsForm'])->name('backpack.account.notification_settings');
 
     // Chatbot Routes — rate-limited so a single user can't spam the paid
     // Anthropic API or exhaust the shared rate limit for everyone else.

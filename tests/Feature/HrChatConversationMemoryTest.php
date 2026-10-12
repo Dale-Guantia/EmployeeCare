@@ -13,6 +13,29 @@ class HrChatConversationMemoryTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Retrieval tests own their corpus instead of depending on the application's policy records.
+        foreach ([
+            'Wellness Leave' => 'Wellness leave allows five days each year for eligible employees. Apply through HR for wellness leave.',
+            'Maternity Leave' => 'Paano mag-apply ng maternity leave: maternity leave is available for eligible employees giving birth. Apply through HR.',
+            'Omnibus Rule on Leave' => 'Omnibus rule on leave explains general vacation leave and sick leave applications for employees.',
+        ] as $title => $content) {
+            $document = \App\Models\HrPolicyDocument::create([
+                'title' => $title, 'filename' => 'fixture.pdf', 'file_path' => 'policies/fixture.pdf',
+                'category' => 'leave', 'is_active' => true, 'status' => 'active',
+            ]);
+            // Five sections exercise the retriever's actual five-chunk ranking limit.
+            for ($index = 0; $index < 5; $index++) {
+                $document->chunks()->create([
+                    'chunk_index' => $index, 'page_number' => $index + 1, 'content' => $content . ' Section ' . ($index + 1),
+                    'search_vector' => strtolower($title . ' ' . $content),
+                ]);
+            }
+        }
+    }
+
     private function makeUser(string $tag = 'A'): User
     {
         static $seq = 0;

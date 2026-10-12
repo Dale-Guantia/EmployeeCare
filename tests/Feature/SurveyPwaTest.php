@@ -52,6 +52,10 @@ class SurveyPwaTest extends TestCase
             (new $class)->up();
         }
         (require database_path('migrations/2026_03_05_074049_surveys_table.php'))->up();
+        // This suite uses a smaller fresh schema than the shared isolated database.
+        \Illuminate\Support\Facades\Schema::table('surveys', function ($table) {
+            $table->uuid('submission_id')->nullable()->unique();
+        });
 
         $department = Department::create(['department_name' => 'City Human Resource Development Office']);
         $this->assertSame(1, $department->id);
@@ -100,6 +104,7 @@ class SurveyPwaTest extends TestCase
     private function payload()
     {
         return [
+            'submission_id' => '93d7bb92-a093-44ef-8b06-9d1b39085660',
             'user_id' => $this->staff->id,
             'issue_id' => $this->service->id,
             'timeliness_rating' => 'Very Satisfied',
@@ -177,7 +182,7 @@ class SurveyPwaTest extends TestCase
         ];
     }
 
-    public function test_valid_submission_and_duplicate_window_are_preserved()
+    public function test_submission_id_retries_are_idempotent_and_new_clients_remain_distinct()
     {
         Carbon::setTestNow(Carbon::parse('2026-10-05 12:00:00'));
         $this->post(route('survey.submit'), $this->payload())
@@ -190,7 +195,7 @@ class SurveyPwaTest extends TestCase
         $this->assertSame(1, Survey::count());
 
         Carbon::setTestNow(now()->addSeconds(6));
-        $this->post(route('survey.submit'), $this->payload())->assertSessionDoesntHaveErrors();
+        $this->post(route('survey.submit'), array_merge($this->payload(), ['submission_id' => (string) \Illuminate\Support\Str::uuid()]))->assertSessionDoesntHaveErrors();
         $this->assertSame(2, Survey::count());
     }
 

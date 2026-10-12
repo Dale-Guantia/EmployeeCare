@@ -104,9 +104,21 @@ class IssueCrudController extends CrudController
     {
         CRUD::setValidation(IssueRequest::class);
 
-        CRUD::field('department_id');
-        CRUD::field('division_id');
-        CRUD::field('priority_id');
+        CRUD::addField([
+            'name' => 'department_id', 'type' => 'select', 'label' => 'Department',
+            'entity' => 'department', 'model' => \App\Models\Department::class,
+            'attribute' => 'department_name', 'allows_null' => true,
+        ]);
+        CRUD::addField([
+            'name' => 'division_id', 'type' => 'select', 'label' => 'Division',
+            'entity' => 'division', 'model' => \App\Models\Division::class,
+            'attribute' => 'division_name', 'allows_null' => true,
+        ]);
+        CRUD::addField([
+            'name' => 'priority_id', 'type' => 'select', 'label' => 'Priority',
+            'entity' => 'priority', 'model' => \App\Models\Priority::class,
+            'attribute' => 'priority_name', 'allows_null' => true,
+        ]);
         CRUD::field('issue_description');
         CRUD::addField([
             'name'  => 'icon',

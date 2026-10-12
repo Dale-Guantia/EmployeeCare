@@ -49,12 +49,39 @@ class TicketNotificationService
     protected function commentParticipants(Ticket $ticket): Collection
     {
         $commentUserIds = $ticket->comments()
+            ->whereNotNull('user_id')->reorder()->distinct()
             ->pluck('user_id')
             ->filter()
             ->unique()
             ->values();
 
         return User::whereIn('id', $commentUserIds)->get();
+    }
+
+    protected function candidates(Ticket $ticket, bool $created = false, ?Collection $participants = null): Collection
+    {
+        return User::with(['roles', 'permissions', 'roles.permissions'])->where('is_active', true)
+            ->where(function ($query) use ($ticket, $created, $participants) {
+                $query->where('id', $ticket->user_id);
+                if ($ticket->assigned_to) {
+                    $query->orWhere('id', $ticket->assigned_to);
+                }
+                if ($participants !== null) {
+                    $query->orWhereIn('id', $participants->pluck('id'));
+                    return;
+                }
+                if ($created) {
+                    $query->orWhereHas('roles', function ($roles) { $roles->where('name', 'admin'); });
+                }
+                $query->orWhere(function ($head) use ($ticket) {
+                    $head->where('department_id', $ticket->department_id)
+                        ->whereHas('roles', function ($roles) { $roles->where('name', 'dept_head'); });
+                });
+                $query->orWhere(function ($head) use ($ticket) {
+                    $head->where('division_id', $ticket->division_id)
+                        ->whereHas('roles', function ($roles) { $roles->where('name', 'div_head'); });
+                });
+            })->get();
     }
 
     /*
@@ -188,7 +215,7 @@ class TicketNotificationService
     {
         $ticket->loadMissing(['user', 'assignee']);
 
-        $users = User::with('roles')->get();
+        $users = $this->candidates($ticket, true);
 
         $recipients = $users->filter(function ($user) use ($ticket) {
             return $this->shouldReceiveTicketCreated($user, $ticket);
@@ -213,7 +240,7 @@ class TicketNotificationService
     {
         $ticket->loadMissing(['user', 'assignee']);
 
-        $users = User::with('roles')->get();
+        $users = $this->candidates($ticket);
 
         $recipients = $users->filter(function ($user) use ($ticket) {
             return $this->shouldReceiveTicketAssigned($user, $ticket);
@@ -236,9 +263,11 @@ class TicketNotificationService
 
     public function notifyTicketStatusChanged(Ticket $ticket, ?User $actor = null): void
     {
-        $ticket->loadMissing(['user', 'assignee', 'status']);
+        $ticket->loadMissing(['user', 'assignee']);
+        // A status change can leave an already loaded relation pointing to the previous status.
+        $ticket->load('status');
 
-        $users = User::with('roles')->get();
+        $users = $this->candidates($ticket);
 
         $recipients = $users->filter(function ($user) use ($ticket) {
             return $this->shouldReceiveTicketStatusChanged($user, $ticket);
@@ -345,10 +374,11 @@ class TicketNotificationService
         $ticket->loadMissing(['user', 'assignee']);
 
         $participants = $this->commentParticipants($ticket);
-        $users = User::with('roles')->get();
+        $users = $this->candidates($ticket, false, $participants);
 
         $recipients = $users->filter(function ($user) use ($ticket, $participants) {
-            return $this->shouldReceiveTicketCommented($user, $ticket, $participants);
+            return $this->shouldReceiveTicketCommented($user, $ticket, $participants)
+                && Ticket::visibleTo($user)->whereKey($ticket->id)->exists();
         });
 
         $recipients = $this->excludeActor($recipients, $actor);

@@ -27,8 +27,8 @@ class CheckIfAdmin
      */
     private function checkIfUserIsAdmin($user)
     {
-        // return ($user->is_admin == 1);
-        return true;
+        // Employees also use this panel; active membership is required for every role.
+        return $user && $user->is_active;
     }
 
     /**
@@ -60,6 +60,9 @@ class CheckIfAdmin
         }
 
         if (! $this->checkIfUserIsAdmin(backpack_user())) {
+            backpack_auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
             return $this->respondToUnauthorizedRequest($request);
         }
 

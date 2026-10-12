@@ -34,6 +34,11 @@ class ArtaSurveyReportsController extends Controller
         ], $data));
     }
 
+    public function responses(Request $request)
+    {
+        return response()->json(\App\Services\SurveyResponseTable::data($request, true));
+    }
+
     public function downloadPdf(Request $request)
     {
         $request->validate([
@@ -44,7 +49,12 @@ class ArtaSurveyReportsController extends Controller
         $startDate = Carbon::parse($request->start_date)->startOfDay();
         $endDate = Carbon::parse($request->end_date)->endOfDay();
 
-        $data = $this->getReportData($startDate, $endDate);
+        $query = ArtaSurvey::whereBetween('created_at', [$startDate, $endDate]);
+        $limit = (int) config('reports.arta_pdf_max_rows', 2000);
+        if ((clone $query)->count() > $limit) {
+            return redirect()->back()->with('error', 'This report exceeds ' . $limit . ' responses. Select a narrower date range.');
+        }
+        $data = ['responses' => $query->latest()->orderByDesc('id')->get()];
 
         // Philippine Long / Legal Paper Size: 8.5 x 13 inches
         // Calculated in points (1 inch = 72 points) -> 8.5 * 72 = 612, 13 * 72 = 936
@@ -74,8 +84,7 @@ class ArtaSurveyReportsController extends Controller
             $query->whereBetween('created_at', [$startDate, $endDate]);
         }
 
-        // Calling ->get() automatically fetches ALL columns from your database (CC1-3, SQD0-8, age, sex, etc.)
-        $responses = $query->latest()->get();
+        $responses = $query->latest()->orderByDesc('id')->limit(10)->get();
 
         return [
             'responses' => $responses,

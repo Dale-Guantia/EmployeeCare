@@ -25,9 +25,9 @@ class IssueRequest extends FormRequest
     public function rules()
     {
         return [
-            'department_id' => 'required|exists:departments,id',
-            'division_id' => 'required|exists:divisions,id',
-            'priority_id' => 'required|exists:priorities,id',
+            'department_id' => 'required|integer|exists:departments,id',
+            'division_id' => ['required', 'integer', \Illuminate\Validation\Rule::exists('divisions', 'id')->where('department_id', is_scalar($this->input('department_id')) ? $this->input('department_id') : null)],
+            'priority_id' => 'required|integer|exists:priorities,id',
             'issue_description' => 'required|string|max:255',
             'icon' => 'nullable|string|max:255',
         ];

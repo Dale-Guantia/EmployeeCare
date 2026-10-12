@@ -24,7 +24,7 @@ class TicketAutoAssignmentService
         $ticket->syncOriginal();
 
         // 1. Base Query: Find all "hr_staff" within the specific Department
-        $query = User::role('hr_staff')->where('department_id', $ticket->department_id);
+        $query = User::role('hr_staff')->where('is_active', true)->where('department_id', $ticket->department_id);
 
         // Handle hierarchy: If the department has divisions, filter by the ticket's division
         if ($ticket->division_id) {
