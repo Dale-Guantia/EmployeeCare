@@ -21,10 +21,12 @@ return [
 
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3-flash-preview'),
     ],
 
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-haiku-5-5'),
     ],
 
     'openrouter' => [

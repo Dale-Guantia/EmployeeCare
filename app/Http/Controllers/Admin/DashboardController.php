@@ -41,6 +41,7 @@ class DashboardController extends Controller
         if (backpack_user()->hasRole('employee')) {
             return redirect()->route('submit-ticket.show');
         }
+        abort_unless(backpack_user()->can('ticket.view'), 403);
 
         [$period, $startDate, $endDate, $half, $year, $periodError] = ReportPeriodResolver::resolve($request);
 
@@ -59,12 +60,13 @@ class DashboardController extends Controller
 
     protected function getDashboardData($startDate = null, $endDate = null)
     {
-        $ticketsPerDivisionRaw = Division::leftJoin('tickets', function ($join) use ($startDate, $endDate) {
-            $join->on('tickets.division_id', '=', 'divisions.id');
-
-            if ($startDate && $endDate) {
-                $join->whereBetween('tickets.created_at', [$startDate, $endDate]);
-            }
+        $visibleTickets = Ticket::visibleTo(backpack_user());
+        $periodTickets = (clone $visibleTickets)->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('created_at', [$startDate, $endDate]);
+        });
+        $visibleIds = (clone $periodTickets)->select('tickets.id');
+        $ticketsPerDivisionRaw = Division::leftJoin('tickets', function ($join) use ($visibleIds) {
+            $join->on('tickets.division_id', '=', 'divisions.id')->whereIn('tickets.id', $visibleIds);
         })
             ->join('departments', 'divisions.department_id', '=', 'departments.id')
             ->where('divisions.division_name', '!=', 'Department Head')
@@ -84,20 +86,15 @@ class DashboardController extends Controller
             $divisionColors[] = self::COLOR_PALETTE[$shortName] ?? '#36A2EB';
         }
 
-        $statusData = Status::withCount(['tickets' => function ($query) use ($startDate, $endDate) {
-            if ($startDate && $endDate) {
-                $query->whereBetween('created_at', [$startDate, $endDate]);
-            }
+        $statusData = Status::withCount(['tickets' => function ($query) use ($visibleIds) {
+            $query->whereIn('tickets.id', $visibleIds);
         }])->get();
 
         $statusLabels = $statusData->pluck('status_name');
         $statusCounts = $statusData->pluck('tickets_count');
         $statusColors = $statusData->pluck('status_color');
 
-        $latestTickets = Ticket::visibleTo(backpack_user())->with(['user', 'issue', 'status', 'priority'])
-            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
-                $query->whereBetween('created_at', [$startDate, $endDate]);
-            })
+        $latestTickets = (clone $periodTickets)->with(['user', 'issue', 'status', 'priority'])
             ->latest()
             ->take(10)
             ->get();
@@ -112,13 +109,13 @@ class DashboardController extends Controller
         } else {
             // All-time: derive real bounds from the data so bucketing has an
             // actual range to work with, instead of an arbitrary epoch anchor.
-            $earliestCreatedAt = Ticket::min('created_at');
+            $earliestCreatedAt = (clone $visibleTickets)->min('created_at');
             $widgetStart = $earliestCreatedAt ? Carbon::parse($earliestCreatedAt)->startOfDay() : now()->startOfDay();
             $widgetEnd = now()->endOfDay();
         }
 
         $forceBucketUnit = (!$startDate && !$endDate) ? 'month' : null;
-        $widgets = \App\Services\TicketReportQueries::widgets(Ticket::whereBetween('created_at', [$widgetStart, $widgetEnd])
+        $widgets = \App\Services\TicketReportQueries::widgets((clone $visibleTickets)->whereBetween('created_at', [$widgetStart, $widgetEnd])
             ->select(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']), $widgetStart, $widgetEnd, $forceBucketUnit);
         $dashKpis = $widgets['kpis'];
         $dashVolumeTrend = $widgets['volume'];

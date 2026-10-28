@@ -32,6 +32,9 @@ class HrPolicyDocument extends Model
         'extracted_text',
         'ocr_used',
         'ocr_confidence',
+        'ingestion_version',
+        'ingestion_queued_at',
+        'ingestion_started_at',
     ];
 
     protected $casts = [

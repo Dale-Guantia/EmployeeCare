@@ -118,13 +118,15 @@ class OcrService
                     'text'        => $ocrResults[$pageNum]['text'],
                     'ocr'         => true,
                     'confidence'  => $conf,
+                    'ocr_failed'  => trim($ocrResults[$pageNum]['text']) === '' || $conf === null,
                 ];
             } else {
                 $pages[] = [
                     'page_number' => $pageNum,
                     'text'        => $text,
-                    'ocr'         => false,
+                    'ocr'         => in_array($pageNum, $pagesNeedingOcr, true),
                     'confidence'  => null,
+                    'ocr_failed'  => in_array($pageNum, $pagesNeedingOcr, true),
                 ];
             }
         }
@@ -197,16 +199,17 @@ class OcrService
 
         try {
             $prefix = $tempDir . '/probe';
-            $this->runCommand([
+            $converted = $this->runCommand([
                 $this->pdftoppmPath, '-r', (string) $this->dpi, '-gray',
                 $this->normalizePath($pdfPath), $this->normalizePath($prefix),
             ]);
+            if ($converted === null) { throw new \RuntimeException('PDF conversion did not finish successfully. No partial policy will be activated.'); }
 
             $images = $this->sortedPageImages($tempDir);
 
             if (empty($images)) {
                 Log::error('[OcrService] Could not rasterize document to discover page count: ' . $pdfPath);
-                return [1 => ''];
+                throw new \RuntimeException('PDF conversion produced no readable pages. Check the PDF and OCR tools.');
             }
 
             $pages = [];
@@ -255,7 +258,7 @@ class OcrService
     {
         $prefix = $tempDir . '/page';
 
-        $this->runCommand([
+        $converted = $this->runCommand([
             $this->pdftoppmPath,
             '-r', (string) $this->dpi,
             '-f', (string) $pageNum,
@@ -264,13 +267,12 @@ class OcrService
             $this->normalizePath($pdfPath),
             $this->normalizePath($prefix),
         ]);
+        if ($converted === null) { return null; }
 
         // pdftoppm names output using the real page number, e.g. page-7.pgm
-        $candidates = glob($this->normalizePath($tempDir) . '/*-' . $pageNum . '.pgm')
-            ?: glob($this->normalizePath($tempDir) . '/*-' . $pageNum . '.ppm')
-            ?: [];
-
-        return $candidates[0] ?? null;
+        // Poppler zero-pads page numbers in longer PDFs (page-01.pgm).
+        $images = $this->sortedPageImages($tempDir);
+        return $images[$pageNum] ?? null;
     }
 
     /**
@@ -287,57 +289,63 @@ class OcrService
         $running = []; // page_number => Process
         $results = [];
 
-        while (!empty($pending) || !empty($running)) {
-            while (count($running) < $this->maxConcurrency && !empty($pending)) {
-                $pageNum   = array_key_first($pending);
-                $imagePath = $pending[$pageNum];
-                unset($pending[$pageNum]);
+        try {
+            while (!empty($pending) || !empty($running)) {
+                while (count($running) < $this->maxConcurrency && !empty($pending)) {
+                    $pageNum   = array_key_first($pending);
+                    $imagePath = $pending[$pageNum];
+                    unset($pending[$pageNum]);
 
-                $process = new Process([
-                    $this->tesseractPath,
-                    $imagePath,
-                    'stdout',
-                    '--oem', (string) $this->oem,
-                    '--psm', (string) $this->psm,
-                    '-l', $this->languages,
-                    'tsv',
-                ]);
-                $process->setTimeout($this->pageTimeout);
+                    $process = new Process([
+                        $this->tesseractPath,
+                        $imagePath,
+                        'stdout',
+                        '--oem', (string) $this->oem,
+                        '--psm', (string) $this->psm,
+                        '-l', $this->languages,
+                        'tsv',
+                    ]);
+                    $process->setTimeout($this->pageTimeout);
 
-                try {
-                    $process->start();
-                    $running[$pageNum] = $process;
-                } catch (\Throwable $e) {
-                    Log::error("[OcrService] Failed to start tesseract for page {$pageNum}: " . $e->getMessage());
-                    $results[$pageNum] = ['text' => '', 'confidence' => null];
+                    try {
+                        $process->start();
+                        $running[$pageNum] = $process;
+                    } catch (\Throwable $e) {
+                        Log::error("[OcrService] Failed to start tesseract for page {$pageNum}: " . $e->getMessage());
+                        $results[$pageNum] = ['text' => '', 'confidence' => null];
+                    }
                 }
-            }
 
-            usleep(50000);
+                usleep(50000);
 
-            foreach ($running as $pageNum => $process) {
-                try {
-                    if ($process->isRunning()) {
+                foreach ($running as $pageNum => $process) {
+                    try {
+                        // isRunning() alone does not enforce Symfony Process timeouts.
+                        $process->checkTimeout();
+                        if ($process->isRunning()) {
+                            continue;
+                        }
+                    } catch (ProcessTimedOutException $e) {
+                        Log::warning("[OcrService] tesseract timed out on page {$pageNum} after {$this->pageTimeout}s");
+                        unset($running[$pageNum]);
+                        $results[$pageNum] = ['text' => '', 'confidence' => null];
                         continue;
                     }
-                } catch (ProcessTimedOutException $e) {
-                    Log::warning("[OcrService] tesseract timed out on page {$pageNum} after {$this->pageTimeout}s");
+
                     unset($running[$pageNum]);
-                    $results[$pageNum] = ['text' => '', 'confidence' => null];
-                    continue;
-                }
 
-                unset($running[$pageNum]);
-
-                if ($process->isSuccessful()) {
-                    $results[$pageNum] = $this->parseTsv($process->getOutput());
-                } else {
-                    Log::warning("[OcrService] tesseract failed on page {$pageNum}", [
-                        'error' => trim($process->getErrorOutput()),
-                    ]);
-                    $results[$pageNum] = ['text' => '', 'confidence' => null];
+                    if ($process->isSuccessful()) {
+                        $results[$pageNum] = $this->parseTsv($process->getOutput());
+                    } else {
+                        Log::warning("[OcrService] tesseract failed on page {$pageNum}", [
+                            'error' => trim($process->getErrorOutput()),
+                        ]);
+                        $results[$pageNum] = ['text' => '', 'confidence' => null];
+                    }
                 }
             }
+        } finally {
+            foreach ($running as $process) { $process->stop(0); }
         }
 
         ksort($results);
@@ -444,6 +452,7 @@ class OcrService
                     'command' => $process->getCommandLine(),
                     'output'  => $output,
                 ]);
+                return null;
             }
 
             return $output;

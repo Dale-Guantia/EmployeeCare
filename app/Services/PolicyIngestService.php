@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Validation\ValidationException;
+use App\Jobs\IngestPolicyDocumentJob;
+use App\Exceptions\PolicyIngestionDispatchException;
+use App\Exceptions\PolicyIngestionSetupException;
 
 class PolicyIngestService
 {
@@ -26,26 +31,46 @@ class PolicyIngestService
      */
     public function store(UploadedFile $file, array $data): HrPolicyDocument
     {
-        set_time_limit(0);
-
+        $this->assertUploadReady();
         $path     = $file->storeAs('policies', Str::uuid() . '.pdf');
         if (!$path) {
             throw new \RuntimeException('Could not store the policy PDF.');
         }
         $fullPath = Storage::path($path);
 
-        return HrPolicyDocument::create([
-            'title'          => $data['title'],
-            'filename'       => $file->getClientOriginalName(),
-            'file_path'      => $path,
-            'file_hash'      => hash_file('sha256', $fullPath),
-            'category'       => $data['category'],
-            'effective_date' => $data['effective_date'] ?? null,
-            'is_active'      => true,
-            'status'         => 'pending',
-            'chunk_count'    => 0,
-            'ocr_used'       => false,
-        ]);
+        try {
+            return HrPolicyDocument::create([
+                'title'          => $data['title'],
+                'filename'       => $file->getClientOriginalName(),
+                'file_path'      => $path,
+                'file_hash'      => hash_file('sha256', $fullPath),
+                'category'       => $data['category'],
+                'effective_date' => $data['effective_date'] ?? null,
+                'is_active'      => true,
+                'status'         => 'pending',
+                'chunk_count'    => 0,
+                'ocr_used'       => false,
+                'ingestion_version' => (string) Str::uuid(),
+            ]);
+        } catch (\Throwable $e) {
+            // Reuse reference-aware compensation; retain the file if commit state is uncertain.
+            $this->deleteStoredFile($path);
+            throw $e;
+        }
+    }
+
+    public function assertUploadReady(): void
+    {
+        try {
+            $schema = (new HrPolicyDocument)->getConnection()->getSchemaBuilder();
+            $ready = $schema->hasColumns('hr_policy_documents', ['ingestion_version', 'ingestion_queued_at', 'ingestion_started_at'])
+                && $schema->hasColumns('policy_jobs', ['id', 'queue', 'payload', 'attempts', 'reserved_at', 'available_at', 'created_at']);
+        } catch (\Throwable $e) {
+            throw new PolicyIngestionSetupException('Policy upload is temporarily unavailable because the database could not be checked. Please retry or contact your administrator.');
+        }
+        if (!$ready) {
+            throw new PolicyIngestionSetupException('Policy upload is unavailable until an administrator applies the policy ingestion queue migration (2026_10_14_110000_add_policy_ingestion_queue). No policy was saved.');
+        }
     }
 
     /**
@@ -57,11 +82,19 @@ class PolicyIngestService
      *   by the admin "re-run ingestion" action so it actually re-attempts
      *   OCR instead of silently reusing a previous bad/cached result.
      */
-    public function ingest(HrPolicyDocument $document, bool $forceReExtract = false): void
+    public function ingest(HrPolicyDocument $document, bool $forceReExtract = false, ?string $version = null): void
     {
-        set_time_limit(0);
-
-        $document->update(['status' => 'processing']);
+        set_time_limit(IngestPolicyDocumentJob::TIMEOUT);
+        $claim = HrPolicyDocument::whereKey($document->id);
+        if ($version !== null) {
+            $claim->where('ingestion_version', $version)->where('status', 'pending');
+        } else {
+            // CLI callers share the same claim; a second ingestion cannot overlap a worker.
+            $version = $document->ingestion_version ?: (string) Str::uuid();
+            $claim->where('ingestion_version', $document->ingestion_version)->where('status', '!=', 'processing');
+        }
+        if (!$claim->update(['status' => 'processing', 'ingestion_version' => $version, 'ingestion_started_at' => now()])) { return; }
+        $document->refresh();
 
         try {
             $fullPath = Storage::path($document->file_path);
@@ -107,9 +140,13 @@ class PolicyIngestService
             // scored. A pure text-layer document has no OCR confidence and
             // always proceeds straight to 'active'.
             $minConfidence = (float) config('ocr.min_confidence', 60);
-            $needsReview   = $usedOcr && $confidence !== null && $confidence < $minConfidence;
+            $incompleteOcr = collect($pages)->contains(function ($page) { return !empty($page['ocr_failed']); });
+            $needsReview   = $usedOcr && ($incompleteOcr || $confidence === null || $confidence < $minConfidence);
 
-            DB::transaction(function () use ($document, $chunks, $needsReview, $minConfidence, $usedOcr, $confidence, $pages) {
+            $committed = DB::transaction(function () use ($document, $version, $chunks, $needsReview, $incompleteOcr, $minConfidence, $usedOcr, $confidence, $pages) {
+                $current = HrPolicyDocument::whereKey($document->id)->lockForUpdate()->first();
+                if (!$current || strtolower((string) $current->ingestion_version) !== strtolower($version) || $current->status !== 'processing') { return false; }
+                $document->setRawAttributes($current->getAttributes(), true);
                 $document->chunks()->delete();
                 foreach ($chunks as $index => $chunk) {
                     HrPolicyChunk::create([
@@ -122,14 +159,14 @@ class PolicyIngestService
                     ]);
                 }
                 $document->update([
-                    'status'         => $needsReview ? 'needs_review' : 'active',
+                    'status'         => $needsReview ? 'needs_review' : ($current->is_active ? 'active' : 'inactive'),
                     'chunk_count'    => count($chunks),
                     'ingest_error'   => $needsReview
-                        ? sprintf(
+                        ? ($incompleteOcr || $confidence === null ? 'OCR extraction is incomplete or confidence is unavailable. Review every page before using this policy.' : sprintf(
                             'OCR confidence %d%% is below the %d%% quality threshold. Review the extracted text below, or re-upload a clearer scan.',
                             round($confidence),
                             $minConfidence
-                        )
+                        ))
                         : null,
                     'ocr_used'       => $usedOcr,
                     'ocr_confidence' => $confidence !== null ? (int) round($confidence) : null,
@@ -137,7 +174,9 @@ class PolicyIngestService
                     // document uploading the same file) doesn't require re-OCRing.
                     'extracted_text' => json_encode($pages),
                 ]);
+                return true;
             });
+            if (!$committed) { return; }
 
             Log::info("[PolicyIngest] Ingested '{$document->title}': " . count($chunks) . ' chunks'
                 . ($usedOcr ? ' (via OCR, confidence ' . round($confidence ?? 0) . '%)' : ' (via pdfparser)')
@@ -145,7 +184,7 @@ class PolicyIngestService
             );
 
         } catch (\Throwable $e) {
-            $document->update([
+            HrPolicyDocument::whereKey($document->id)->where('ingestion_version', $version)->where('status', 'processing')->update([
                 'status'       => 'failed',
                 'ingest_error' => $e->getMessage(),
             ]);
@@ -160,8 +199,7 @@ class PolicyIngestService
      */
     public function replace(HrPolicyDocument $document, UploadedFile $newFile, array $data): void
     {
-        set_time_limit(0);
-
+        $this->assertUploadReady();
         $oldPath  = $document->file_path;
         $path     = $newFile->storeAs('policies', Str::uuid() . '.pdf');
         if (!$path) {
@@ -171,6 +209,9 @@ class PolicyIngestService
 
         try {
             DB::transaction(function () use ($document, $newFile, $data, $path, $fullPath, $oldPath) {
+                $current = $this->editableDocument($document);
+                $oldPath = $current->file_path;
+                $document->setRawAttributes($current->getAttributes(), true);
                 $document->update([
                     'title'          => $data['title'],
                     'filename'       => $newFile->getClientOriginalName(),
@@ -184,6 +225,9 @@ class PolicyIngestService
                     'ocr_used'       => false,
                     'ocr_confidence' => null,
                     'chunk_count'    => 0,
+                    'ingestion_version' => (string) Str::uuid(),
+                    'ingestion_queued_at' => null,
+                    'ingestion_started_at' => null,
                 ]);
                 DB::afterCommit(function () use ($oldPath) {
                     $this->deleteStoredFile($oldPath);
@@ -209,7 +253,62 @@ class PolicyIngestService
      */
     public function markPendingForReingest(HrPolicyDocument $document): void
     {
-        $document->update(['status' => 'pending', 'ingest_error' => null]);
+        $this->assertUploadReady();
+        DB::transaction(function () use ($document) {
+            $current = $this->editableDocument($document);
+            // A repeated request for an already queued generation is idempotent.
+            if ($current->status === 'pending' && $current->ingestion_queued_at) {
+                $document->setRawAttributes($current->getAttributes(), true);
+                return;
+            }
+            $document->setRawAttributes($current->getAttributes(), true);
+            $document->update(['status' => 'pending', 'ingest_error' => null,
+                'ingestion_version' => (string) Str::uuid(), 'ingestion_queued_at' => null, 'ingestion_started_at' => null]);
+        });
+    }
+
+    public function queue(HrPolicyDocument $document, bool $forceReExtract = false): void
+    {
+        $version = $document->ingestion_version;
+        try {
+            DB::transaction(function () use ($document, $version, $forceReExtract) {
+                $current = HrPolicyDocument::whereKey($document->id)->lockForUpdate()->firstOrFail();
+                if (!$version || strtolower((string) $current->ingestion_version) !== strtolower($version)) {
+                    throw new \RuntimeException('The document generation changed before dispatch.');
+                }
+                if ($current->ingestion_queued_at) { return; }
+                $connection = config('queue.connections.policy_ingestion');
+                if ($current->status !== 'pending' || ($connection['driver'] ?? null) !== 'database'
+                    || !empty($connection['after_commit'])
+                    || (!empty($connection['connection']) && $connection['connection'] !== $current->getConnection()->getName())) {
+                    throw new \RuntimeException('Policy ingestion requires the dedicated transactional database queue.');
+                }
+                $job = new IngestPolicyDocumentJob($document->id, $forceReExtract, $version);
+                if (!Queue::connection('policy_ingestion')->push($job, '', 'policy-ingestion')) {
+                    throw new \RuntimeException('Policy job was not queued.');
+                }
+                $current->update(['ingestion_queued_at' => now(), 'ingest_error' => null]);
+            });
+        } catch (\Throwable $e) {
+            $message = 'Policy saved, but background ingestion could not be queued. Re-run ingestion after the queue is restored.';
+            try {
+                HrPolicyDocument::whereKey($document->id)->where('ingestion_version', $version)->where('status', 'pending')
+                    ->whereNull('ingestion_queued_at')->update(['ingest_error' => $message]);
+            } catch (\Throwable $stateError) {
+                Log::error('[Policy dispatch] Could not record dispatch failure.', ['document_id' => $document->id]);
+            }
+            Log::error('[Policy dispatch] Queue dispatch failed.', ['document_id' => $document->id, 'exception' => $e]);
+            throw new PolicyIngestionDispatchException($message);
+        }
+    }
+
+    private function editableDocument(HrPolicyDocument $document): HrPolicyDocument
+    {
+        $current = HrPolicyDocument::whereKey($document->id)->lockForUpdate()->firstOrFail();
+        if ($current->status === 'processing') {
+            throw ValidationException::withMessages(['pdf_file' => 'This policy is processing. Wait for ingestion to finish before replacing or re-running it.']);
+        }
+        return $current;
     }
 
     /**

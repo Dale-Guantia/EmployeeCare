@@ -149,7 +149,7 @@
             <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
                 <span><i class="la la-robot"></i> <strong>HRDO Policy Assistant</strong>
                     <span class="badge badge-light ml-2">AI-Powered</span></span>
-                <button class="btn btn-sm btn-outline-light" onclick="hrChat.clearView()"
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="hrChat.clearView()"
                     aria-label="Clear the visible chat"
                     title="Clears the chat view only — your question history is still saved">
                     <i class="la la-eraser"></i> Clear view
@@ -172,11 +172,11 @@
             {{-- Input --}}
             <div class="card-footer bg-white">
                 <div class="input-group">
-                    <input type="text" id="hrc-input" class="form-control"
+                    <input type="text" id="hrc-input" class="form-control" aria-label="Your question"
                         placeholder="Ask about HR policies… (Enter to send)"
-                        onkeydown="if(event.key==='Enter') hrChat.send()">
+                        onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing) { event.preventDefault(); hrChat.send(); }">
                     <div class="input-group-append">
-                        <button class="btn btn-primary" id="hrc-send" onclick="hrChat.send()">
+                        <button type="button" class="btn btn-primary" id="hrc-send" aria-label="Send question" onclick="hrChat.send()">
                             <i class="la la-paper-plane"></i>
                         </button>
                     </div>
@@ -297,7 +297,6 @@
             notGrounded: 'Not from an official policy document — verify with HRDO.',
             connectionError: 'Connection error. Please try again or contact HRDO directly.',
         },
-        onAfterAnswer: function () { refreshConversationList(); },
         onConversationChanged: function () { refreshConversationList(); },
         onClearView: function () {
             var thread = document.getElementById('hrc-thread');
@@ -354,11 +353,13 @@
         dropdownWrap.querySelector('.hrc-conv-star').onclick = function (e) {
             e.preventDefault();
             e.stopPropagation();
-            fetch(hrChat._urlFor(hrChat.cfg.endpoints.updateConversation, conv.id), {
+            HrChatCore.request(hrChat._urlFor(hrChat.cfg.endpoints.updateConversation, conv.id), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': hrChat.cfg.csrf },
                 body: JSON.stringify({ is_starred: !conv.is_starred }),
-            }).then(function () { refreshConversationList(); });
+            }).then(function () { refreshConversationList(); })['catch'](function () {
+                window.alert('Could not update the conversation. Please try again.');
+            });
         };
 
         dropdownWrap.querySelector('.hrc-conv-rename').onclick = function (e) {
@@ -372,7 +373,7 @@
             e.stopPropagation();
             confirmAction('Delete this conversation? This cannot be undone.').then(function (confirmed) {
                 if (!confirmed) return;
-                fetch(hrChat._urlFor(hrChat.cfg.endpoints.deleteConversation, conv.id), {
+                HrChatCore.request(hrChat._urlFor(hrChat.cfg.endpoints.deleteConversation, conv.id), {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': hrChat.cfg.csrf },
                 }).then(function () {
@@ -380,7 +381,7 @@
                         hrChat.startNewConversation();
                     }
                     refreshConversationList();
-                });
+                })['catch'](function () { window.alert('Could not delete the conversation. Please try again.'); });
             });
         };
 
@@ -406,7 +407,7 @@
         // highlight check (conv.id === hrChat.getConversation()) is a
         // strict comparison, so this must be numeric or it never matches.
         var id = parseInt(row.getAttribute('data-id'), 10);
-        hrChat.loadConversation(id).then(function () { renderSidebar(); });
+        hrChat.loadConversation(id);
     }
 
     ['hrc-recent-list', 'hrc-starred-list'].forEach(function (listId) {
@@ -453,15 +454,11 @@
         var saveBtn = document.getElementById('hrc-rename-save');
         saveBtn.disabled = true;
 
-        fetch(hrChat._urlFor(hrChat.cfg.endpoints.updateConversation, hrcRenameId), {
+        HrChatCore.request(hrChat._urlFor(hrChat.cfg.endpoints.updateConversation, hrcRenameId), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': hrChat.cfg.csrf },
             body: JSON.stringify({ title: title }),
         })
-            .then(function (res) {
-                if (!res.ok) throw new Error('Rename failed');
-                return res.json();
-            })
             .then(function () {
                 saveBtn.disabled = false;
                 $('#hrc-rename-modal').modal('hide');
@@ -515,14 +512,15 @@
     }
 
     function refreshConversationList() {
-        return fetch(hrChat.cfg.endpoints.conversations)
-            .then(function (res) { return res.json(); })
-            .then(function (conversations) { renderSidebar(conversations); });
+        return HrChatCore.request(hrChat.cfg.endpoints.conversations)
+            .then(function (conversations) { renderSidebar(conversations); })['catch'](function () {
+                var list = document.getElementById('hrc-recent-list');
+                list.textContent = 'Could not load conversations. Refresh to try again.';
+            });
     }
 
     document.getElementById('hrc-new-chat').addEventListener('click', function () {
         hrChat.startNewConversation();
-        renderSidebar();
     });
 
     document.addEventListener('DOMContentLoaded', function () {

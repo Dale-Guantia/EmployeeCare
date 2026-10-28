@@ -9,18 +9,11 @@ use App\Services\AnthropicService;
 use App\Services\PolicyRetriever;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 class HrChatRateLimitTest extends TestCase
 {
     use DatabaseTransactions;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        RateLimiter::clear('hr-chat');
-    }
 
     private function fakeRetriever(): void
     {
@@ -65,11 +58,64 @@ class HrChatRateLimitTest extends TestCase
         $this->assertNotNull($admin);
         $this->actingAs($admin, 'web');
 
-        $lastResponse = null;
-        for ($i = 0; $i < 21; $i++) {
-            $lastResponse = $this->postJson(route('hr.chat.ask'), ['question' => 'hi']);
+        for ($i = 0; $i < 20; $i++) {
+            $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertOk();
         }
 
-        $lastResponse->assertStatus(429);
+        $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])
+            ->assertStatus(429)->assertHeader('Retry-After');
+
+        // Hitting the question limit must not replace the page with a 429.
+        $this->get(route('hr.chat.index'))->assertOk();
+        $this->getJson(route('hr.chat.conversations'))->assertOk();
+        $this->getJson(route('hr.chat.history'))->assertOk();
+
+        $this->travel(61)->seconds();
+        $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertOk();
+    }
+
+    public function test_normal_conversation_activity_does_not_consume_question_allowance()
+    {
+        $this->actingAs(User::role('admin')->first(), 'web');
+
+        // Each turn refreshes the sidebar; switching chats also loads a transcript.
+        $conversation = \App\Models\HrConversation::create([
+            'user_id' => auth()->id(), 'title' => 'Rate limit regression',
+        ]);
+        for ($i = 0; $i < 21; $i++) {
+            $this->getJson(route('hr.chat.conversations'))->assertOk();
+            $this->getJson(route('hr.chat.conversation.messages', $conversation->id))->assertOk();
+            $this->getJson(route('hr.chat.history'))->assertOk();
+        }
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertOk();
+        }
+        $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertStatus(429);
+    }
+
+    public function test_conversation_requests_remain_limited_without_blocking_page_or_questions()
+    {
+        $this->actingAs(User::role('admin')->first(), 'web');
+
+        for ($i = 0; $i < 120; $i++) {
+            $this->getJson(route('hr.chat.conversations'))->assertOk();
+        }
+        $this->getJson(route('hr.chat.history'))->assertStatus(429)->assertHeader('Retry-After');
+        $this->get(route('hr.chat.index'))->assertOk();
+        $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertOk();
+    }
+
+    public function test_users_on_the_same_ip_have_separate_question_limits()
+    {
+        $this->actingAs(User::role('admin')->first(), 'web');
+        for ($i = 0; $i < 20; $i++) {
+            $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertOk();
+        }
+        $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertStatus(429);
+
+        $this->flushSession();
+        $this->actingAs(User::role('employee')->first(), 'web');
+        $this->postJson(route('hr.chat.ask'), ['question' => 'hi'])->assertOk();
     }
 }

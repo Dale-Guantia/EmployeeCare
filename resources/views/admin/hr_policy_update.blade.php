@@ -139,7 +139,7 @@ document.querySelector('form').addEventListener('submit', function() {
     // Add a tiny delay so the browser has time to trigger the actual POST request
     setTimeout(function() {
         btn.disabled = true;
-        btn.innerHTML = '<i class="la la-spinner la-spin"></i> Processing…';
+        btn.innerHTML = '<i class="la la-spinner la-spin"></i> Saving…';
     }, 10);
 });
 </script>

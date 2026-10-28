@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Jobs\IngestPolicyDocumentJob;
+use App\Exceptions\PolicyIngestionDispatchException;
+use App\Exceptions\PolicyIngestionSetupException;
+use Illuminate\Validation\ValidationException;
 use App\Models\HrPolicyDocument;
 use App\Services\PolicyIngestService;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
@@ -60,7 +62,7 @@ class HrPolicyDocumentCrudController extends CrudController
             ->label('Notes')
             ->type('custom_html')
             ->value(function ($entry) {
-                if (!in_array($entry->status, ['needs_review', 'failed'], true) || empty($entry->ingest_error)) {
+                if (!in_array($entry->status, ['pending', 'needs_review', 'failed'], true) || empty($entry->ingest_error)) {
                     return '';
                 }
                 $icon  = $entry->status === 'failed' ? 'la-times-circle text-danger' : 'la-exclamation-triangle text-warning';
@@ -88,7 +90,6 @@ class HrPolicyDocumentCrudController extends CrudController
 
     public function uploadStore(Request $request, PolicyIngestService $ingest)
     {
-        set_time_limit(0);
         $this->crud->hasAccessOrFail('list');
 
         $request->validate([
@@ -104,10 +105,16 @@ class HrPolicyDocumentCrudController extends CrudController
                 $request->only('title', 'category', 'effective_date')
             );
 
-            IngestPolicyDocumentJob::dispatch($document->id);
+            $ingest->queue($document);
 
-            Alert::success("Policy \"{$document->title}\" uploaded. Processing in the background — refresh this list in a moment to see its status.")->flash();
+            Alert::success("Policy \"{$document->title}\" uploaded and queued for background ingestion. Refresh this list to check its status.")->flash();
 
+        } catch (PolicyIngestionSetupException $e) {
+            return redirect()->route('hr.policy.upload.form')
+                ->withInput($request->only('title', 'category', 'effective_date'))
+                ->withErrors(['pdf_file' => $e->getMessage()]);
+        } catch (PolicyIngestionDispatchException $e) {
+            Alert::warning($e->getMessage())->flash();
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('[Policy upload] ' . $e->getMessage());
             Alert::error('Upload failed. Please try again or contact support.')->flash();
@@ -127,7 +134,6 @@ class HrPolicyDocumentCrudController extends CrudController
 
     public function updateStore(Request $request, HrPolicyDocument $document, PolicyIngestService $ingest)
     {
-        set_time_limit(0);
         $this->crud->hasAccessOrFail('list');
 
         $rules = [
@@ -147,8 +153,8 @@ class HrPolicyDocumentCrudController extends CrudController
                     $request->file('pdf_file'),
                     $request->only('title', 'category', 'effective_date')
                 );
-                IngestPolicyDocumentJob::dispatch($document->id, true);
-                $msg = 'Policy file replaced. Processing in the background — refresh this list in a moment to see its status.';
+                $ingest->queue($document, true);
+                $msg = 'Policy file replaced and queued for background ingestion. Refresh this list to check its status.';
             } else {
                 // Metadata-only update — no re-ingest needed
                 $document->update($request->only('title', 'category', 'effective_date'));
@@ -157,6 +163,14 @@ class HrPolicyDocumentCrudController extends CrudController
 
             Alert::success($msg)->flash();
 
+        } catch (PolicyIngestionSetupException $e) {
+            return redirect()->route('hr.policy.update.form', $document->id)
+                ->withInput($request->only('title', 'category', 'effective_date'))
+                ->withErrors(['pdf_file' => $e->getMessage()]);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (PolicyIngestionDispatchException $e) {
+            Alert::warning($e->getMessage())->flash();
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('[Policy update] ' . $e->getMessage());
             Alert::error('Update failed. Please try again or contact support.')->flash();
@@ -171,25 +185,30 @@ class HrPolicyDocumentCrudController extends CrudController
     {
         $this->crud->hasAccessOrFail('list');
 
-        // Only meaningful for a document that has actually finished ingesting
-        // one way or another — flipping a pending/processing doc to 'active'
-        // here would bypass the quality gate that needs_review exists for.
-        if (!in_array($document->status, ['active', 'inactive'], true)) {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($document) {
+            // Re-read under the same lock used by re-ingestion and replacement.
+            $document = HrPolicyDocument::whereKey($document->id)->lockForUpdate()->firstOrFail();
+
+            // Only meaningful for a document that has actually finished ingesting
+            // one way or another — flipping a pending/processing doc to 'active'
+            // here would bypass the quality gate that needs_review exists for.
+            if (!in_array($document->status, ['active', 'inactive'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This document is ' . $document->status . ' — it can only be toggled active/inactive once ingestion has finished.',
+                ], 422);
+            }
+
+            $document->update([
+                'is_active' => !$document->is_active,
+                'status'    => $document->is_active ? 'inactive' : 'active',
+            ]);
+
             return response()->json([
-                'success' => false,
-                'message' => 'This document is ' . $document->status . ' — it can only be toggled active/inactive once ingestion has finished.',
-            ], 422);
-        }
-
-        $document->update([
-            'is_active' => !$document->is_active,
-            'status'    => $document->is_active ? 'inactive' : 'active',
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => "Document marked as " . ($document->fresh()->is_active ? 'active' : 'inactive'),
-        ]);
+                'success' => true,
+                'message' => "Document marked as " . ($document->fresh()->is_active ? 'active' : 'inactive'),
+            ]);
+        });
     }
 
     // ── Re-run ingestion in place (no delete/recreate) ─────────
@@ -198,12 +217,24 @@ class HrPolicyDocumentCrudController extends CrudController
     {
         $this->crud->hasAccessOrFail('list');
 
-        app(PolicyIngestService::class)->markPendingForReingest($document);
-        IngestPolicyDocumentJob::dispatch($document->id, true);
+        try {
+            $ingest = app(PolicyIngestService::class);
+            $ingest->markPendingForReingest($document);
+            $ingest->queue($document, true);
+        } catch (PolicyIngestionSetupException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
+        } catch (ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'This policy is processing. Wait before re-running ingestion.'], 409);
+        } catch (PolicyIngestionDispatchException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[Policy re-ingestion] Request failed.', ['document_id' => $document->id, 'exception' => $e]);
+            return response()->json(['success' => false, 'message' => 'Could not queue re-ingestion. Refresh the policy status and try again.'], 500);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Re-ingestion started — refresh in a moment to see its status.',
+            'message' => 'Re-ingestion queued. Refresh this list to check its status.',
         ]);
     }
 

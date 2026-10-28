@@ -7,6 +7,27 @@ use Illuminate\Support\Facades\Log;
 
 class PolicyRetriever
 {
+    public function retrieveForConversation(string $question, array $recentQuestions): Collection
+    {
+        // Only expand subject-free follow-ups. Explicit new subjects must stand alone.
+        if (!preg_match('/[\p{L}\p{N}]/u', $question)) { return collect(); }
+        $procedural = ['apply', 'magapply', 'application', 'applications', 'requirements', 'required', 'eligible', 'eligibility', 'avail', 'availing', 'qualify', 'qualified', 'days', 'araw', 'ilang', 'sino', 'sinu', 'process', 'procedure', 'long', 'last'];
+        $subjects = array_diff($this->extractKeywords($question), $procedural);
+        $query = $subjects ? $question : implode(' ', array_reverse($recentQuestions)) . ' ' . $question;
+        return $this->retrieve(trim($query));
+    }
+
+    public function promptChunks(Collection $chunks): Collection
+    {
+        $selected = collect();
+        foreach ($chunks as $chunk) {
+            $candidate = $selected->concat([$chunk]);
+            if (mb_strlen($this->formatForPrompt($candidate), 'UTF-8') > PolicyChatPrompt::CONTEXT_LIMIT) { break; }
+            $selected->push($chunk);
+        }
+        return $selected;
+    }
+
     // FIX: Increased default limit from 3 to 5.
     // 3 chunks of 300 words = ~900 words of context. Often not enough for complex
     // policy questions. 5 chunks gives Claude richer context without token issues.
@@ -42,7 +63,8 @@ class PolicyRetriever
                     }
                 })
                 ->orderByRaw('(' . $scoreExpr . ') DESC', $bindings)
-                ->limit($limit)
+                ->orderBy('id')
+                ->limit(max(1, min(5, $limit)))
                 ->get();
 
             // FIX: Eager load the document relationship to avoid N+1 queries.
@@ -53,10 +75,8 @@ class PolicyRetriever
             return $results;
 
         } catch (\Throwable $e) {
-            Log::error('[PolicyRetriever] Query failed: ' . $e->getMessage(), [
-                'keywords' => $keywords,
-            ]);
-            return collect();
+            Log::error('[PolicyRetriever] Query unavailable.', ['error_type' => get_class($e)]);
+            throw new \RuntimeException('Policy retrieval is temporarily unavailable.');
         }
     }
 
@@ -85,15 +105,16 @@ class PolicyRetriever
             // Common Taglish stop words in HR questions
             'yung', 'nung', 'para', 'lang', 'nang', 'kong', 'pero',
             'kasi', 'sana', 'talaga', 'pwede', 'hindi', 'naman',
+            'ang', 'ano', 'mga', 'mag', 'may', 'ng', 'sa', 'ako', 'ito', 'ba', 'get', 'who', 'why', 'let',
+            'paano', 'kailan', 'saan', 'kanino',
         ];
 
-        $clean = strtolower(preg_replace('/[^a-zA-Z\s]/', '', $text));
-        $words = array_filter(explode(' ', $clean), function ($w) use ($stopWords) {
-            return strlen($w) > 3 && !in_array($w, $stopWords);
+        $words = array_filter(preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($text, 'UTF-8')), function ($w) use ($stopWords) {
+            return mb_strlen($w, 'UTF-8') >= 3 && !in_array($w, $stopWords, true);
         });
 
         // FIX: Deduplicate keywords to prevent the same word appearing multiple
         // times in the score expression and skewing rankings.
-        return array_values(array_unique($words));
+        return array_slice(array_values(array_unique($words)), 0, 12);
     }
 }

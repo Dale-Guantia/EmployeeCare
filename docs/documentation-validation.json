@@ -1,0 +1,48 @@
+{
+  "files_checked": 22,
+  "local_links_checked": 885,
+  "missing_links": [],
+  "bad_anchors": [],
+  "unbalanced_fences": [],
+  "reflection": {
+    "checked": 146,
+    "errors": []
+  },
+  "numbered_guides": 14,
+  "inventory_counts": {
+    "application_php": 97,
+    "controllers": 24,
+    "models": 16,
+    "services": 20,
+    "requests": 6,
+    "migrations": 33,
+    "seeders": 9,
+    "middleware": 9,
+    "providers": 5,
+    "commands": 5
+  },
+  "analysis_snapshot_date": "2026-10-27",
+  "completion_review_date": "2026-10-28",
+  "timezone": "Asia/Manila",
+  "mermaid_blocks_checked": 13,
+  "consolidated_distinct_diagrams": 9,
+  "mermaid_subset_structural_errors": [],
+  "mermaid_renderer": "Not run; not installed",
+  "javascript_results": {
+    "files": 4,
+    "passed": 48,
+    "failed": 0,
+    "skipped": 0
+  },
+  "php_suites": "Not run",
+  "engine_tests": "Not run",
+  "browser_tests": "Not run",
+  "production_build": "Not run",
+  "authored_markdown_files": 22,
+  "authored_json_files": 2,
+  "new_documentation_artifacts": 23,
+  "updated_existing_files": [
+    "README.md"
+  ],
+  "git_diff_check": "Passed; preexisting MEDIUM_FIXES line-ending warning only"
+}

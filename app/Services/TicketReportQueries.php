@@ -30,10 +30,11 @@ class TicketReportQueries
                 $byDivision[$division->division_name] = ['total' => 0, 'reassigned' => 0];
             }
         }
-        // Legacy count includes any request status and counts tickets in the date range.
+        // All request states count, but only tickets admitted by the caller's scope.
+        $ticketIds = (clone $query)->reorder()->select('tickets.id');
         $reassigned = TicketReassignmentRequest::whereHas('ticket', function ($q) use ($start, $end) {
             $q->whereBetween('created_at', [$start, $end]);
-        })->distinct()->count('ticket_id');
+        })->whereIn('ticket_id', $ticketIds)->distinct()->count('ticket_id');
         $minutesSum = 0;
         $minutesCount = 0;
         (clone $query)->with(['department', 'division', 'issue'])->reorder()->chunkById(500,

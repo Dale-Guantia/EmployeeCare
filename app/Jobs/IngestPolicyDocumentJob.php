@@ -11,28 +11,28 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Runs PolicyIngestService::ingest() off the HTTP request cycle. Under the
- * default QUEUE_CONNECTION=sync this still executes inline (no worker
- * process involved), but the moment a real queue connection + worker is
- * configured, large scanned PDFs stop tying up upload requests.
+ * A dedicated database queue keeps OCR off HTTP requests even when the default is sync.
  */
 class IngestPolicyDocumentJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public const TIMEOUT = 900;
     public $tries = 1;
 
-    // No blanket job timeout: OCR documents can legitimately take minutes.
-    // Per-page timeouts inside OcrService bound the real runaway-process risk.
-    public $timeout = 0;
+    public $timeout = self::TIMEOUT;
+    public $failOnTimeout = true;
 
     protected $documentId;
     protected $forceReExtract;
+    protected $ingestionVersion;
 
-    public function __construct(int $documentId, bool $forceReExtract = false)
+    public function __construct(int $documentId, bool $forceReExtract = false, ?string $ingestionVersion = null)
     {
         $this->documentId     = $documentId;
         $this->forceReExtract = $forceReExtract;
+        $this->ingestionVersion = $ingestionVersion;
+        $this->onConnection('policy_ingestion')->onQueue('policy-ingestion')->beforeCommit();
     }
 
     public function handle(PolicyIngestService $ingest): void
@@ -44,13 +44,18 @@ class IngestPolicyDocumentJob implements ShouldQueue
             return;
         }
 
-        try {
-            $ingest->ingest($document, $this->forceReExtract);
-        } catch (\Throwable $e) {
-            // ingest() already persisted status=failed + ingest_error on the
-            // document itself — that's the actual signal admins see. Nothing
-            // further to do here; swallow so the queue doesn't retry/alert
-            // on what is already a recorded, user-visible failure.
-        }
+        // Pre-release jobs have no generation; never let them ingest a replacement file.
+        if (!$this->ingestionVersion) { return; }
+        $ingest->ingest($document, $this->forceReExtract, $this->ingestionVersion);
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        if (!$this->ingestionVersion) { return; }
+        HrPolicyDocument::whereKey($this->documentId)->where('ingestion_version', $this->ingestionVersion)
+            ->whereIn('status', ['pending', 'processing'])->update([
+                'status' => 'failed',
+                'ingest_error' => 'Background ingestion failed or exceeded its time limit. Re-run ingestion after checking the worker.',
+            ]);
     }
 }

@@ -437,8 +437,11 @@
 (function() {
     'use strict';
 
-    var DRAFT_KEY = 'hrf-draft';
-    var OPEN_KEY  = 'hrf-open';
+    var DRAFT_KEY = 'hrf-draft-' + @json(backpack_user()->id);
+    var OPEN_KEY  = 'hrf-open-' + @json(backpack_user()->id);
+    // Drop old unscoped drafts so switching accounts cannot reveal the last user's input.
+    sessionStorage.removeItem('hrf-draft');
+    sessionStorage.removeItem('hrf-open');
 
     var chat = HrChatCore.create({
         globalName: 'hrFloat',
@@ -556,11 +559,12 @@
     // so a follow-up would silently start yet another new conversation).
     // Loading a single real conversation via loadConversation() keeps what's
     // on screen and what the next message continues in sync.
-    // Resolves true if a conversation was restored, false if the user has none.
+    // Returns the loaded view version, false for empty history, or null when superseded.
     function restoreMostRecentConversation() {
-        return fetch(chat.cfg.endpoints.conversations)
-            .then(function (res) { return res.json(); })
+        var version = chat.viewVersion;
+        return HrChatCore.request(chat.cfg.endpoints.conversations)
             .then(function (conversations) {
+                if (version !== chat.viewVersion) return null;
                 if (!conversations || !conversations.length) return false;
 
                 // Ignore the endpoint's starred-first ordering here — the
@@ -570,7 +574,11 @@
                     return new Date(a.last_message_at || 0) > new Date(b.last_message_at || 0) ? a : b;
                 });
 
-                return chat.loadConversation(mostRecent.id).then(function () { return true; });
+                var loading = chat.loadConversation(mostRecent.id);
+                var loadingVersion = chat.viewVersion;
+                return loading.then(function (data) {
+                    return loadingVersion === chat.viewVersion ? { version: loadingVersion, failed: !data } : null;
+                });
             });
     }
 
@@ -592,9 +600,14 @@
             chat.ensureMarkdown()['catch'](function () {});
 
             if (!hasWelcome && !chat.historyLoaded) {
+                var version = chat.viewVersion;
+                chat._setLoading(true);
                 showSkeleton();
                 restoreMostRecentConversation().then(function (restored) {
+                    if (restored === null || (restored ? restored.version : version) !== chat.viewVersion) return;
                     hideSkeleton();
+                    chat._setLoading(false);
+                    if (restored && restored.failed) return;
                     chat.historyLoaded = true;
                     if (restored) {
                         hideSuggestions();
@@ -602,14 +615,16 @@
                         showWelcome();
                     }
                 })['catch'](function () {
+                    if (version !== chat.viewVersion) return;
                     hideSkeleton();
-                    chat.historyLoaded = true;
-                    showWelcome();
+                    chat._setLoading(false);
+                    // Leave restoration retryable instead of pretending empty history.
+                    chat._appendAi('Could not restore your conversation. Close and reopen the assistant to retry.', [], null, true);
                 });
             }
 
             setTimeout(function() {
-                document.getElementById('hrf-input').focus();
+                if (isOpen) document.getElementById('hrf-input').focus();
             }, 220);
         },
 
@@ -619,6 +634,7 @@
             document.getElementById('hrf-launcher').classList.remove('open');
             document.getElementById('hrf-launcher').setAttribute('aria-expanded', 'false');
             sessionStorage.removeItem(OPEN_KEY);
+            document.getElementById('hrf-launcher').focus();
         },
 
         // Detaches from the active conversation so the next message starts a
@@ -628,6 +644,7 @@
         // welcome message via the onClearView hook.
         newChat: function() {
             chat.startNewConversation();
+            hideSkeleton();
             document.getElementById('hrf-suggestions').style.display = '';
             document.getElementById('hrf-input').value = '';
             sessionStorage.removeItem(DRAFT_KEY);
@@ -642,7 +659,7 @@
 
         ask: function(question) {
             if (chat.loading) return;
-            if (!isOpen) this.open();
+            if (!isOpen) { this.open(); chat.startNewConversation(); hideSkeleton(); }
             hideSuggestions();
             chat.ask(question);
         },
@@ -655,7 +672,8 @@
 
         /* ── Input helpers ────────────────────────────── */
         handleKey: function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Escape') { this.close(); return; }
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
                 this.send();
             }
@@ -672,6 +690,10 @@
             document.getElementById('hrf-send-btn').disabled = !el.value.trim() || chat.loading;
         }
     };
+
+    document.getElementById('hrf-panel').addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { e.preventDefault(); hrFloat.close(); }
+    });
 
     document.addEventListener('DOMContentLoaded', function() {
         restoreDraft();

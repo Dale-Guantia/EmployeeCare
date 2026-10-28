@@ -1,0 +1,1469 @@
+[
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/login",
+    "name": "backpack.auth.login",
+    "action": "App\\Http\\Controllers\\Admin\\Auth\\LoginController@showLoginForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/login",
+    "name": null,
+    "action": "App\\Http\\Controllers\\Admin\\Auth\\LoginController@login",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/logout",
+    "name": "backpack.auth.logout",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\Auth\\LoginController@logout",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/logout",
+    "name": "backpack.auth.logout",
+    "action": "App\\Http\\Controllers\\Admin\\Auth\\LoginController@logout",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/register",
+    "name": "backpack.auth.register",
+    "action": "App\\Http\\Controllers\\Admin\\Auth\\RegisterController@showRegistrationForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/register",
+    "name": null,
+    "action": "App\\Http\\Controllers\\Admin\\Auth\\RegisterController@register",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/password/reset",
+    "name": "backpack.auth.password.reset",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\Auth\\ForgotPasswordController@showLinkRequestForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/password/reset",
+    "name": null,
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\Auth\\ResetPasswordController@reset",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/password/reset/{token}",
+    "name": "backpack.auth.password.reset.token",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\Auth\\ResetPasswordController@showResetForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/password/email",
+    "name": "backpack.auth.password.email",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\Auth\\ForgotPasswordController@sendResetLinkEmail",
+    "middleware": [
+      "web",
+      "backpack.throttle.password.recovery:3,10"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/dashboard",
+    "name": "backpack.dashboard",
+    "action": "App\\Http\\Controllers\\Admin\\DashboardController@dashboard",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care",
+    "name": "backpack",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\AdminController@redirect",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/edit-account-info",
+    "name": "backpack.account.info",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\MyAccountController@getAccountInfoForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/edit-account-info",
+    "name": "backpack.account.info.store",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\MyAccountController@postAccountInfoForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/change-password",
+    "name": "backpack.account.password",
+    "action": "Backpack\\CRUD\\app\\Http\\Controllers\\MyAccountController@postChangePasswordForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "api/department/{id}/divisions",
+    "name": null,
+    "action": "Closure",
+    "middleware": []
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/submit-ticket",
+    "name": "submit-ticket.show",
+    "action": "App\\Http\\Controllers\\Admin\\SubmitTicketController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/ticket",
+    "name": "ticket.index",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/ticket/search",
+    "name": "ticket.search",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/ticket/{id}/details",
+    "name": "ticket.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/ticket/create",
+    "name": "ticket.create",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/ticket",
+    "name": "ticket.store",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/ticket/{id}/edit",
+    "name": "ticket.edit",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/ticket/{id}",
+    "name": "ticket.update",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/ticket/{id}",
+    "name": "ticket.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/ticket/{id}/show",
+    "name": "ticket.show",
+    "action": "App\\Http\\Controllers\\Admin\\TicketCrudController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/ticket/{ticket}/attachments/{index}",
+    "name": "ticket.attachments.show",
+    "action": "App\\Http\\Controllers\\Admin\\TicketAttachmentController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/ticket/{ticket}/comments/{comment}/attachments/{index}",
+    "name": "ticket.comment.attachments.show",
+    "action": "App\\Http\\Controllers\\Admin\\TicketAttachmentController@comment",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/issue",
+    "name": "issue.index",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/issue/search",
+    "name": "issue.search",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/issue/{id}/details",
+    "name": "issue.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/issue/create",
+    "name": "issue.create",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/issue",
+    "name": "issue.store",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/issue/{id}/edit",
+    "name": "issue.edit",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/issue/{id}",
+    "name": "issue.update",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/issue/{id}",
+    "name": "issue.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/issue/{id}/show",
+    "name": "issue.show",
+    "action": "App\\Http\\Controllers\\Admin\\IssueCrudController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/department",
+    "name": "department.index",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/department/search",
+    "name": "department.search",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/department/{id}/details",
+    "name": "department.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/department/create",
+    "name": "department.create",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/department",
+    "name": "department.store",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/department/{id}/edit",
+    "name": "department.edit",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/department/{id}",
+    "name": "department.update",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/department/{id}",
+    "name": "department.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/department/{id}/show",
+    "name": "department.show",
+    "action": "App\\Http\\Controllers\\Admin\\DepartmentCrudController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/division",
+    "name": "division.index",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/division/search",
+    "name": "division.search",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/division/{id}/details",
+    "name": "division.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/division/create",
+    "name": "division.create",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/division",
+    "name": "division.store",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/division/{id}/edit",
+    "name": "division.edit",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/division/{id}",
+    "name": "division.update",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/division/{id}",
+    "name": "division.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/division/{id}/show",
+    "name": "division.show",
+    "action": "App\\Http\\Controllers\\Admin\\DivisionCrudController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/priority",
+    "name": "priority.index",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/priority/search",
+    "name": "priority.search",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/priority/{id}/details",
+    "name": "priority.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/priority/create",
+    "name": "priority.create",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/priority",
+    "name": "priority.store",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/priority/{id}/edit",
+    "name": "priority.edit",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/priority/{id}",
+    "name": "priority.update",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/priority/{id}",
+    "name": "priority.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/priority/{id}/show",
+    "name": "priority.show",
+    "action": "App\\Http\\Controllers\\Admin\\PriorityCrudController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/status",
+    "name": "status.index",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/status/search",
+    "name": "status.search",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/status/{id}/details",
+    "name": "status.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/status/create",
+    "name": "status.create",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/status",
+    "name": "status.store",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/status/{id}/edit",
+    "name": "status.edit",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/status/{id}",
+    "name": "status.update",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/status/{id}",
+    "name": "status.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/status/{id}/show",
+    "name": "status.show",
+    "action": "App\\Http\\Controllers\\Admin\\StatusCrudController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/user",
+    "name": "user.index",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/user/search",
+    "name": "user.search",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/user/{id}/details",
+    "name": "user.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/user/create",
+    "name": "user.create",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/user",
+    "name": "user.store",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/user/{id}/edit",
+    "name": "user.edit",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/user/{id}",
+    "name": "user.update",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/user/{id}",
+    "name": "user.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/user/{id}/show",
+    "name": "user.show",
+    "action": "App\\Http\\Controllers\\Admin\\UserCrudController@show",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/reports",
+    "name": "page.reports.index",
+    "action": "App\\Http\\Controllers\\Admin\\ReportsController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/reports/download-pdf",
+    "name": "page.reports.download_pdf",
+    "action": "App\\Http\\Controllers\\Admin\\ReportsController@downloadPdf",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/survey-reports",
+    "name": "page.survey_reports.index",
+    "action": "App\\Http\\Controllers\\Admin\\SurveyReportsController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/survey-reports/responses",
+    "name": "page.survey_reports.responses",
+    "action": "App\\Http\\Controllers\\Admin\\SurveyReportsController@responses",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/survey-reports/download-pdf",
+    "name": "page.survey_reports.download_pdf",
+    "action": "App\\Http\\Controllers\\Admin\\SurveyReportsController@downloadPdf",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/arta-survey-reports",
+    "name": "page.arta_survey_reports.index",
+    "action": "App\\Http\\Controllers\\Admin\\ArtaSurveyReportsController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/arta-survey-reports/responses",
+    "name": "page.arta_survey_reports.responses",
+    "action": "App\\Http\\Controllers\\Admin\\ArtaSurveyReportsController@responses",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/arta-survey-reports/download-pdf",
+    "name": "page.arta_survey_reports.download_pdf",
+    "action": "App\\Http\\Controllers\\Admin\\ArtaSurveyReportsController@downloadPdf",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/notifications/feed",
+    "name": "notifications.feed",
+    "action": "App\\Http\\Controllers\\Admin\\NotificationController@feed",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/notifications/{id}/read",
+    "name": "notifications.read",
+    "action": "App\\Http\\Controllers\\Admin\\NotificationController@markAsRead",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/notifications/read-all",
+    "name": "notifications.read_all",
+    "action": "App\\Http\\Controllers\\Admin\\NotificationController@markAllAsRead",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/notifications",
+    "name": "notifications.index",
+    "action": "App\\Http\\Controllers\\Admin\\NotificationController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/notifications/clear-all",
+    "name": "notifications.clear_all",
+    "action": "App\\Http\\Controllers\\Admin\\NotificationController@clearAll",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/my-account",
+    "name": "backpack.account.info",
+    "action": "App\\Http\\Controllers\\Admin\\MyAccountController@getAccountInfoForm",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/my-account/info",
+    "name": "backpack.account.info.store",
+    "action": "App\\Http\\Controllers\\Admin\\MyAccountController@postAccountInfoForm",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/my-account/password",
+    "name": "backpack.account.password",
+    "action": "App\\Http\\Controllers\\Admin\\MyAccountController@postChangePasswordForm",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/my-account/notifications",
+    "name": "backpack.account.notifications",
+    "action": "App\\Http\\Controllers\\Admin\\MyAccountController@postNotificationsForm",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/my-account/notification-settings",
+    "name": "backpack.account.notification_settings",
+    "action": "App\\Http\\Controllers\\Admin\\MyAccountController@postNotificationsForm",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-assistant",
+    "name": "hr.chat.index",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/hr-assistant/ask",
+    "name": "hr.chat.ask",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@ask",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/hr-assistant/feedback",
+    "name": "hr.chat.feedback",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@feedback",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat-actions"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-assistant/history",
+    "name": "hr.chat.history",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@history",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat-actions"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/hr-assistant/clear-history",
+    "name": "hr.chat.clear_history",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@clearHistory",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat-actions"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-assistant/conversations",
+    "name": "hr.chat.conversations",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@conversations",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat-actions"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-assistant/conversations/{id}/messages",
+    "name": "hr.chat.conversation.messages",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@conversationMessages",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat-actions"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "uri": "employee-care/hr-assistant/conversations/{id}",
+    "name": "hr.chat.conversation.update",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@updateConversation",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat-actions"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/hr-assistant/conversations/{id}",
+    "name": "hr.chat.conversation.delete",
+    "action": "App\\Http\\Controllers\\Admin\\HrChatController@deleteConversation",
+    "middleware": [
+      "web",
+      "admin",
+      "throttle:hr-chat-actions"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-policy-documents/upload",
+    "name": "hr.policy.upload.form",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@uploadForm",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/hr-policy-documents/upload",
+    "name": "hr.policy.upload.store",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@uploadStore",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-policy-documents/{document}/update-file",
+    "name": "hr.policy.update.form",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@updateForm",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/hr-policy-documents/{document}/update-file",
+    "name": "hr.policy.update.store",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@updateStore",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/hr-policy-documents/{document}/toggle",
+    "name": "hr.policy.toggle",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@toggleActive",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/hr-policy-documents/{document}/reingest",
+    "name": "hr.policy.reingest",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@reingest",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-policy-documents",
+    "name": "hr-policy-documents.index",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/hr-policy-documents/search",
+    "name": "hr-policy-documents.search",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/hr-policy-documents/{id}/details",
+    "name": "hr-policy-documents.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/hr-policy-documents/{id}",
+    "name": "hr-policy-documents.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\HrPolicyDocumentCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/role",
+    "name": "role.index",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/role/search",
+    "name": "role.search",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/role/{id}/details",
+    "name": "role.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/role/create",
+    "name": "role.create",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/role",
+    "name": "role.store",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/role/{id}/edit",
+    "name": "role.edit",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/role/{id}",
+    "name": "role.update",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/role/{id}",
+    "name": "role.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\RoleCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/permission",
+    "name": "permission.index",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@index",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/permission/search",
+    "name": "permission.search",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@search",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/permission/{id}/details",
+    "name": "permission.showDetailsRow",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@showDetailsRow",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/permission/create",
+    "name": "permission.create",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@create",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "employee-care/permission",
+    "name": "permission.store",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@store",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "employee-care/permission/{id}/edit",
+    "name": "permission.edit",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@edit",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "PUT",
+    "uri": "employee-care/permission/{id}",
+    "name": "permission.update",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@update",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "uri": "employee-care/permission/{id}",
+    "name": "permission.destroy",
+    "action": "App\\Http\\Controllers\\Admin\\PermissionCrudController@destroy",
+    "middleware": [
+      "web",
+      "admin"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "sanctum/csrf-cookie",
+    "name": null,
+    "action": "Laravel\\Sanctum\\Http\\Controllers\\CsrfCookieController@show",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "livewire/message/{name}",
+    "name": "livewire.message",
+    "action": "Livewire\\Controllers\\HttpConnectionHandler",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "{locale}/livewire/message/{name}",
+    "name": "livewire.message-localized",
+    "action": "Livewire\\Controllers\\HttpConnectionHandler",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "livewire/upload-file",
+    "name": "livewire.upload-file",
+    "action": "Livewire\\Controllers\\FileUploadHandler@handle",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "livewire/preview-file/{filename}",
+    "name": "livewire.preview-file",
+    "action": "Livewire\\Controllers\\FilePreviewHandler@handle",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "livewire/livewire.js",
+    "name": null,
+    "action": "Livewire\\Controllers\\LivewireJavaScriptAssets@source",
+    "middleware": []
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "livewire/livewire.js.map",
+    "name": null,
+    "action": "Livewire\\Controllers\\LivewireJavaScriptAssets@maps",
+    "middleware": []
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "api/user",
+    "name": null,
+    "action": "Closure",
+    "middleware": [
+      "api",
+      "auth:sanctum"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "/",
+    "name": null,
+    "action": "Closure",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "survey",
+    "name": "survey.form",
+    "action": "App\\Http\\Controllers\\SurveyController@showForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "survey",
+    "name": "survey.submit",
+    "action": "App\\Http\\Controllers\\SurveyController@submitForm",
+    "middleware": [
+      "web",
+      "throttle:survey-submissions"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "survey/csrf-token",
+    "name": "survey.csrf",
+    "action": "App\\Http\\Controllers\\SurveyController@csrfToken",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "GET|HEAD",
+    "uri": "arta-form",
+    "name": "arta.form",
+    "action": "App\\Http\\Controllers\\ArtaController@showForm",
+    "middleware": [
+      "web"
+    ]
+  },
+  {
+    "method": "POST",
+    "uri": "arta-form",
+    "name": "arta.submit",
+    "action": "App\\Http\\Controllers\\ArtaController@submitForm",
+    "middleware": [
+      "web",
+      "throttle:survey-submissions"
+    ]
+  }
+]

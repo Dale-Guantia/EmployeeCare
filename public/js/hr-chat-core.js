@@ -18,14 +18,17 @@
         if (markedLoadPromise) return markedLoadPromise;
         markedLoadPromise = new Promise(function (resolve, reject) {
             var s = document.createElement('script');
+            var timer = setTimeout(function () { s.remove(); markedLoadPromise = null; reject(new Error('Markdown load timed out')); }, 10000);
             s.src = MARKED_SRC;
             s.integrity = MARKED_INTEGRITY;
             s.crossOrigin = 'anonymous';
             s.onload = function () {
+                clearTimeout(timer);
                 global.marked.use({ gfm: true, breaks: true });
                 resolve();
             };
             s.onerror = function () {
+                clearTimeout(timer);
                 markedLoadPromise = null;
                 reject(new Error('Failed to load marked.js'));
             };
@@ -42,8 +45,61 @@
             .replace(/"/g, '&quot;');
     }
 
-    // XSS defense: raw AI text is always HTML-escaped BEFORE being handed to
-    // marked.parse(). Do not remove the esc() call below.
+    function readJson(res) {
+        if (!res.ok) {
+            var error = new Error('Request failed');
+            error.userMessage = res.status === 401 || res.status === 419 ? 'Your session expired. Sign in again.' :
+                res.status === 429 ? 'Too many requests. Wait a minute before trying again.' :
+                res.status === 422 ? 'Check your question (maximum 600 characters) and try again.' :
+                res.status === 409 ? 'This conversation changed or was deleted. Start a new conversation.' :
+                'The service could not complete the request. Please try again shortly.';
+            throw error;
+        }
+        return res.json();
+    }
+
+    function requestJson(url, options) {
+        options = options || {};
+        options.headers = Object.assign({ 'Accept': 'application/json' }, options.headers || {});
+        var abort = global.AbortController ? new global.AbortController() : null;
+        if (abort) options.signal = abort.signal;
+        var timer;
+        var deadline = new Promise(function (resolve, reject) {
+            timer = setTimeout(function () {
+                if (abort) abort.abort();
+                reject(new Error('Request timed out'));
+            }, 30000);
+        });
+        return Promise.race([deadline, fetch(url, options).then(readJson)]).then(function (data) {
+            clearTimeout(timer); return data;
+        }, function (error) { clearTimeout(timer); throw error; });
+    }
+
+    // Escaping raw HTML alone does not block Markdown javascript: links.
+    function safeMarkdownHtml(html) {
+        var template = document.createElement('template');
+        template.innerHTML = html;
+        var allowed = /^(P|BR|STRONG|EM|DEL|UL|OL|LI|BLOCKQUOTE|PRE|CODE|H[1-6]|HR|TABLE|THEAD|TBODY|TR|TH|TD|A)$/;
+        Array.prototype.slice.call(template.content.querySelectorAll('*')).forEach(function (node) {
+            if (!allowed.test(node.tagName)) {
+                node.replaceWith(document.createTextNode(node.textContent));
+                return;
+            }
+            var href = node.tagName === 'A' ? node.getAttribute('href') : null;
+            Array.prototype.slice.call(node.attributes).forEach(function (attr) { node.removeAttribute(attr.name); });
+            if (href) {
+                try {
+                    var url = new URL(href, global.location.href);
+                    if (/^(https?:|mailto:)$/.test(url.protocol)) {
+                        node.setAttribute('href', url.href);
+                        node.setAttribute('rel', 'noopener noreferrer');
+                    }
+                } catch (e) { /* unsafe or malformed link stays plain text */ }
+            }
+        });
+        return template.innerHTML;
+    }
+
     function renderMarkdown(raw) {
         if (!raw) return '';
         var safe = esc(raw);
@@ -52,7 +108,7 @@
             // plain escaped text with line breaks so nothing is ever unescaped.
             return safe.replace(/\n/g, '<br>');
         }
-        return global.marked.parse(safe);
+        return safeMarkdownHtml(global.marked.parse(safe));
     }
 
     function HrChat(config) {
@@ -62,6 +118,8 @@
         // Which hr_conversations row subsequent ask()/send() calls attach to.
         // null means "no conversation yet" — the next send starts one.
         this.currentConversationId = null;
+        this.viewVersion = 0;
+        this.pendingAbort = null;
     }
 
     HrChat.prototype.el = function (key) {
@@ -74,7 +132,17 @@
     };
 
     HrChat.prototype.setConversation = function (id) {
+        this._invalidateRequests();
         this.currentConversationId = id || null;
+    };
+
+    HrChat.prototype._invalidateRequests = function () {
+        this.viewVersion++;
+        if (this.pendingAbort) this.pendingAbort.abort();
+        this.pendingAbort = null;
+        this._setLoading(false);
+        var thread = this.el('thread');
+        if (thread) Array.prototype.slice.call(thread.querySelectorAll('[data-hrchat-typing]')).forEach(function (node) { node.remove(); });
     };
 
     // Fills a ":id" placeholder in an endpoint template, e.g.
@@ -119,6 +187,9 @@
         var c = this.cfg.classes;
         var s = this.cfg.strings;
         sources = sources || [];
+        sources = Array.isArray(sources) ? sources : [];
+        logId = Number(logId);
+        if (!Number.isSafeInteger(logId) || logId < 1) logId = null;
         isError = !!isError;
 
         // data-hrchat-bubble marks the node whose *rendered* (not raw markdown)
@@ -198,18 +269,20 @@
 
     HrChat.prototype.giveFeedback = function (logId, value, btn) {
         var s = this.cfg.strings;
-        fetch(this.cfg.endpoints.feedback, {
+        btn.disabled = true;
+        return requestJson(this.cfg.endpoints.feedback, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.cfg.csrf },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.cfg.csrf },
             body: JSON.stringify({ log_id: logId, feedback: value }),
-        }).then(function () {
+        }).then(function (data) {
+            if (!data.ok) throw new Error('Feedback rejected');
             // Scoped to the label+thumbs group only — the copy button sits
             // beside it in the same row and must not be wiped out too.
             var group = btn.closest('[data-hrchat-feedback-group]');
             if (group) {
                 group.innerHTML = '<small>' + (value === 1 ? s.thanksHelpful : s.notedUnhelpful) + '</small>';
             }
-        });
+        })['catch'](function () { btn.disabled = false; btn.setAttribute('title', 'Feedback was not saved. Please try again.'); });
     };
 
     HrChat.prototype._setLoading = function (isLoading) {
@@ -225,6 +298,11 @@
 
     HrChat.prototype._send = function (text) {
         var self = this;
+        text = String(text || '').trim();
+        if (!text || this.loading) return Promise.resolve();
+        var version = this.viewVersion;
+        var abort = global.AbortController ? new global.AbortController() : null;
+        this.pendingAbort = abort;
         this._removeEmptyState();
         this._appendUser(text);
         var typing = this._appendTyping();
@@ -232,13 +310,22 @@
 
         this.ensureMarkdown()['catch'](function () { /* fall back to escaped text, non-fatal */ });
 
-        fetch(this.cfg.endpoints.ask, {
+        var timer;
+        var deadline = new Promise(function (resolve, reject) {
+            timer = setTimeout(function () {
+                if (abort) abort.abort();
+                reject(new Error('Request timed out'));
+            }, 75000);
+        });
+        return Promise.race([deadline, fetch(this.cfg.endpoints.ask, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.cfg.csrf },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.cfg.csrf },
             body: JSON.stringify({ question: text, conversation_id: self.currentConversationId }),
-        })
-            .then(function (res) { return res.json(); })
+            signal: abort ? abort.signal : undefined,
+        }).then(readJson)])
             .then(function (data) {
+                if (version !== self.viewVersion) return;
+                if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('Invalid answer');
                 typing.remove();
                 self._appendAi(data.answer, data.sources || [], data.log_id);
                 self._setLoading(false);
@@ -250,10 +337,14 @@
                 }
                 if (self.cfg.onAfterAnswer) self.cfg.onAfterAnswer();
             })
-            ['catch'](function () {
+            ['catch'](function (error) {
+                if (version !== self.viewVersion) return;
                 typing.remove();
-                self._appendAi(self.cfg.strings.connectionError, [], null, true);
+                self._appendAi(error.userMessage || self.cfg.strings.connectionError, [], null, true);
                 self._setLoading(false);
+            }).then(function () {
+                clearTimeout(timer);
+                if (version === self.viewVersion) self.pendingAbort = null;
             });
     };
 
@@ -265,19 +356,20 @@
         if (!text || this.loading) return;
         if (input) input.value = '';
         if (this.cfg.onInputCleared) this.cfg.onInputCleared(input);
-        this._send(text);
+        return this._send(text);
     };
 
     HrChat.prototype.ask = function (question) {
         if (this.loading) return;
         if (this.cfg.onBeforeAsk) this.cfg.onBeforeAsk();
-        this._send(question);
+        return this._send(question);
     };
 
     // Visual reset only — does not touch the active conversation. Use
     // startNewConversation() to actually detach from the current conversation
     // so the next message starts a fresh one.
     HrChat.prototype.clearView = function () {
+        this._invalidateRequests();
         var thread = this.el('thread');
         if (thread) thread.innerHTML = '';
         if (this.cfg.onClearView) this.cfg.onClearView();
@@ -298,15 +390,18 @@
     // one. Full-page only — requires cfg.endpoints.conversationMessages.
     HrChat.prototype.loadConversation = function (id) {
         var self = this;
+        this._invalidateRequests();
+        var version = this.viewVersion;
+        this._setLoading(true);
         if (!this.cfg.endpoints.conversationMessages) {
             return Promise.reject(new Error('conversationMessages endpoint not configured'));
         }
 
         return this.ensureMarkdown()['catch'](function () {}).then(function () {
-            return fetch(self._urlFor(self.cfg.endpoints.conversationMessages, id)).then(function (res) {
-                return res.json();
-            });
+            return requestJson(self._urlFor(self.cfg.endpoints.conversationMessages, id));
         }).then(function (data) {
+            if (version !== self.viewVersion) return null;
+            if (!Array.isArray(data.messages)) throw new Error('Invalid transcript');
             var thread = self.el('thread');
             if (thread) thread.innerHTML = '';
 
@@ -317,13 +412,20 @@
             });
 
             self.currentConversationId = id;
+            self._setLoading(false);
             if (self.cfg.onConversationChanged) self.cfg.onConversationChanged(id);
             return data;
+        })['catch'](function (error) {
+            if (version === self.viewVersion) {
+                self._setLoading(false);
+                self._appendAi(error.userMessage || self.cfg.strings.connectionError, [], null, true);
+            }
+            return null;
         });
     };
 
     HrChat.prototype._fetchLogs = function () {
-        return fetch(this.cfg.endpoints.history).then(function (res) { return res.json(); });
+        return requestJson(this.cfg.endpoints.history);
     };
 
     // Populates the thread from saved logs. Only ever called once per page
@@ -362,12 +464,17 @@
 
     HrChat.prototype.loadHistory = function (force) {
         var self = this;
+        var version = this.viewVersion;
         if (this.historyLoaded && !force) return Promise.resolve();
 
         return this._fetchLogs().then(function (logs) {
+            if (version !== self.viewVersion || self.loading) return null;
             self.historyLoaded = true;
             self._renderRecentList(logs);
-            self._renderThreadFromLogs(logs);
+            // Restore one conversation, never a merged transcript of unrelated chats.
+            if (logs.length && logs[0].conversation_id && self.cfg.endpoints.conversationMessages) {
+                return self.loadConversation(logs[0].conversation_id);
+            }
             return logs;
         });
     };
@@ -437,18 +544,28 @@
         return this._confirm(confirmMessage).then(function (confirmed) {
             if (!confirmed) return { ok: false };
 
-            return fetch(self.cfg.endpoints.clearHistory, {
+            self._invalidateRequests();
+            var version = self.viewVersion;
+            self._setLoading(true);
+            return requestJson(self.cfg.endpoints.clearHistory, {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': self.cfg.csrf },
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': self.cfg.csrf },
             })
-                .then(function (res) { return res.json(); })
                 .then(function (data) {
+                    if (version !== self.viewVersion) return data;
                     if (data.ok) {
                         self.historyLoaded = false;
                         self._renderRecentList([]);
-                        self.clearView();
+                        self.startNewConversation();
                     }
+                    self._setLoading(false);
                     return data;
+                })['catch'](function (error) {
+                    if (version === self.viewVersion) {
+                        self._setLoading(false);
+                        self._appendAi(error.userMessage || 'Could not clear history. Please try again.', [], null, true);
+                    }
+                    return { ok: false };
                 });
         });
     };
@@ -456,6 +573,7 @@
     // Textarea+execCommand fallback for browsers/contexts where the async
     // Clipboard API is unavailable (e.g. non-HTTPS, older browsers).
     function fallbackCopy(text) {
+        var focused = document.activeElement;
         var ta = document.createElement('textarea');
         ta.value = text;
         ta.style.position = 'fixed';
@@ -463,8 +581,11 @@
         document.body.appendChild(ta);
         ta.focus();
         ta.select();
-        try { document.execCommand('copy'); } catch (e) { /* nothing more we can do */ }
+        var copied = false;
+        try { copied = document.execCommand('copy'); } catch (e) { /* report failure below */ }
         document.body.removeChild(ta);
+        if (focused && focused.focus) focused.focus();
+        return copied;
     }
 
     // Copies the *rendered* answer (what's actually on screen), not the raw
@@ -483,12 +604,12 @@
         if (!text) return;
         if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
             global.navigator.clipboard.writeText(text).then(showCopied)['catch'](function () {
-                fallbackCopy(text);
-                showCopied();
+                if (fallbackCopy(text)) showCopied();
+                else btn.setAttribute('title', 'Copy failed. Select and copy the answer manually.');
             });
         } else {
-            fallbackCopy(text);
-            showCopied();
+            if (fallbackCopy(text)) showCopied();
+            else btn.setAttribute('title', 'Copy failed. Select and copy the answer manually.');
         }
     }
 
@@ -498,6 +619,8 @@
         esc: esc,
         loadMarked: loadMarked,
         copy: copyResponse,
+        readJson: readJson,
+        request: requestJson,
     };
 
 })(window);

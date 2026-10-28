@@ -7,6 +7,8 @@ use App\Models\HrConversation;
 use App\Models\HrPolicyChunk;
 use App\Services\PolicyRetriever;
 use App\Services\AnthropicService;
+use App\Exceptions\PolicyChatException;
+use Illuminate\Support\Facades\DB;
 // use App\Services\GeminiService;
 // use App\Services\GPTService;
 use Illuminate\Http\Request;
@@ -26,15 +28,9 @@ class HrChatController extends Controller
 
     public function index()
     {
-        // Top 5 most frequently asked questions — shown as suggestions in the sidebar
-        //
-        // Groups the entire hr_chat_logs table by the free-text `question`
-        // column — accepted as low-priority per the audit: this runs once per
-        // HR Assistant page load (not per-message), and grouping by exact
-        // free-text is inherently low-yield anyway (questions are rarely
-        // identical strings), so a caching layer here isn't warranted yet.
-        // Revisit if this page's load time becomes noticeable as chat volume grows.
+        // Suggestions must remain private to the viewer, like their transcript.
         $topPrompts = HrChatLog::select('question')
+            ->where('user_id', backpack_user()->id)
             ->selectRaw('COUNT(*) as total_count')
             ->groupBy('question')
             ->orderByDesc('total_count')
@@ -49,7 +45,7 @@ class HrChatController extends Controller
     {
         $request->validate([
             'question'        => 'required|string|max:600',
-            'conversation_id' => 'nullable|integer',
+            'conversation_id' => 'nullable|integer|min:1',
         ]);
 
         // FIX: Wrap the entire ask flow in try/catch so any unexpected exception
@@ -79,18 +75,13 @@ class HrChatController extends Controller
             );
 
             $recentQuestions = HrChatLog::where('conversation_id', $conversation->id)
+                ->where('user_id', backpack_user()->id)
                 ->latest('id')
                 ->limit(2)
                 ->pluck('question')
                 ->all();
 
-            // Prepend recent questions so follow-ups like "ilang araw pwede mag apply?"
-            // still carry the subject ("wellness leave") into keyword extraction.
-            // This affects RETRIEVAL ONLY — $question stays untouched for the model
-            // and for the audit log.
-            $retrievalQuery = trim(implode(' ', array_reverse($recentQuestions)) . ' ' . $question);
-
-            $chunks = $this->retriever->retrieve($retrievalQuery);
+            $chunks = $this->retriever->promptChunks($this->retriever->retrieveForConversation($question, $recentQuestions));
 
             // Strict grounding: if retrieval found no matching policy chunks, do not
             // call the AI at all — return a fixed "not found" answer instead of risking
@@ -99,15 +90,7 @@ class HrChatController extends Controller
                 $answer = "I couldn't find this in our current HR policy documents. Please contact HRDO directly for assistance.\n\n"
                     . "*(Hindi ko ito nakita sa aming kasalukuyang mga dokumento ng patakaran ng HR. Mangyaring makipag-ugnayan nang direkta sa HRDO para sa tulong.)*";
 
-                $log = HrChatLog::create([
-                    'user_id'           => backpack_user()->id,
-                    'conversation_id'   => $conversation->id,
-                    'question'          => $question,
-                    'answer'            => $answer,
-                    'matched_chunk_ids' => [],
-                ]);
-
-                $this->touchConversation($conversation, $question);
+                $log = $this->saveAnswer($conversation, $question, $answer, []);
 
                 return response()->json([
                     'answer'          => $answer,
@@ -125,6 +108,7 @@ class HrChatController extends Controller
             // Scoped to the current conversation so a different conversation's
             // turns never bleed in as false context.
             $history = HrChatLog::where('conversation_id', $conversation->id)
+                ->where('user_id', backpack_user()->id)
                 ->latest('id')
                 ->limit(3)
                 ->get(['question', 'answer'])
@@ -147,15 +131,7 @@ class HrChatController extends Controller
                 return $title . $section;
             })->unique()->values()->all();
 
-            $log = HrChatLog::create([
-                'user_id'           => backpack_user()->id,
-                'conversation_id'   => $conversation->id,
-                'question'          => $question,
-                'answer'            => $answer,
-                'matched_chunk_ids' => $chunks->pluck('id')->all(),
-            ]);
-
-            $this->touchConversation($conversation, $question);
+            $log = $this->saveAnswer($conversation, $question, $answer, $chunks->pluck('id')->all());
 
             return response()->json([
                 'answer'          => $answer,
@@ -164,11 +140,12 @@ class HrChatController extends Controller
                 'conversation_id' => $conversation->id,
             ]);
 
+        } catch (PolicyChatException $e) {
+            return response()->json(['answer' => $e->getMessage(), 'sources' => [], 'log_id' => null], 503);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['answer' => 'This conversation was deleted. Start a new conversation.', 'sources' => [], 'log_id' => null], 409);
         } catch (\Throwable $e) {
-            Log::error('[HrChatController] ask() failed: ' . $e->getMessage(), [
-                'user_id'  => backpack_user()->id ?? null,
-                'question' => \Illuminate\Support\Str::limit((string) $request->input('question'), 50),
-            ]);
+            Log::error('[HrChatController] ask() unavailable.', ['error_type' => get_class($e)]);
 
             return response()->json([
                 'answer'  => 'A server error occurred while processing your question. Please try again.',
@@ -176,6 +153,18 @@ class HrChatController extends Controller
                 'log_id'  => null,
             ], 500);
         }
+    }
+
+    private function saveAnswer(HrConversation $conversation, string $question, string $answer, array $chunkIds): HrChatLog
+    {
+        // Do not resurrect a conversation deleted while the provider was responding.
+        return DB::transaction(function () use ($conversation, $question, $answer, $chunkIds) {
+            $current = HrConversation::forUser(backpack_user()->id)->lockForUpdate()->findOrFail($conversation->id);
+            $log = HrChatLog::create(['user_id' => backpack_user()->id, 'conversation_id' => $current->id,
+                'question' => $question, 'answer' => $answer, 'matched_chunk_ids' => $chunkIds]);
+            $this->touchConversation($current, $question);
+            return $log;
+        });
     }
 
     // Matches only when the *entire* message is a greeting (punctuation/case
@@ -261,9 +250,9 @@ class HrChatController extends Controller
         // FIX: Scoped strictly to the authenticated user — no risk of data leakage.
         // Added index hint: the query benefits from an index on (user_id, created_at).
         $logs = HrChatLog::where('user_id', backpack_user()->id)
-            ->latest()
+            ->latest('id')
             ->limit(20)
-            ->get(['id', 'question', 'answer', 'matched_chunk_ids', 'created_at']);
+            ->get(['id', 'conversation_id', 'question', 'answer', 'matched_chunk_ids', 'created_at']);
 
         // Resolve source citations for all logs in one batch query (instead of
         // N+1 per-log lookups), mirroring the title + section format ask() uses.
@@ -297,9 +286,11 @@ class HrChatController extends Controller
     {
         // Scoped to current user — deletes all of this user's conversations
         // and their logs. Other users' conversations are untouched.
-        $ids = HrConversation::forUser(backpack_user()->id)->pluck('id');
-        HrChatLog::whereIn('conversation_id', $ids)->delete();
-        HrConversation::whereIn('id', $ids)->delete();
+        DB::transaction(function () {
+            $ids = HrConversation::forUser(backpack_user()->id)->lockForUpdate()->pluck('id');
+            HrChatLog::where('user_id', backpack_user()->id)->delete();
+            HrConversation::whereIn('id', $ids)->delete();
+        });
 
         return response()->json(['ok' => true]);
     }
@@ -385,9 +376,11 @@ class HrChatController extends Controller
     // not-owned id. No DB cascade by design — children are deleted explicitly.
     public function deleteConversation(int $id): JsonResponse
     {
-        $conv = HrConversation::forUser(backpack_user()->id)->findOrFail($id);
-        $conv->logs()->delete();
-        $conv->delete();
+        DB::transaction(function () use ($id) {
+            $conv = HrConversation::forUser(backpack_user()->id)->lockForUpdate()->findOrFail($id);
+            $conv->logs()->delete();
+            $conv->delete();
+        });
 
         return response()->json(['ok' => true]);
     }

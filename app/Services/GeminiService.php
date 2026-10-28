@@ -2,100 +2,53 @@
 
 namespace App\Services;
 
+use App\Exceptions\PolicyChatException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class GeminiService
 {
-    protected $apiKey;
-    protected $model = 'gemini-3-flash-preview';
-
-    public function __construct()
+    public function ask(string $question, string $policyContext, array $history = []): string
     {
-        $this->apiKey = config('services.gemini.key', '');
-    }
-
-    protected $baseSystemPrompt = "You are an HR Policy Assistant for the City Government of Pasig.\n"
-            . "Answer employee questions ONLY using the policy documents provided below.\n"
-            . "If the answer is NOT in the documents but involves a general Philippine civil service law "
-            . "(CSC rules, RA 6713, RA 2260), answer from your training knowledge.'\n"
-            . "If the answer is not found at all, say: 'Please contact HRDO directly for this concern.'\n"
-            . "Always cite the source document name in your answer.\n"
-            . "Format responses clearly using **bold** for key terms and bullet points where helpful.";
-
-    public function ask(string $question, string $policyContext): string
-    {
-        if (empty($this->apiKey)) {
-            Log::error('[GeminiService] GEMINI_API_KEY is not set.');
-            return 'Configuration error: API key missing.';
-        }
-
-        $fullSystemPrompt = $this->baseSystemPrompt
-            . "\n\n## OFFICIAL HRDO POLICY DOCUMENTS:\n"
-            . $policyContext;
-
+        $key = config('services.gemini.key', '');
+        $model = config('services.gemini.model', 'gemini-3-flash-preview');
+        if (!$key || !is_string($model) || !preg_match('/^[a-zA-Z0-9.-]+$/D', $model)) { throw new PolicyChatException; }
+        $contents = array_map(function ($message) {
+            return ['role' => $message['role'] === 'assistant' ? 'model' : 'user', 'parts' => [['text' => $message['content']]]];
+        }, PolicyChatPrompt::messages($question, $history));
         try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}", [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $fullSystemPrompt . "\n\nUser Question: " . $question]
-                        ]
-                    ]
-                ],
-                'generationConfig' => [
-                    'maxOutputTokens' => 4096, // Add this to force a larger output allowance
-                    'temperature' => 0.2,      // Keep temperature low for factual HR policies
-                ]
+            $response = Http::timeout(60)->withOptions(['connect_timeout' => 10])->withHeaders([
+                'x-goog-api-key' => $key,
+            ])->post('https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent', [
+                'systemInstruction' => ['parts' => [['text' => PolicyChatPrompt::instructions() . "\n\n" . PolicyChatPrompt::context($policyContext)]]],
+                'contents' => $contents,
+                'generationConfig' => ['maxOutputTokens' => 4096],
             ]);
-
-            if ($response->failed()) {
-                Log::error('[GeminiService] API call failed', [
-                    'status' => $response->status(),
-                    'body'   => $response->json(),
-                ]);
-                return $this->friendlyError($response->status(), $response->json());
+            if (!$response->successful()) {
+                Log::warning('[GeminiService] Request rejected.', ['status' => $response->status()]);
+                throw new PolicyChatException;
             }
-
-            // Log Gemini token usage metrics
+            $candidate = $response->json('candidates.0');
+            if (!is_array($candidate) || ($candidate['finishReason'] ?? null) !== 'STOP'
+                || $response->json('promptFeedback.blockReason') || !is_array($candidate['content']['parts'] ?? null)) { throw new PolicyChatException; }
+            $parts = [];
+            foreach ($candidate['content']['parts'] as $part) {
+                if (is_array($part) && empty($part['thought']) && is_string($part['text'] ?? null)) { $parts[] = trim($part['text']); }
+            }
+            $text = trim(implode("\n\n", $parts));
+            if ($text === '' || !mb_check_encoding($text, 'UTF-8')) { throw new PolicyChatException; }
             $usage = $response->json('usageMetadata');
-            if ($usage) {
+            if (is_array($usage)) {
                 Log::info('[GeminiService] Token usage', [
-                    'prompt_tokens'     => $usage['promptTokenCount'] ?? 0,
-                    'candidate_tokens'  => $usage['candidatesTokenCount'] ?? 0,
-                    'total_tokens'      => $usage['totalTokenCount'] ?? 0,
+                    'prompt_tokens' => (int) ($usage['promptTokenCount'] ?? 0),
+                    'candidate_tokens' => (int) ($usage['candidatesTokenCount'] ?? 0),
+                    'total_tokens' => (int) ($usage['totalTokenCount'] ?? 0),
                 ]);
             }
-
-            // Parse text response using Gemini's standard schema
-            $text = $response->json('candidates.0.content.parts.0.text');
-
-            if (empty($text)) {
-                return 'I received an empty response. Please try again.';
-            }
-
             return $text;
-
-        } catch (\Exception $e) {
-            Log::error('[GeminiService] Exception: ' . $e->getMessage());
-            return 'Could not connect to the AI service. Please try again.';
-        }
-    }
-
-    protected function friendlyError($status, $body)
-    {
-        $msg = isset($body['error']['message']) ? $body['error']['message'] : 'Unknown error';
-
-        switch ($status) {
-            case 400: return "Bad request: {$msg}";
-            case 401: return 'Authentication failed: invalid API key.';
-            case 403: return 'Authentication failed: Invalid or unauthorized API key.';
-            case 404: return "Model not found. Please check your AI service provider model version.";
-            case 429: return 'Rate limited or quota exceeded. Please wait a moment and try again.';
-            case 503: return 'AI service provider is currently experiencing downtime. Please try again later.';
-            default:  return "AI service error (HTTP {$status}): {$msg}";
+        } catch (\Throwable $e) {
+            Log::warning('[GeminiService] Answer unavailable.', ['error_type' => get_class($e)]);
+            throw new PolicyChatException;
         }
     }
 }

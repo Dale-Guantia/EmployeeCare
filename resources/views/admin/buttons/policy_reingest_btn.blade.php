@@ -15,9 +15,13 @@ function reingestPolicy(id, btn) {
             'Content-Type': 'application/json'
         }
     })
-    .then(function(r) { return r.json(); })
-    .then(function() { location.reload(); })
-    .catch(function() { btn.disabled = false; alert('Failed. Please try again.'); });
+    .then(function(r) {
+        return r.json().then(function(result) {
+            if (!r.ok || !result.success) throw new Error(result.message || 'Could not queue ingestion.');
+            location.reload();
+        });
+    })
+    .catch(function(error) { btn.disabled = false; alert(error.message || 'Failed. Please try again.'); });
 }
 </script>
 @endif

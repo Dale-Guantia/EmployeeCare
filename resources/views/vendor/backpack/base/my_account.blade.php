@@ -149,7 +149,7 @@
                                 <label class="font-weight-bold">Skills</label>
 
                                 {{-- Visual Tag Container --}}
-                                <div id="skills-container" class="form-control" style="height: auto; min-height: 45px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; cursor: text;" onclick="document.getElementById('skill-input').focus()">
+                                <div id="skills-container" class="form-control" style="height: auto; min-height: 45px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; cursor: text;">
 
                                     {{-- The invisible input field for typing --}}
                                     <input type="text" id="skill-input" placeholder="Type a skill & press Enter" style="border: none; outline: none; flex-grow: 1; min-width: 200px; background: transparent;">
@@ -332,6 +332,7 @@
         const skillInput = document.getElementById('skill-input');
         const container = document.getElementById('skills-container');
         const hiddenInputsContainer = document.getElementById('hidden-skills-inputs');
+        container.addEventListener('click', function() { skillInput.focus(); });
 
         // Render existing tags on page load
         const existingInputs = hiddenInputsContainer.querySelectorAll('input');
@@ -347,7 +348,7 @@
                 let val = this.value.trim().toLowerCase(); // Clean input
                 if(val !== '') {
                     // Check for duplicates
-                    if(!hiddenInputsContainer.querySelector('input[value="' + val + '"]')) {
+                    if(!Array.from(hiddenInputsContainer.querySelectorAll('input')).some(input => input.value.trim().toLowerCase() === val)) {
                         renderBadge(val);
                         addHiddenInput(val);
                     }
@@ -376,7 +377,15 @@
             badge.setAttribute('data-skill', skillName);
 
             // X button to remove
-            badge.innerHTML = skillName + ' <i class="la la-times ml-2" style="cursor:pointer;" onclick="removeTag(this.parentElement, \'' + skillName + '\')"></i>';
+            const label = document.createElement('span');
+            label.textContent = skillName;
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'la la-times ml-2 border-0 bg-transparent text-white p-0';
+            removeButton.setAttribute('aria-label', 'Remove skill ' + skillName);
+            removeButton.addEventListener('click', function() { removeTag(badge, skillName); });
+            badge.appendChild(label);
+            badge.appendChild(removeButton);
 
             // Insert badge right before the typing input field
             container.insertBefore(badge, skillInput);
@@ -390,10 +399,9 @@
             hiddenInputsContainer.appendChild(hiddenInput);
         }
 
-        // Global function to remove visual badge AND hidden input
-        window.removeTag = function(badgeElement, skillName) {
+        function removeTag(badgeElement, skillName) {
             badgeElement.remove();
-            const hiddenInput = hiddenInputsContainer.querySelector('input[value="' + skillName + '"]');
+            const hiddenInput = Array.from(hiddenInputsContainer.querySelectorAll('input')).find(input => input.value === skillName);
             if (hiddenInput) hiddenInput.remove();
         }
     });

@@ -89,7 +89,7 @@ class IngestHrPolicyPdf extends Command
             'category'       => $category,
             'effective_date' => $this->option('effective-date') ?: null,
             'is_active'      => true,
-            'status'         => 'processing',
+            'status'         => 'pending',
             'chunk_count'    => 0,
         ]);
 

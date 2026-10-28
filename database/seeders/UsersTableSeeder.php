@@ -29,7 +29,7 @@ class UsersTableSeeder extends Seeder
         $admin = [
             // ['100561', 'Correa', 'Edwin', 'Bautista', '', 'EDWIN'],
             ['4420420', 'Dela Paz', 'Joana Leonisa', 'Pielago', '', 'JOANA'],
-            ['101046', 'Rayos', 'Raoul Enrico', 'Victoria', '', 'ERICK'],
+            ['4422785', 'Atienza', 'Armie', 'Serrano', '', 'ARMIE'],
         ];
 
         $rsp = [
@@ -63,9 +63,10 @@ class UsersTableSeeder extends Seeder
             ['4414788', 'Chan', 'Raphael Benedict', 'Estanislao', '', 'ARBY'],
             ['103117', 'Leonidas', 'Sheila', 'Santos', '', 'LALA'],
             ['1902699', 'Mandreza', 'Nilgene', 'Cabalquinto', '', 'YHEN'],
-            ['102533', 'Melendres', 'Jocelyn', 'Romero', '', 'LYN'],
             ['4420798', 'Palad', 'Ruben', 'Talampas', 'Jr', 'JONG'],
-            ['102548', 'Sardea', 'Exequiel', 'Santos', 'Jr', 'DAWAN']
+            ['102548', 'Sardea', 'Exequiel', 'Santos', '', 'DAWAN'],
+            ['4421953', 'Santos', 'Fiona Rae', 'Ruiz', 'Jr', 'FIONA'],
+            ['4421950', 'Bodota', 'Jomar', 'Cortez', '', 'JOMS']
         ];
 
         $lnd = [
@@ -111,11 +112,14 @@ class UsersTableSeeder extends Seeder
             ['3409488', 'Lirio', 'Aileen', 'Cuartero', '', 'AILEEN'],
             ['103115', 'Portuguez', 'Michael', 'Sandrino', '', 'MICHAEL'],
             ['102541', 'Ramos', 'Arturo', 'Cruz', 'II', 'SONNY'],
-            ['402224', 'Salandanan', 'Edilberto', 'Cruz', '', 'EBERT']
+            ['402224', 'Salandanan', 'Edilberto', 'Cruz', '', 'EBERT'],
+            ['4422909', 'Cruz', 'Gabriel Ralph', '', '', 'GABRIEL'],
+            ['4422226', 'Manalo', 'Jessica', 'Flavier', '', 'JESSICA']
         ];
 
         $pm = [
             ['4420783', 'Cruz', 'Clifford', 'Antonio', '', 'CLIFFORD'],
+            ['4421952', 'Mangila', 'Krizia', 'Rivera', '', 'KRIZIA'],
             // ['2300769', 'Vierne', 'Iluminada', 'Tiongson', '', 'GINA']
         ];
 

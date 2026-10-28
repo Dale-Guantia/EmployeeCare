@@ -54,6 +54,8 @@ Commands: `php vendor/bin/phpunit --do-not-cache-result`, `node --test tests/Jav
 
 ## Deployment
 
+The deployment, deployed-engine verification, and operational reconciliation follow-up is documented in [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md). Its ordered checklist and recovery guidance supplement the original steps below. Live deployment/reconciliation and engine verification remain pending; local tests do not close those items.
+
 1. Back up the database and legacy attachments; take a coordinated release window so old clients cannot POST without UUIDs.
 2. Deploy the three new forward migrations and run `php artisan migrate --force`. Widening retains existing attachment arrays, submission IDs are nullable for old rows, and the permission migration preserves existing grants. Do not rerun the role seeder on an existing deployment to register this permission.
 3. Ensure storage/app/ticket-attachments is writable by the application and is not publicly served. Before accepting traffic, block the old public attachment directory. The committed Apache rule does that; Nginx needs an equivalent `location ^~ /storage/attachments/ { return 403; }` (adjust for any application URL prefix).

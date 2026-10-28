@@ -18,6 +18,9 @@ class IsolatedDatabase
         Storage::fake('public');
         Storage::fake('ticket_attachments');
         Storage::fake('local');
+        foreach (['public', 'ticket_attachments', 'local'] as $name) {
+            $config->set('filesystems.disks.' . $name . '.root', Storage::disk($name)->path(''));
+        }
         $config->set('filesystems.default', 'local');
         Http::swap(new OfflineHttpFactory($app['events']));
         $app['db']->connection()->setQueryGrammar(new SqliteTestGrammar);

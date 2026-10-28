@@ -42,6 +42,16 @@ return [
             'after_commit' => false,
         ],
 
+        // Policy OCR always runs off-request; unrelated jobs retain the default connection.
+        'policy_ingestion' => [
+            'driver' => 'database',
+            'connection' => null,
+            'table' => 'policy_jobs',
+            'queue' => 'policy-ingestion',
+            'retry_after' => 1200, // Must exceed IngestPolicyDocumentJob's 900-second timeout.
+            'after_commit' => false, // Enqueue and the document marker share a DB transaction.
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => 'localhost',

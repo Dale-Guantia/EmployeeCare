@@ -69,14 +69,13 @@
 
                     <div class="alert alert-warning text-dark">
                         <i class="la la-info-circle"></i>
-                        After uploading, the system will automatically parse and index the PDF.
-                        This may take a few seconds depending on file size.
-                        The chatbot will use this document immediately after uploading.
+                        Text-based and scanned (image-based) PDFs are supported. Uploaded files are queued for background extraction and OCR when needed.
+                        Processing can take several minutes. The chatbot uses the document only when its status is Active; files needing review are held for checking.
                     </div>
 
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success" id="submit-btn">
-                            <i class="la la-upload"></i> Upload &amp; Ingest
+                            <i class="la la-upload"></i> Upload PDF
                         </button>
                         <a href="{{ backpack_url('hr-policy-documents') }}"
                            class="btn btn-secondary">Cancel</a>
@@ -138,7 +137,7 @@ document.querySelector('form').addEventListener('submit', function() {
     // Add a tiny delay so the browser has time to trigger the actual POST request
     setTimeout(function() {
         btn.disabled = true;
-        btn.innerHTML = '<i class="la la-spinner la-spin"></i> Processing…';
+        btn.innerHTML = '<i class="la la-spinner la-spin"></i> Uploading…';
     }, 10);
 });
 </script>

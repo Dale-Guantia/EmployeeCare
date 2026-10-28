@@ -16,6 +16,7 @@ class HrChatConversationMemoryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['services.anthropic.key' => 'mock-anthropic-key']);
         // Retrieval tests own their corpus instead of depending on the application's policy records.
         foreach ([
             'Wellness Leave' => 'Wellness leave allows five days each year for eligible employees. Apply through HR for wellness leave.',
@@ -67,6 +68,7 @@ class HrChatConversationMemoryTest extends TestCase
             $turn = count($store->requests);
 
             return Http::response([
+                'stop_reason' => 'end_turn',
                 'content' => [['type' => 'text', 'text' => 'Fake answer #' . $turn]],
                 'usage'   => [
                     'input_tokens'                => 10,

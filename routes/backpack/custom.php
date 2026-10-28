@@ -93,11 +93,13 @@ Route::group([
     Route::post('my-account/notifications', [MyAccountController::class, 'postNotificationsForm'])->name('backpack.account.notifications');
     Route::post('my-account/notification-settings', [MyAccountController::class, 'postNotificationsForm'])->name('backpack.account.notification_settings');
 
-    // Chatbot Routes — rate-limited so a single user can't spam the paid
-    // Anthropic API or exhaust the shared rate limit for everyone else.
-    Route::middleware('throttle:hr-chat')->group(function () {
-        Route::get('hr-assistant',       [HrChatController::class, 'index'])->name('hr.chat.index');
-        Route::post('hr-assistant/ask',  [HrChatController::class, 'ask'])->name('hr.chat.ask');
+    // Keep the page accessible when either chat request budget is exhausted.
+    Route::get('hr-assistant', [HrChatController::class, 'index'])->name('hr.chat.index');
+    Route::post('hr-assistant/ask', [HrChatController::class, 'ask'])
+        ->middleware('throttle:hr-chat')->name('hr.chat.ask');
+
+    // Sidebar, history and feedback requests must not consume the paid AI budget.
+    Route::middleware('throttle:hr-chat-actions')->group(function () {
         Route::post('hr-assistant/feedback', [HrChatController::class, 'feedback'])->name('hr.chat.feedback');
         Route::get('hr-assistant/history', [HrChatController::class, 'history'])->name('hr.chat.history');
         Route::delete('hr-assistant/clear-history', [HrChatController::class, 'clearHistory'])->name('hr.chat.clear_history');
