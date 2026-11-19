@@ -82,7 +82,11 @@ php artisan test
 node --test (Get-ChildItem -File tests/JavaScript/*Test.cjs).FullName
 ```
 
-On **2026-11-19**, local cleanup verification reported **586 PHP tests passed, 3 skipped, 1 failed** (4,992 assertions) both before and after removal of a stale ignored cache file. The failure is the subprocess timing assertion in `tests/Feature/PolicyChatIngestionTest.php:92`; the simulated OCR call took longer than its 3.5-second limit. The JavaScript suite reported **128 passed**, and Composer validation passed. This is a recorded local result, not a claim that all application flows or integrations work. Native SQL Server, live AI/OCR/mail, production configuration and full browser acceptance require separate verification.
+The `subprocess` group starts a real child process to verify OCR timeout enforcement. On Windows, Symfony Process uses `taskkill` to terminate that process. Run this check in a development/test execution context that permits terminating its own child processes; a restricted sandbox can return `ERROR: Access denied` and leave the child running until its natural exit. Keep the timeout assertion enabled.
+
+On **2026-11-19**, a follow-up run of `php artisan test --compact` outside the restricted sandbox reported **587 PHP tests passed, 3 skipped, 0 failed** (4,993 assertions). The three skipped tests are opt-in PDF/OCR sample tests. Earlier cleanup runs reported 586 passed, 3 skipped and 1 failed: the sandbox denied Windows `taskkill`, causing the simulated OCR subprocess to exceed the 3.5-second limit in `tests/Feature/PolicyChatIngestionTest.php:92`. The original assertion passes outside that sandbox; no application or test code was changed.
+
+The earlier cleanup verification also reported **128 JavaScript tests passed** and Composer validation passed; those checks were not rerun for this timeout investigation. These are recorded local results, not a claim that all application flows or integrations work. Native SQL Server, live AI/OCR/mail, production configuration and full browser acceptance require separate verification.
 
 ## License
 
