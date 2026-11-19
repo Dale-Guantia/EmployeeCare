@@ -22,6 +22,15 @@ class DeploymentEngineTest extends \PHPUnit\Framework\TestCase
     private $app;
     private $token;
 
+    protected function tearDown(): void
+    {
+        if ($this->app) {
+            $this->app->flush();
+            \Illuminate\Foundation\Bootstrap\HandleExceptions::flushState($this);
+        }
+        parent::tearDown();
+    }
+
     public function test_migrations_queries_and_real_concurrent_submission_retries()
     {
         if (getenv('ENGINE_TEST_DRIVER') === false) {
@@ -58,7 +67,9 @@ class DeploymentEngineTest extends \PHPUnit\Framework\TestCase
 
     private function migrate(string $filename): void
     {
-        $migration = $this->app['migrator']->resolvePath(database_path('migrations/' . $filename . '.php'));
+        // Resolve both anonymous migrations and historical filenames that differ from their class name.
+        $resolver = new \ReflectionMethod($this->app['migrator'], 'resolvePath');
+        $migration = $resolver->invoke($this->app['migrator'], database_path('migrations/' . $filename . '.php'));
         $migration->up();
     }
 
@@ -72,8 +83,14 @@ class DeploymentEngineTest extends \PHPUnit\Framework\TestCase
             '2026_04_16_021820_create_arta_surveys_table', '2026_07_15_090000_create_ticket_reassignment_requests_table'] as $migration) {
             $this->migrate($migration);
         }
-        DB::table('departments')->insert(['department_name' => 'Synthetic department']);
-        DB::table('divisions')->insert(['department_id' => 1, 'division_name' => 'Synthetic division']);
+        DB::table('departments')->insert(['department_name' => 'City Human Resource Development Office']);
+        foreach (['Performance Management', 'Learning and Development', 'RSP', 'Claims and Benefits', 'Records',
+            'Payroll', 'Administrative', 'Information Technology', 'Department Head'] as $name) {
+            DB::table('divisions')->insert(['department_id' => 1, 'division_name' => $name]);
+        }
+        foreach (['High', 'Medium', 'Low'] as $name) {
+            DB::table('priorities')->insert(['priority_name' => $name, 'priority_color' => '#fff']);
+        }
         DB::table('issues')->insert(['department_id' => 1, 'division_id' => 1, 'issue_description' => 'Synthetic service']);
         DB::table('users')->insert(['name' => 'Synthetic staff', 'username' => 'engine_staff', 'password' => 'unused', 'department_id' => 1, 'division_id' => 1]);
         foreach (['Pending', 'Resolved', 'Reopened', 'Unassigned'] as $name) { DB::table('statuses')->insert(['status_name' => $name, 'status_color' => '#fff']); }
@@ -86,7 +103,8 @@ class DeploymentEngineTest extends \PHPUnit\Framework\TestCase
             'attachment' => json_encode(['attachments/漢字.txt'], JSON_UNESCAPED_UNICODE)]);
         DB::table('ticket_comments')->insert(['ticket_id' => 1, 'user_id' => 1, 'comment' => 'Synthetic NULL', 'attachment' => null]);
         for ($i = 0; $i < 2; $i++) {
-            Survey::create(array_diff_key($this->payload('survey'), ['submission_id' => true]));
+            // Historical fixtures predate the lifecycle columns required by current model events.
+            DB::table('surveys')->insert(array_diff_key($this->payload('survey'), ['submission_id' => true]));
             ArtaSurvey::create(['sqd0' => 'Agree']);
         }
         $admin = Role::create(['name' => 'admin', 'guard_name' => 'web']);
@@ -127,6 +145,11 @@ class DeploymentEngineTest extends \PHPUnit\Framework\TestCase
                 $this->assertStringContainsString('IS NOT NULL', strtoupper($index->filter_definition));
             }
         }
+        foreach (['2026_11_03_090000_add_priority_lifecycle', '2026_11_03_100000_add_issue_archiving',
+            '2026_11_03_110000_add_office_archiving', '2026_11_04_090000_enforce_master_data_lifecycle',
+            '2026_11_04_100000_add_permanent_master_data_codes', '2026_11_04_110000_allow_department_level_issues'] as $migration) {
+            $this->migrate($migration);
+        }
         foreach (['survey', 'arta'] as $kind) {
             $data = $this->payload($kind); $model = $kind === 'survey' ? Survey::class : ArtaSurvey::class;
             $entry = SurveySubmission::save($model, $data);
@@ -162,15 +185,15 @@ class DeploymentEngineTest extends \PHPUnit\Framework\TestCase
             $model = $arta ? ArtaSurvey::class : Survey::class;
             $row = $model::create($this->payload($arta ? 'arta' : 'survey'));
             $row->forceFill(['created_at' => '2026-10-02 13:05:00'])->save();
-            $request = Request::create('/', 'GET', ['search' => ['value' => '"10/02/2026" "1:05 PM"']]);
+            $request = Request::create('/', 'GET', ['period' => 'all', 'search' => ['value' => '"10/02/2026" "1:05 PM"']]);
             $table = SurveyResponseTable::data($request, $arta);
             $this->assertSame(1, $table['recordsFiltered']);
             $this->assertContains('10/02/2026 - 1:05 PM', $table['data'][0]);
-            $request = Request::create('/', 'GET', ['search' => ['value' => 'NoMatch%_[']]);
+            $request = Request::create('/', 'GET', ['period' => 'all', 'search' => ['value' => 'NoMatch%_[']]);
             $this->assertSame(0, SurveyResponseTable::data($request, $arta)['recordsFiltered']);
         }
         // Reuse full report parity fixtures on the real engine without the SQLite application trait.
-        $parity = new \Tests\Support\EngineReportParity;
+        $parity = new \Tests\Support\EngineReportParity('test_ticket_queries_equal_original_widgets_across_chunks_and_date_buckets');
         $parity->useApplication($this->app);
         $parity->test_ticket_queries_equal_original_widgets_across_chunks_and_date_buckets();
         $parity->test_survey_grouped_queries_equal_original_for_all_staff_ratings_and_zero_activity();

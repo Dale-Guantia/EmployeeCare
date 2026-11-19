@@ -5,7 +5,9 @@ use App\Http\Controllers\Controller;
 use App\Models\HrChatLog;
 use App\Models\HrConversation;
 use App\Models\HrPolicyChunk;
+use App\Models\HrPolicyDocument;
 use App\Services\PolicyRetriever;
+use App\Services\PolicySourceSnapshot;
 use App\Services\AnthropicService;
 use App\Exceptions\PolicyChatException;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class HrChatController extends Controller
 {
@@ -69,28 +72,48 @@ class HrChatController extends Controller
                 ]);
             }
 
+            if (preg_match('/^(?:reset|start over|new topic|forget this|simulan ulit|bagong paksa)[.!?]*$/iu', $question)) {
+                $fresh = $this->resolveConversation(null, 'New conversation');
+                $answer = 'Started a new conversation. Which HR policy or process would you like to ask about?';
+                $log = $this->saveAnswer($fresh, $question, $answer, [], []);
+                return response()->json(['answer' => $answer, 'sources' => [], 'log_id' => $log->id,
+                    'conversation_id' => $fresh->id]);
+            }
+
             $conversation = $this->resolveConversation(
                 $request->input('conversation_id') ? (int) $request->input('conversation_id') : null,
                 $question
             );
 
-            $recentQuestions = HrChatLog::where('conversation_id', $conversation->id)
+            $state = $conversation->context_state ?? [];
+            $priorTopic = (string) ($state['topic_question'] ?? '');
+            if ($priorTopic === '' && $this->needsTopic($question)) {
+                $answer = 'Which HR policy or process do you mean? Please name the leave, benefit, form, or procedure so I can find the right document.';
+                $log = $this->saveAnswer($conversation, $question, $answer, [], []);
+                return response()->json(['answer' => $answer, 'sources' => [], 'log_id' => $log->id, 'conversation_id' => $conversation->id]);
+            }
+
+            $recentLogs = HrChatLog::where('conversation_id', $conversation->id)
                 ->where('user_id', backpack_user()->id)
                 ->latest('id')
-                ->limit(2)
-                ->pluck('question')
-                ->all();
+                ->limit(6)
+                ->get(['question', 'answer', 'matched_chunk_ids']);
 
-            $chunks = $this->retriever->promptChunks($this->retriever->retrieveForConversation($question, $recentQuestions));
+            $lastGroundedLog = $recentLogs->first(fn ($log) => ! empty($log->matched_chunk_ids));
+            $priorQuestions = $recentLogs->pluck('question')->all();
+            if ($priorTopic !== '') { array_unshift($priorQuestions, $priorTopic); }
+            $chunks = $this->retriever->promptChunks($this->retriever->retrieveForConversation(
+                $question, $priorQuestions, $lastGroundedLog?->matched_chunk_ids ?? []
+            ));
 
             // Strict grounding: if retrieval found no matching policy chunks, do not
             // call the AI at all — return a fixed "not found" answer instead of risking
             // an ungrounded, invented response. This is the retrieval-miss path.
             if ($chunks->isEmpty()) {
-                $answer = "I couldn't find this in our current HR policy documents. Please contact HRDO directly for assistance.\n\n"
-                    . "*(Hindi ko ito nakita sa aming kasalukuyang mga dokumento ng patakaran ng HR. Mangyaring makipag-ugnayan nang direkta sa HRDO para sa tulong.)*";
+                $answer = "I couldn't find this in the available HR policy documents. Please visit or contact the HRDO office for clarification.\n\n"
+                    . "*(Hindi ko ito nakita sa mga available na dokumento ng patakaran ng HR. Mangyaring bumisita o makipag-ugnayan sa HRDO para sa paglilinaw.)*";
 
-                $log = $this->saveAnswer($conversation, $question, $answer, []);
+                $log = $this->saveAnswer($conversation, $question, $answer, [], []);
 
                 return response()->json([
                     'answer'          => $answer,
@@ -107,11 +130,7 @@ class HrChatController extends Controller
             // short-term memory instead of treating every question in isolation.
             // Scoped to the current conversation so a different conversation's
             // turns never bleed in as false context.
-            $history = HrChatLog::where('conversation_id', $conversation->id)
-                ->where('user_id', backpack_user()->id)
-                ->latest('id')
-                ->limit(3)
-                ->get(['question', 'answer'])
+            $history = $recentLogs->take(3)
                 ->reverse()
                 ->flatMap(function ($log) {
                     return [
@@ -122,7 +141,16 @@ class HrChatController extends Controller
                 ->values()
                 ->all();
 
-            $answer = $this->ai->ask($question, $policyContext, $history);
+            $modelQuestion = $question;
+            $currentEmploymentStatement = preg_match('/\b(?:I am|I\x27m|ako ay)\s+(?:a\s+)?(?:regular|contractual|probationary|temporary|permanent)\b/iu', $question)
+                || preg_match('/\b(?:not|no longer|hindi na)\s+(?:a\s+)?(?:regular|contractual|probationary|temporary|permanent)\b/iu', $question);
+            if (! empty($state['employment_type']) && ! $currentEmploymentStatement) {
+                $modelQuestion .= "\n\nUser-stated context (not verified): employment type " . $state['employment_type'] . '.';
+            }
+            if (! empty($state['language_request'])) {
+                $modelQuestion .= "\n\nLatest prior language request: " . $state['language_request'] . '.';
+            }
+            $answer = $this->ai->ask($modelQuestion, $policyContext, $history);
 
             // Build source citations from the chunks that were actually used
             $sources = $chunks->map(function ($c) {
@@ -131,11 +159,13 @@ class HrChatController extends Controller
                 return $title . $section;
             })->unique()->values()->all();
 
-            $log = $this->saveAnswer($conversation, $question, $answer, $chunks->pluck('id')->all());
+            $snapshot = PolicySourceSnapshot::fromChunks($chunks);
+            $log = $this->saveAnswer($conversation, $question, $answer, $chunks->pluck('id')->all(), $snapshot);
 
             return response()->json([
                 'answer'          => $answer,
                 'sources'         => $sources,
+                'source_details'  => PolicySourceSnapshot::details($snapshot),
                 'log_id'          => $log->id,
                 'conversation_id' => $conversation->id,
             ]);
@@ -155,16 +185,54 @@ class HrChatController extends Controller
         }
     }
 
-    private function saveAnswer(HrConversation $conversation, string $question, string $answer, array $chunkIds): HrChatLog
+    private function saveAnswer(HrConversation $conversation, string $question, string $answer, array $chunkIds, array $snapshot = []): HrChatLog
     {
         // Do not resurrect a conversation deleted while the provider was responding.
-        return DB::transaction(function () use ($conversation, $question, $answer, $chunkIds) {
+        return DB::transaction(function () use ($conversation, $question, $answer, $chunkIds, $snapshot) {
             $current = HrConversation::forUser(backpack_user()->id)->lockForUpdate()->findOrFail($conversation->id);
             $log = HrChatLog::create(['user_id' => backpack_user()->id, 'conversation_id' => $current->id,
-                'question' => $question, 'answer' => $answer, 'matched_chunk_ids' => $chunkIds]);
+                'question' => $question, 'answer' => $answer, 'matched_chunk_ids' => $chunkIds,
+                'source_snapshot' => $snapshot]);
+            $state = $current->context_state ?? [];
+            if ($this->hasNamedTopic($question)) { $state['topic_question'] = $question; }
+            if (preg_match('/\b(?:in (?:filipino|tagalog|english)|sa (?:filipino|tagalog|ingles))\b/iu', $question, $m)) {
+                $state['language_request'] = mb_strtolower($m[0], 'UTF-8');
+            }
+            if (preg_match('/\b(?:I am|I\x27m|ako ay)\s+(?:a\s+)?(regular|contractual|probationary|temporary|permanent)\b/iu', $question, $m)) {
+                $state['employment_type'] = mb_strtolower($m[1], 'UTF-8');
+            } elseif (preg_match('/\b(?:not|no longer|hindi na)\s+(?:a\s+)?(?:regular|contractual|probationary|temporary|permanent)\b/iu', $question)) {
+                unset($state['employment_type']);
+            }
+            $state['unresolved_question'] = $chunkIds === [] && $this->needsTopic($question) ? $question : null;
+            $current->context_state = $state;
             $this->touchConversation($current, $question);
             return $log;
         });
+    }
+
+    private function needsTopic(string $question): bool
+    {
+        return (bool) preg_match('/^(?:how|paano|ano|what)\s+(?:do\s+i\s+)?(?:apply|mag-?apply|file|submit|requirements|process|steps|many days|ang proseso|ang kailangan)\??$/iu', trim($question));
+    }
+
+    private function hasNamedTopic(string $question): bool
+    {
+        return (bool) preg_match('/\b(?:wellness|maternity|paternity|adoption|saln|leave|benefit|conduct|appointment|probation|performance|form)\b/iu', $question);
+    }
+
+    public function policyFile(HrPolicyDocument $document, Request $request)
+    {
+        $hash = (string) $request->query('hash');
+        abort_unless($document->is_active && $document->status === 'active'
+            && $hash !== '' && hash_equals((string) $document->file_hash, $hash)
+            && str_starts_with((string) $document->file_path, 'policies/')
+            && str_ends_with(strtolower((string) $document->file_path), '.pdf')
+            && ! str_contains((string) $document->file_path, '..')
+            && ! str_contains((string) $document->file_path, '\\')
+            && Storage::exists($document->file_path), 404);
+        $response = Storage::response($document->file_path, $document->filename, ['Content-Type' => 'application/pdf'], 'inline');
+        $response->headers->set('Cache-Control', 'private, no-store');
+        return $response;
     }
 
     // Matches only when the *entire* message is a greeting (punctuation/case
@@ -252,7 +320,7 @@ class HrChatController extends Controller
         $logs = HrChatLog::where('user_id', backpack_user()->id)
             ->latest('id')
             ->limit(20)
-            ->get(['id', 'conversation_id', 'question', 'answer', 'matched_chunk_ids', 'created_at']);
+            ->get(['id', 'conversation_id', 'question', 'answer', 'matched_chunk_ids', 'source_snapshot', 'created_at']);
 
         // Resolve source citations for all logs in one batch query (instead of
         // N+1 per-log lookups), mirroring the title + section format ask() uses.
@@ -263,6 +331,12 @@ class HrChatController extends Controller
             ->keyBy('id');
 
         $logs->each(function ($log) use ($chunksById) {
+            if ($log->source_snapshot) {
+                $log->sources = PolicySourceSnapshot::labels($log->source_snapshot);
+                $log->source_details = PolicySourceSnapshot::details($log->source_snapshot);
+                unset($log->matched_chunk_ids, $log->source_snapshot);
+                return;
+            }
             $log->sources = collect($log->matched_chunk_ids ?? [])
                 ->map(function ($chunkId) use ($chunksById) {
                     $chunk = $chunksById->get($chunkId);
@@ -313,7 +387,7 @@ class HrChatController extends Controller
         $conv = HrConversation::forUser(backpack_user()->id)->findOrFail($id);
 
         $messages = $conv->logs()
-            ->get(['id', 'question', 'answer', 'matched_chunk_ids', 'feedback', 'created_at']);
+            ->get(['id', 'question', 'answer', 'matched_chunk_ids', 'source_snapshot', 'feedback', 'created_at']);
 
         $chunkIds = $messages->pluck('matched_chunk_ids')->flatten()->filter()->unique()->values();
         $chunksById = HrPolicyChunk::with('document')
@@ -322,6 +396,12 @@ class HrChatController extends Controller
             ->keyBy('id');
 
         $messages->each(function ($log) use ($chunksById) {
+            if ($log->source_snapshot) {
+                $log->sources = PolicySourceSnapshot::labels($log->source_snapshot);
+                $log->source_details = PolicySourceSnapshot::details($log->source_snapshot);
+                unset($log->matched_chunk_ids, $log->source_snapshot);
+                return;
+            }
             $log->sources = collect($log->matched_chunk_ids ?? [])
                 ->map(function ($chunkId) use ($chunksById) {
                     $chunk = $chunksById->get($chunkId);

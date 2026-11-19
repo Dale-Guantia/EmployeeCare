@@ -65,7 +65,7 @@ class PolicyChatProvidersTest extends TestCase
         Http::assertSentCount(2);
     }
 
-    /** @dataProvider failures */
+    #[\PHPUnit\Framework\Attributes\DataProvider('failures')]
     public function test_provider_failures_are_safe_exceptions_without_retries($provider, $failure)
     {
         Log::spy();

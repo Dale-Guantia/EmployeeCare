@@ -18,7 +18,7 @@
         <small>{!! $crud->getSubheading() ?? trans('backpack::crud.edit').' '.$crud->entity_name !!}.</small>
 
         @if ($crud->hasAccess('list'))
-          <small><a href="{{ url($crud->route) }}" class="d-print-none font-sm"><i class="la la-angle-double-{{ config('backpack.base.html_direction') == 'rtl' ? 'right' : 'left' }}"></i> {{ trans('backpack::crud.back_to_all') }} <span>{{ $crud->entity_name_plural }}</span></a></small>
+          <small><a href="{{ url($crud->route) }}" class="d-print-none font-sm"><i class="la la-angle-double-{{ config('backpack.ui.html_direction') == 'rtl' ? 'right' : 'left' }}"></i> {{ trans('backpack::crud.back_to_all') }} <span>{{ $crud->entity_name_plural }}</span></a></small>
         @endif
 	  </h2>
 	</section>
@@ -32,6 +32,7 @@
 		@include('crud::inc.grouped_errors')
 
 		  <form method="post"
+		        id="crudForm"
 		  		action="{{ url($crud->route.'/'.$entry->getKey()) }}"
 				@if ($crud->hasUploadFields('update', $entry->getKey()))
 				enctype="multipart/form-data"
@@ -41,10 +42,10 @@
 		  {!! method_field('PUT') !!}
 
 		  	@if ($crud->model->translationEnabled())
-		    <div class="mb-2 text-right">
+		    <div class="mb-2 text-end">
 		    	{{-- Single button --}}
 				<div class="btn-group">
-				  <button type="button" class="btn btn-sm btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+				  <button type="button" class="btn btn-sm btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
 				    {{trans('backpack::crud.language')}}: {{ $crud->model->getAvailableLocales()[request()->input('_locale')?request()->input('_locale'):App::getLocale()] }} &nbsp; <span class="caret"></span>
 				  </button>
 				  <ul class="dropdown-menu">
@@ -62,13 +63,13 @@
 		      	@include('crud::form_content', ['fields' => $crud->fields(), 'action' => 'edit'])
               @endif
               {{-- This makes sure that all field assets are loaded. --}}
-            <div class="d-none" id="parentLoadedAssets">{{ json_encode(Assets::loaded()) }}</div>
+            <div class="d-none" id="parentLoadedAssets">{{ json_encode(Basset::loaded()) }}</div>
             @include('crud::inc.form_save_buttons')
 		  </form>
 	</div>
     @if(isset($crud) && $crud->entity_name == 'ticket')
         {{-- SIDEBAR CARD --}}
-        <div class="col-md-4">
+        <div class="col-12 col-xl-4">
             <div class="card">
                 <div class="card-header">
                     <strong>Ticket Info</strong>

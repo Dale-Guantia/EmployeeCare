@@ -1,7 +1,7 @@
 @extends(backpack_view('layouts.plain'))
 
 @section('content')
-    <div class="row justify-content-center">
+    <div class="row justify-content-center align-items-center min-vh-100">
         <div class="col-12 col-md-8 col-lg-4">
             <h3 class="text-center mb-4">{{ trans('backpack::base.login') }}</h3>
             <div class="card">
@@ -9,8 +9,8 @@
                     <form class="col-md-12 p-t-10" role="form" method="POST" action="{{ route('backpack.auth.login') }}">
                         {!! csrf_field() !!}
 
-                        <div class="form-group">
-                            <label class="control-label" for="{{ $username }}">{{ config('backpack.base.authentication_column_name') }} or Username</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="{{ $username }}">{{ config('backpack.base.authentication_column_name') }} or Username</label>
 
                             <div>
                                 <input type="text" class="form-control{{ $errors->has($username) ? ' is-invalid' : '' }}" name="{{ $username }}" value="{{ old($username) }}" id="{{ $username }}">
@@ -23,8 +23,8 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="control-label" for="password">{{ trans('backpack::base.password') }}</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="password">{{ trans('backpack::base.password') }}</label>
 
                             <div>
                                 <input type="password" class="form-control{{ $errors->has('password') ? ' is-invalid' : '' }}" name="password" id="password">
@@ -37,7 +37,7 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
+                        <div class="mb-3">
                             <div>
                                 <div class="checkbox">
                                     <label>
@@ -47,9 +47,9 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
+                        <div class="mb-3">
                             <div>
-                                <button type="submit" class="btn btn-block btn-primary">
+                                <button type="submit" class="btn w-100 btn-primary">
                                     {{ trans('backpack::base.login') }}
                                 </button>
                             </div>

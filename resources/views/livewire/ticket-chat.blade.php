@@ -1,5 +1,5 @@
 <div class="card" wire:poll.5s style="height: calc(100vh - 250px); min-height: 500px;">
-    <div class="card-header bg-primary text-white font-weight-bold">
+    <div class="card-header bg-primary text-white fw-bold">
         <i class="la la-comments"></i> Ticket Discussion
     </div>
 
@@ -67,7 +67,7 @@
                     <span><i class="la la-file"></i> {{ $file->getClientOriginalName() }}</span>
 
                     @unless($isResolved)
-                        <button type="button" class="close" wire:click="removeAttachment({{ $index }})">&times;</button>
+                        <button type="button" class="btn btn-link" wire:click="removeAttachment({{ $index }})">&times;</button>
                     @endunless
                 </div>
             @endforeach
@@ -92,7 +92,7 @@
 
             <input
                 type="text"
-                wire:model.defer="comment"
+                wire:model="comment"
                 wire:keydown.enter.prevent="{{ $isResolved ? '' : 'sendComment' }}"
                 wire:loading.attr="disabled"
                 wire:target="sendComment,attachments"
@@ -142,13 +142,13 @@
     });
 
     // Run every time Livewire updates the DOM (after a message is sent)
-    document.addEventListener('livewire:load', function () {
-        window.livewire.on('commentSent', () => {
+    document.addEventListener('livewire:init', function () {
+        Livewire.on('commentSent', () => {
             setTimeout(() => { scrollToBottom(); }, 50);
         });
 
         // Alternative: Listen for any Livewire update
-        Livewire.hook('message.processed', (message, component) => {
+        Livewire.hook('morphed', () => {
             scrollToBottom();
         });
     });

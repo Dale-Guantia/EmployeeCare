@@ -10,18 +10,26 @@ use Illuminate\Support\Collection;
 
 class TicketNotificationService
 {
+    public function deadlineRecipients(Ticket $ticket): Collection
+    {
+        return $this->candidates($ticket)->filter(fn ($user) =>
+            $user->can('ticket.view') && $user->wantsNotification('notify_ticket_status_changed')
+            && $this->shouldReceiveTicketStatusChanged($user, $ticket)
+            && Ticket::visibleTo($user)->whereKey($ticket->id)->exists());
+    }
+
     protected function ticketUrl(Ticket $ticket): string
     {
         return url(config('backpack.base.route_prefix') . "/ticket/{$ticket->id}/show");
     }
 
-    protected function notifyUsers(Collection $users, string $settingKey, callable $payloadBuilder): void
+    protected function notifyUsers(Collection $users, string $settingKey, callable $payloadBuilder, ?User $actor = null): void
     {
         $users
             ->filter()
             ->unique('id')
             ->filter(fn ($user) => method_exists($user, 'wantsNotification') ? $user->wantsNotification($settingKey) : true)
-            ->each(function ($user) use ($payloadBuilder) {
+            ->each(function ($user) use ($payloadBuilder, $actor) {
                 $payload = $payloadBuilder($user);
 
                 if (!$payload) {
@@ -32,7 +40,7 @@ class TicketNotificationService
                     $payload['title'],
                     $payload['message'],
                     $payload['url'] ?? null,
-                    $payload['extra'] ?? []
+                    array_merge($payload['extra'] ?? [], ['actor_id' => $actor?->id])
                 ));
             });
     }
@@ -233,10 +241,10 @@ class TicketNotificationService
                     'type' => 'ticket_created',
                 ],
             ];
-        });
+        }, $actor);
     }
 
-    public function notifyTicketAssigned(Ticket $ticket, ?User $actor = null): void
+    public function notifyTicketAssigned(Ticket $ticket, ?User $actor = null, bool $automated = false): void
     {
         $ticket->loadMissing(['user', 'assignee']);
 
@@ -258,7 +266,7 @@ class TicketNotificationService
                     'type' => 'ticket_assigned',
                 ],
             ];
-        });
+        }, $automated ? null : $actor);
     }
 
     public function notifyTicketStatusChanged(Ticket $ticket, ?User $actor = null): void
@@ -283,9 +291,10 @@ class TicketNotificationService
                 'extra' => [
                     'ticket_id' => $ticket->id,
                     'type' => 'ticket_status_changed',
+                    'status_code' => $ticket->status->status_code,
                 ],
             ];
-        });
+        }, $actor);
     }
 
     protected function reassignmentReceivers(TicketReassignmentRequest $request): Collection
@@ -324,7 +333,7 @@ class TicketNotificationService
                     'type' => 'reassignment_requested',
                 ],
             ];
-        });
+        }, $actor);
     }
 
     public function notifyReassignmentAccepted(Ticket $ticket, TicketReassignmentRequest $request, ?User $actor = null): void
@@ -344,7 +353,7 @@ class TicketNotificationService
                     'type' => 'reassignment_accepted',
                 ],
             ];
-        });
+        }, $actor);
     }
 
     public function notifyReassignmentRejected(Ticket $ticket, TicketReassignmentRequest $request, ?User $actor = null): void
@@ -366,7 +375,7 @@ class TicketNotificationService
                     'type' => 'reassignment_rejected',
                 ],
             ];
-        });
+        }, $actor);
     }
 
     public function notifyTicketCommented(Ticket $ticket, User $actor): void
@@ -393,6 +402,6 @@ class TicketNotificationService
                     'type' => 'ticket_commented',
                 ],
             ];
-        });
+        }, $actor);
     }
 }

@@ -13,14 +13,14 @@ class PriorityTableSeeder extends Seeder
     public function run(): void
     {
         $priorities = [
-            ['priority_name' => 'High', 'priority_color' => '#fe7c7c'],
-            ['priority_name' => 'Medium', 'priority_color' => '#fed971'],
-            ['priority_name' => 'Low', 'priority_color' => '#5cb0ff'],
+            ['priority_code' => Priority::HIGH, 'priority_name' => 'High', 'priority_color' => '#fe7c7c'],
+            ['priority_code' => Priority::MEDIUM, 'priority_name' => 'Medium', 'priority_color' => '#fed971'],
+            ['priority_code' => Priority::LOW, 'priority_name' => 'Low', 'priority_color' => '#5cb0ff'],
         ];
 
         foreach ($priorities as $priority) {
-            Priority::updateOrCreate(
-                ['priority_name' => $priority['priority_name']],
+            Priority::firstOrCreate(
+                ['priority_code' => $priority['priority_code']],
                 $priority
             );
         }

@@ -1,9 +1,9 @@
 # Laravel Project Instructions
 
 ## Technology Stack
-- Backend: Laravel 8
-- Language: PHP 7.4
-- Database: MySQL; Microsoft SQL Server where configured
+- Backend: Laravel 13
+- Language: PHP 8.5
+- Database: Microsoft SQL Server; MySQL where configured
 - Frontend: Blade, JavaScript, jQuery, Bootstrap
 - Development Environment: Windows 11, XAMPP
 - Administration: Laravel Backpack where installed
@@ -12,8 +12,8 @@ Verify actual dependencies and versions in composer.json, package.json, and proj
 
 ## Laravel Development Standards
 
-- Maintain compatibility with PHP 7.4 and Laravel 8.
-- Do not introduce PHP 8-only syntax or unsupported framework features.
+- Maintain compatibility with PHP 8.5 and Laravel 13.
+- Use syntax and framework features supported by PHP 8.5 and Laravel 13.
 - Follow existing Laravel conventions and application patterns.
 - Prefer Eloquent relationships or the Query Builder where appropriate.
 - Avoid unnecessary raw SQL.

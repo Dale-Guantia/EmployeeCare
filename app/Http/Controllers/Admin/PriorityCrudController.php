@@ -18,6 +18,7 @@ class PriorityCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \App\Http\Controllers\Admin\Operations\MasterDataArchivingOperation;
 
     /**
      * Configure the CrudPanel object. Apply settings to all operations.
@@ -55,7 +56,14 @@ class PriorityCrudController extends CrudController
      */
     protected function setupListOperation()
     {
+        $this->crud->removeButton('delete');
+        $this->crud->addButtonFromView('line', 'priority_actions', 'priority_actions', 'end');
         CRUD::column('priority_name');
+        // CRUD::column('priority_code')->label('Code');
+        CRUD::addColumn([
+            'name' => 'is_active', 'label' => 'State', 'type' => 'boolean',
+            'options' => [0 => 'Archived', 1 => 'Active'],
+        ]);
         CRUD::addColumn([
             'name'  => 'priority_color',
             'label' => 'Priority Color',
@@ -88,6 +96,14 @@ class PriorityCrudController extends CrudController
     protected function setupCreateOperation()
     {
         CRUD::setValidation(PriorityRequest::class);
+        $codeAttributes = ['maxlength' => 64];
+        if ($this->crud->getCurrentOperation() === 'update') $codeAttributes['readonly'] = 'readonly';
+        CRUD::addField(['name' => 'priority_code', 'label' => 'Permanent code', 'type' => 'text',
+            'attributes' => $codeAttributes, 'hint' => 'Assigned once. Leave empty on creation to generate a code automatically.']);
+        if ($this->crud->getCurrentOperation() === 'update') {
+            CRUD::addField(['name' => 'reason', 'label' => 'Reason for change (optional)', 'type' => 'textarea',
+                'attributes' => ['maxlength' => 1000, 'rows' => 2], 'hint' => 'Stored in the audit history.']);
+        }
 
         CRUD::field('priority_name');
         CRUD::addField([   // Color
@@ -95,6 +111,10 @@ class PriorityCrudController extends CrudController
             'label'   => 'Priority color',
             'type'    => 'color',
             'default' => '#000000',
+        ]);
+        CRUD::addField([
+            'name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'default' => 1,
+            'hint' => 'Archived priorities remain visible on existing records and cannot be newly assigned.',
         ]);
 
         /**
@@ -113,5 +133,10 @@ class PriorityCrudController extends CrudController
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();
+    }
+
+    protected function setupShowOperation()
+    {
+        $this->setupListOperation();
     }
 }

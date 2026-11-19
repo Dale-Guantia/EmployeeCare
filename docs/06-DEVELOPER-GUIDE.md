@@ -2,7 +2,7 @@
 
 ## Orientation and conventions
 
-Read [AGENTS.md](../AGENTS.md), [architecture](02-SYSTEM-ARCHITECTURE.md), [functional specification](04-FUNCTIONAL-SPECIFICATIONS.md) and [implementation inventory](IMPLEMENTATION-INVENTORY.md) first. Preserve PHP 7.4/Laravel 8 compatibility. Use App namespaces, Eloquent/Query Builder, focused patches and existing service boundaries. Current working-tree changes are part of the documented snapshot and must not be discarded.
+Read [AGENTS.md](../AGENTS.md), [architecture](02-SYSTEM-ARCHITECTURE.md), [functional specification](04-FUNCTIONAL-SPECIFICATIONS.md) and [implementation inventory](IMPLEMENTATION-INVENTORY.md) first. Maintain the current PHP 8.5/Laravel 13 compatibility; see [upgrade notes](PHP85_UPGRADE.md). Use App namespaces, Eloquent/Query Builder, focused patches and existing service boundaries. Current working-tree changes are part of the documented snapshot and must not be discarded.
 
 | Folder | Contents |
 | --- | --- |

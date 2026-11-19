@@ -6,96 +6,57 @@
             <span class="text-capitalize">{{ $title }}</span>
         </h2>
 
-        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#downloadSurveyReportModal">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#downloadSurveyReportModal">
             <i class="la la-download"></i> Download Report
         </button>
     </section>
 @endsection
 
 @section('content')
-    <div class="row">
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-dark">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="la la-list"></i></div>
-                    <div class="text-value">{{ $summaryCards['total_surveys'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Total Surveys</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-success">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="la la-smile"></i></div>
-                    <div class="text-value">{{ $summaryCards['very_satisfied'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Very Satisfied</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-primary">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="la la-meh"></i></div>
-                    <div class="text-value">{{ $summaryCards['satisfied'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Satisfied</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-warning">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="la la-frown"></i></div>
-                    <div class="text-value">{{ $summaryCards['dissatisfied'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Dissatisfied</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-danger">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="la la-angry"></i></div>
-                    <div class="text-value">{{ $summaryCards['very_dissatisfied'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Very Dissatisfied</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white" style="background-color: #7c69ef;">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="la la-users"></i></div>
-                    <div class="text-value">{{ $summaryCards['staff_rated'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Staff Rated</small>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="ec-analytics ec-reports ec-survey-report">
+    @include('admin.partials.survey_report_filters', ['showOfficeFilters' => true])
+    @php
+        $cards = [];
+        foreach ([['total_surveys', 'Total Surveys', 'la-list', 'bg-dark'], ['very_satisfied', 'Very Satisfied', 'la-smile', 'bg-success'],
+            ['satisfied', 'Satisfied', 'la-meh', 'bg-primary'], ['dissatisfied', 'Dissatisfied', 'la-frown', 'bg-warning'],
+            ['very_dissatisfied', 'Very Dissatisfied', 'la-angry', 'bg-danger'], ['staff_rated', 'Staff Rated', 'la-users', 'bg-secondary']] as [$key, $label, $icon, $color]) {
+            $cards[] = compact('key', 'label', 'icon', 'color') + ['value' => $summaryCards[$key]];
+        }
+        $cards[5]['background'] = '#6f42c1';
+        $topStaff = $surveyRatings->sortByDesc('total_surveys')->take(10)->values();
+        $charts = [
+            ['title' => 'Survey Rating Distribution', 'unit' => 'Rating answers', 'labels' => ['Very Satisfied', 'Satisfied', 'Dissatisfied', 'Very Dissatisfied'],
+                'counts' => [$summaryCards['very_satisfied'], $summaryCards['satisfied'], $summaryCards['dissatisfied'], $summaryCards['very_dissatisfied']],
+                'colors' => ['#198754', '#375ca6', '#ffc107', '#b02a37']],
+            ['title' => 'Top 10 Rated Staff by Survey Responses', 'labels' => $topStaff->pluck('name')->all(), 'counts' => $topStaff->pluck('total_surveys')->all()],
+        ];
+    @endphp
+    @include('admin.partials.report_kpi_cards', ['cards' => $cards])
+    <p class="small text-muted mt-3 mb-0">Totals for the selected filters. Rating counts cover the four survey dimensions; each response can contribute four ratings. Table searches do not change these totals.</p>
+    @include('admin.partials.survey_report_charts', ['charts' => $charts])
 
     <div class="row">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
-                    <table id="surveyResponsesTable" class="table table-striped table-hover text-nowrap w-100">
+                    <table id="surveyResponsesTable" class="table table-hover w-100 ec-report-table" data-report-table data-report-ajax="{{ route('page.survey_reports.responses', array_filter(['period' => $activePeriod, 'half' => $activeHalf, 'year' => $activeYear, 'range_start' => $filterStart?->toDateString(), 'range_end' => $filterEnd?->toDateString(), 'department_id' => $selectedDepartmentId, 'division_id' => $selectedDivisionId], fn ($value) => $value !== null)) }}" data-report-order-column="8" data-report-empty="No survey responses available." aria-label="Survey Responses">
                         <thead>
                         <tr>
-                            <th>Staff Rated</th>
+                            <th class="control report-details-cell"><span class="visually-hidden">Details</span></th>
+                            <th data-priority="1">Staff Rated</th>
                             <th>Division</th>
-                            <th>Service</th>
-                            <th>Timeliness</th>
-                            <th>Client Handling</th>
-                            <th>Quality of Service</th>
-                            <th>Overall Satisfaction</th>
+                            <th data-priority="2">Service</th>
+                            <th data-report-rating="true">Timeliness</th>
+                            <th data-report-rating="true">Client Handling</th>
+                            <th data-report-rating="true">Quality of Service</th>
+                            <th data-report-rating="true" data-priority="3">Overall Satisfaction</th>
                             <th>Date</th>
                         </tr>
                         </thead>
                         <tbody>
                             @foreach($responses as $response)
                                 <tr>
+                                    <td class="report-details-cell"><button type="button" class="btn btn-sm btn-outline-secondary report-details-toggle" aria-label="Show additional survey details" aria-expanded="false">+</button></td>
                                     <td>{{ optional($response->staff)->name ?? 'N/A' }}</td>
                                     <td>{{ optional(optional($response->staff)->division)->division_name ?? 'N/A' }}</td>
                                     <td>{{ optional($response->service)->issue_description ?? 'N/A' }}</td>
@@ -117,22 +78,23 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
-                    <table id="surveyRatingsTable" class="table table-striped table-hover text-nowrap w-100">
+                    <table id="surveyRatingsTable" class="table table-hover w-100 ec-report-table" data-report-table data-report-empty="No rated staff available." aria-label="Survey Rating">
                         <thead>
                         <tr>
-                            <th>Staff Name</th>
-                            <th>Total Surveys</th>
+                            <th class="control report-details-cell"><span class="visually-hidden">Details</span></th>
+                            <th data-priority="1">Staff Name</th>
+                            <th data-priority="2">Total Surveys</th>
                             <th>Very Dissatisfied</th>
                             <th>Dissatisfied</th>
                             <th>Satisfied</th>
                             <th>Very Satisfied</th>
-                            <th>Action</th>
+                            <th data-priority="3">Action</th>
                         </tr>
                         </thead>
                         <tbody>
                             @foreach($surveyRatings as $staff)
                                 <tr>
+                                    <td class="report-details-cell"><button type="button" class="btn btn-sm btn-outline-secondary report-details-toggle" aria-label="Show additional staff details" aria-expanded="false">+</button></td>
                                     <td>{{ $staff->name }}</td>
                                     <td>{{ $staff->total_surveys }}</td>
                                     <td>{{ $staff->very_dissatisfied_count }}</td>
@@ -143,9 +105,9 @@
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-link text-primary view-details-btn"
-                                            data-toggle="modal"
-                                            data-target="#surveyDetailsModal"
-                                            data-staff='@json($staff)'
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#surveyDetailsModal"
+                                            data-staff="{{ json_encode($staff) }}"
                                         >
                                             <i class="la la-eye"></i> View Details
                                         </button>
@@ -163,34 +125,34 @@
         <div class="modal-dialog modal-lg" role="document">
             <form method="POST" action="{{ route('page.survey_reports.download_pdf') }}" target="_blank">
                 @csrf
+                <input type="hidden" name="department_id" value="{{ $selectedDepartmentId }}">
+                <input type="hidden" name="division_id" value="{{ $selectedDivisionId }}">
 
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Select Date Range</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
 
                     <div class="modal-body">
-                        <div class="form-group">
+                        <div class="mb-3">
                             <label>Start Date <span class="text-danger">*</span></label>
                             <input
                                 type="date"
                                 name="start_date"
                                 class="form-control"
-                                value="{{ now()->startOfYear()->format('Y-m-d') }}"
+                                value="{{ $exportStartDate }}"
                                 required
                             >
                         </div>
 
-                        <div class="form-group">
+                        <div class="mb-3">
                             <label>End Date <span class="text-danger">*</span></label>
                             <input
                                 type="date"
                                 name="end_date"
                                 class="form-control"
-                                value="{{ now()->format('Y-m-d') }}"
+                                value="{{ ($filterEnd ?? now())->format('Y-m-d') }}"
                                 required
                             >
                         </div>
@@ -213,7 +175,7 @@
                         <button type="submit" class="btn btn-primary">
                             Generate Report
                         </button>
-                        <button type="button" class="btn btn-light" data-dismiss="modal">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">
                             Cancel
                         </button>
                     </div>
@@ -229,30 +191,28 @@
                     <h5 class="modal-title">
                         Survey Details for: <strong id="detailStaffName">-</strong>
                     </h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
                     <p class="mb-3">Total Surveys: <strong id="detailTotalSurveys">0</strong></p>
 
                     <div class="table-responsive">
-                        <table class="table table-bordered table-striped text-nowrap mb-0">
+                        <table class="table table-hover ec-report-table w-100 mb-0">
                             <thead>
                                 <tr>
                                     <th></th>
                                     <th class="text-center">
-                                        <span class="badge badge-danger w-100 py-2">Very Dissatisfied</span>
+                                        <span class="badge bg-danger w-100 py-2">Very Dissatisfied</span>
                                     </th>
                                     <th class="text-center">
-                                        <span class="badge badge-warning w-100 py-2">Dissatisfied</span>
+                                        <span class="badge bg-warning w-100 py-2">Dissatisfied</span>
                                     </th>
                                     <th class="text-center">
-                                        <span class="badge badge-primary w-100 py-2">Satisfied</span>
+                                        <span class="badge bg-primary w-100 py-2">Satisfied</span>
                                     </th>
                                     <th class="text-center">
-                                        <span class="badge badge-success w-100 py-2">Very Satisfied</span>
+                                        <span class="badge bg-success w-100 py-2">Very Satisfied</span>
                                     </th>
                                 </tr>
                             </thead>
@@ -279,13 +239,13 @@
                                     <td class="text-center" id="qualityVerySatisfied">0</td>
                                 </tr>
                                 <tr>
-                                    <th>Overall Satisfaction</th>
+                                    <th data-report-rating="true" data-priority="3">Overall Satisfaction</th>
                                     <td class="text-center" id="overallVeryDissatisfied">0</td>
                                     <td class="text-center" id="overallDissatisfied">0</td>
                                     <td class="text-center" id="overallSatisfied">0</td>
                                     <td class="text-center" id="overallVerySatisfied">0</td>
                                 </tr>
-                                <tr class="font-weight-bold">
+                                <tr class="fw-bold">
                                     <th>Total Count</th>
                                     <td class="text-center" id="totalVeryDissatisfied">0</td>
                                     <td class="text-center" id="totalDissatisfied">0</td>
@@ -299,11 +259,13 @@
             </div>
         </div>
     </div>
+</div>
 @endsection
 
 @push('after_styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap4.min.css">
+    @basset(public_path('css/analytics.css'))
+    @basset('https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css')
+    @basset('https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css')
 
     <style>
         div.dataTables_wrapper div.dataTables_length select {
@@ -319,10 +281,11 @@
 @endpush
 
 @push('after_scripts')
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
-    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
-    <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap4.min.js"></script>
+    @basset('https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js')
+    @basset('https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js')
+    @include('admin.partials.report_table_assets')
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    @basset(public_path('js/survey-report-charts.js'))
 
     <script>
         $(document).ready(function () {
@@ -335,38 +298,6 @@
             if (detailsModal) {
                 document.body.appendChild(detailsModal);
             }
-
-            $('#surveyResponsesTable').DataTable({
-                serverSide: true,
-                processing: true,
-                ajax: @json(route('page.survey_reports.responses')),
-                columnDefs: [{ targets: '_all', render: $.fn.dataTable.render.text() }],
-                pageLength: 10,
-                responsive: false,
-                ordering: true,
-                searching: true,
-                // FIX: Added 'table-responsive' directly to the 'tr' wrapper
-                dom:
-                    "<'row align-items-center mb-2'<'col-md-6 responses-title'><'col-md-6'f>>" +
-                    "<'row'<'col-sm-12 table-responsive'tr>>" +
-                    "<'row mt-2'<'col-sm-6'l><'col-sm-6'p>>"
-            });
-
-            $('.responses-title').html('<h5 class="mb-0 font-weight-bold">Survey Responses</h5>');
-
-            $('#surveyRatingsTable').DataTable({
-                pageLength: 10,
-                responsive: false,
-                ordering: true,
-                searching: true,
-                // FIX: Added 'table-responsive' here too
-                dom:
-                    "<'row align-items-center mb-2'<'col-md-6 ratings-title'><'col-md-6'f>>" +
-                    "<'row'<'col-sm-12 table-responsive'tr>>" +
-                    "<'row mt-2'<'col-sm-6'l><'col-sm-6'p>>"
-            });
-
-            $('.ratings-title').html('<h5 class="mb-0 font-weight-bold">Survey Rating</h5>');
 
             $(document).on('click', '.view-details-btn', function () {
                 const staff = $(this).data('staff') || {};

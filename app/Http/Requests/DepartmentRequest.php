@@ -6,6 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class DepartmentRequest extends FormRequest
 {
+    use \App\Http\Requests\Concerns\AuthorizesMasterDataLifecycle;
     /**
      * Determine if the user is authorized to make this request.
      *
@@ -14,7 +15,7 @@ class DepartmentRequest extends FormRequest
     public function authorize()
     {
         // only allow updates if the user is logged in
-        return backpack_auth()->check();
+        return $this->authorizeMasterData('department', \App\Models\Department::class);
     }
 
     /**
@@ -25,7 +26,11 @@ class DepartmentRequest extends FormRequest
     public function rules()
     {
         return [
+            'reason' => 'nullable|string|max:1000',
+            'department_code' => \App\Services\PermanentCodeRules::validation(\App\Models\Department::class, $this->route('id'))['department_code'],
+            'id' => ['sometimes', 'integer', \Illuminate\Validation\Rule::in([$this->route('id')])],
             'department_name' => 'required|string|max:255|unique:departments,department_name,' . $this->route('id'),
+            'is_active' => 'sometimes|boolean',
         ];
     }
 

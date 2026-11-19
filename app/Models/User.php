@@ -14,6 +14,7 @@ use App\Services\SqlDialectHelper;
 class User extends Authenticatable
 {
     use CrudTrait;
+    use \App\Models\Concerns\LocksOfficeReferences;
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     /**
@@ -62,6 +63,16 @@ class User extends Authenticatable
         'skills' => 'array',
     ];
 
+    protected static function booted()
+    {
+        static::saving(function ($user) {
+            $activating = $user->isDirty('is_active') && (bool) $user->is_active;
+            if (!$user->exists || $user->isDirty(['department_id', 'division_id']) || $activating) {
+                \App\Services\OfficeSelectionRules::assertAvailable($user->department_id, $user->division_id);
+            }
+        });
+    }
+
     // Inside app/Models/User.php
 
     public function getAvatarUrl()
@@ -96,13 +107,13 @@ class User extends Authenticatable
     public function resolvedTickets()
     {
         return $this->hasMany(Ticket::class, 'resolved_by')
-                    ->where('status_id', Status::idByName('Resolved'));
+                    ->where('status_id', Status::idByCode(Status::RESOLVED));
     }
 
     public function overdueTickets()
     {
         $diffHoursSql = SqlDialectHelper::diffHoursSql('created_at', 'resolved_at');
-        $resolvedStatusId = Status::idByName('Resolved');
+        $resolvedStatusId = Status::idByCode(Status::RESOLVED);
 
         return $this->hasMany(\App\Models\Ticket::class, 'assigned_to')
             ->where(function ($query) use ($diffHoursSql, $resolvedStatusId) {

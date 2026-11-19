@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class TicketReassignmentRequest extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\LocksOfficeReferences;
 
     const STATUS_PENDING = 'pending';
     const STATUS_ACCEPTED = 'accepted';
@@ -31,6 +32,20 @@ class TicketReassignmentRequest extends Model
     protected $casts = [
         'responded_at' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        static::saving(function ($request) {
+            if (!$request->exists || $request->isDirty(['to_department_id', 'to_division_id'])
+                || ($request->isDirty('status') && in_array($request->status, [self::STATUS_PENDING, self::STATUS_ACCEPTED], true))) {
+                \App\Services\OfficeSelectionRules::assertAvailable($request->to_department_id, $request->to_division_id);
+            }
+            if (($request->status ?? self::STATUS_PENDING) === self::STATUS_PENDING
+                && (!$request->exists || $request->isDirty(['from_department_id', 'from_division_id', 'status']))) {
+                \App\Services\OfficeSelectionRules::assertAvailable($request->from_department_id, $request->from_division_id);
+            }
+        });
+    }
 
     public function ticket()
     {

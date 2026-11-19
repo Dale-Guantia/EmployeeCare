@@ -12,6 +12,7 @@ class HrPolicyChunk extends Model
         'document_id',
         'chunk_index',
         'page_number',
+        'end_page_number',
         'section_title',
         'content',
         'search_vector',
@@ -23,6 +24,7 @@ class HrPolicyChunk extends Model
     protected $casts = [
         'chunk_index' => 'integer',
         'page_number' => 'integer',
+        'end_page_number' => 'integer',
     ];
 
     public function document()

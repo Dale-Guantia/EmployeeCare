@@ -40,6 +40,29 @@ class ReportsWidgetsTest extends TestCase
         return [$dept, $div];
     }
 
+    public function test_tickets_overview_colors_follow_saved_statuses_after_rename_and_color_edits(): void
+    {
+        $this->actingAs($this->makeAdmin(), 'web');
+        $expected = Status::whereIn('status_code', Status::CORE_CODES)->get()->keyBy('status_code');
+        $colors = Status::all()->pluck('status_color')->all();
+        $response = $this->get(route('page.reports.index'))->assertOk();
+        $this->assertSame($colors, $response->viewData('reportTicketsOverview')['colors']);
+        $document = new \DOMDocument();
+        $document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET);
+        $payload = (new \DOMXPath($document))->query('//script[@data-report-charts]')->item(0)->textContent;
+        $this->assertSame($colors, json_decode($payload, true, 512, JSON_THROW_ON_ERROR)['status']['colors']);
+        $response->assertSee('analytics-charts.js', false);
+
+        $expected[Status::PENDING]->update(['status_name' => 'Awaiting Action', 'status_color' => '#13579b']);
+        $response = $this->get(route('page.reports.index'))->assertOk();
+        $funnel = $response->viewData('reportTicketsOverview');
+        $index = array_search('Awaiting Action', $funnel['labels'], true);
+        $this->assertNotFalse($index);
+        $this->assertSame('#13579b', $funnel['colors'][$index]);
+        $this->assertSame(0, array_sum($funnel['counts']));
+        $this->assertSame(count($funnel['labels']), count($funnel['colors']));
+    }
+
     public function test_reports_page_returns_widget_data_with_known_counts()
     {
         $admin = $this->makeAdmin();
@@ -98,7 +121,8 @@ class ReportsWidgetsTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'web');
-        $response = $this->get(route('page.reports.index'));
+        // This fixture spans a month boundary during the first five days of a month.
+        $response = $this->get(route('page.reports.index', ['period' => 'all']));
 
         $response->assertStatus(200);
         $response->assertViewHas('reportKpis');

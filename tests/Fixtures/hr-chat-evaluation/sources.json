@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "source_directory": "policy documents",
+  "page_numbering": "Physical PDF pages, 1-based; not necessarily printed page labels.",
+  "documents": [
+    {
+      "key": "wellness",
+      "filename": "15-07-2026-EXECUTIVE-ORDER-NO.-PCG-39-s-2026.pdf",
+      "title": "Pasig EO PCG-39, s. 2026 - Wellness Leave",
+      "category": "leave",
+      "aliases": [],
+      "sha256": "c60b66cbc808c764736e5eadf60246ebdabf4249f9b06bc61fe357332821bbb6",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "omnibus-2010",
+      "filename": "OMNIBUS RULE ON LEAVE (1).pdf",
+      "title": "Omnibus Rule on Leave (July 2010)",
+      "category": "leave",
+      "aliases": [
+        "leave_policy.pdf"
+      ],
+      "sha256": "b9b4b34c6ceacdcda60658ca96ab8db0d557d07814255e8b57c7074d1984e58f",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "mc05-2021",
+      "filename": "MC No. 05, s. 2021 (1).pdf",
+      "title": "CSC MC No. 05, s. 2021",
+      "category": "leave",
+      "aliases": [],
+      "sha256": "6edfe8c250c2d5b57d9c558db75e6c9c2e13c22a50732817bc150059de04ab13",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "resolution-2100020",
+      "filename": "CSC Resolution No. 2100020 dated 07 January 2021 (1).pdf",
+      "title": "CSC Resolution No. 2100020 (07 January 2021)",
+      "category": "leave",
+      "aliases": [],
+      "sha256": "dbfeb8407f597b25958ca63efa179c38a01fe6f4c30f97f41079bd9e67130bdb",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "form6",
+      "filename": "CS Form No. 6, Revised 2020 (Application for Leave) (Secured) (1).pdf",
+      "title": "CS Form No. 6 (Revised 2020)",
+      "category": "leave",
+      "aliases": [
+        "leave_form.pdf"
+      ],
+      "sha256": "fa6c3e4036e8050d40e6ac1729ad441637032d60cf328923f492271db525e624",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "form6a",
+      "filename": "CS Form No. 6a, s. 2020 (Notice of Allocation of Maternity Leave) (Secured) (1).pdf",
+      "title": "CS Form No. 6a (Series 2020)",
+      "category": "leave",
+      "aliases": [],
+      "sha256": "475e6b3b2b99fbba58f21c266726f485ac288e08407808b5061da77b62ad5f36",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "conduct",
+      "filename": "code_of_conduct.pdf",
+      "title": "RA No. 6713 - Code of Conduct",
+      "category": "conduct",
+      "aliases": [],
+      "sha256": "af09d1715b41884fc73302a1582e3bba467424f692157ca4a8f900bdab63c8d8",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "oraohra-native",
+      "filename": "oraohra.pdf",
+      "title": "2025 ORAOHRA (oraohra.pdf)",
+      "category": "general",
+      "aliases": [],
+      "sha256": "e521f52a5fe8e6c0fcee892b9dae7ad0ffc16a1cebbb798ae33743e5fc5f8c0c",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "oraohra-scan",
+      "filename": "2025_oraohra.pdf",
+      "title": "ORAOHRA (2025_oraohra.pdf; scanned edition unverified)",
+      "category": "general",
+      "aliases": [],
+      "sha256": "8b17a3d8890ac0bb8c35e807def987510c8e1927bbde5b8cec8e4912f9b02e87",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    },
+    {
+      "key": "mc14-1999",
+      "filename": "mc14s1999 (1).pdf",
+      "title": "CSC MC No. 14, s. 1999 (scanned)",
+      "category": "leave",
+      "aliases": [],
+      "sha256": "d4fca493733dd6f48b1ed319b5d68225d001bf17a8653443238d9c56b6697606",
+      "authority_review": "pending_hr",
+      "notes": "Fixture title for evaluation; official precedence and applicability have not been approved."
+    }
+  ]
+}

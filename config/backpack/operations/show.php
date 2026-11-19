@@ -7,6 +7,7 @@
  */
 
 return [
+    'component' => 'bp-datalist',
     // Define the size/looks of the content div for all CRUDs
     // To override per Controller use $this->crud->setShowContentClass('class-string')
     'contentClass' => 'col-md-8',

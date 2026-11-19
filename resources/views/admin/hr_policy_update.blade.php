@@ -43,14 +43,19 @@
                 <form action="{{ route('hr.policy.update.store', $document) }}"
                       method="POST" enctype="multipart/form-data">
                     @csrf
+                    @if($errors->any())
+                        <div class="alert alert-danger" role="alert">
+                            <ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                        </div>
+                    @endif
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>Document title <span class="text-danger">*</span></label>
                         <input type="text" name="title" class="form-control"
                                value="{{ old('title', $document->title) }}">
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>Category <span class="text-danger">*</span></label>
                         <select name="category" class="form-control">
                             @foreach($categories as $cat)
@@ -62,13 +67,13 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>Effective date</label>
                         <input type="date" name="effective_date" class="form-control"
                                value="{{ old('effective_date', optional($document->effective_date)->format('Y-m-d')) }}">
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>Replace PDF file
                             <small class="text-muted">(leave empty to keep existing file)</small>
                         </label>
@@ -83,12 +88,12 @@
                         </div>
                         <div id="file-preview" class="mt-2 d-none">
                             <div class="alert alert-warning d-flex align-items-center mb-0 py-2 text-dark">
-                                <i class="la la-exclamation-triangle mr-2" style="font-size:1.5rem;"></i>
+                                <i class="la la-exclamation-triangle me-2" style="font-size:1.5rem;"></i>
                                 <span>
                                     <strong id="file-name"></strong> will replace the existing PDF.
                                     All {{ $document->chunk_count }} existing chunks will be deleted and re-created.
                                 </span>
-                                <button type="button" class="close ml-auto p-0 text-danger remove-existing-btn" style="font-size: 1.4rem; line-height: 1;" onclick="clearFile()">
+                                <button type="button" class="btn btn-link ms-auto p-0 text-danger remove-existing-btn" style="font-size: 1.4rem; line-height: 1;" onclick="clearFile()">
                                     <span aria-hidden="true">&times;</span>
                                 </button>
                             </div>

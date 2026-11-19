@@ -76,11 +76,11 @@ class AttachmentInventory
             // Laravel's Local adapter creates missing roots when resolved. An audit must not do that.
             throw new \RuntimeException('Local attachment disk root is unavailable.');
         }
-        $adapter = Storage::disk($name)->getDriver()->getAdapter();
-        if (!$adapter instanceof \League\Flysystem\Adapter\Local) {
+        $disk = Storage::disk($name);
+        if (!$disk->getAdapter() instanceof \League\Flysystem\Local\LocalFilesystemAdapter) {
             throw new \RuntimeException('Reconciliation requires local attachment disks.');
         }
-        $root = realpath($adapter->getPathPrefix());
+        $root = realpath($disk->path(''));
         if ($root === false || $root !== realpath($configured['root'])) { throw new \RuntimeException('Attachment disk root is unavailable or inconsistent.'); }
         return $root;
     }

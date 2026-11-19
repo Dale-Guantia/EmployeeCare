@@ -298,4 +298,61 @@ class HrChatConversationMemoryTest extends TestCase
             return trim(explode(' — ', $s)[0]);
         }, $sources);
     }
+
+    public function test_multiple_natural_followups_keep_grounded_context_after_the_original_question_leaves_history(): void
+    {
+        $store = $this->fakeAnthropic();
+        $user = $this->makeUser();
+        $first = $this->ask($user, 'Tell me about wellness leave.')->assertOk();
+        foreach (['Can you explain it further?', 'Is it paid?', 'Which documents should I submit?', 'Could you give an example?', 'Please continue.', 'Paki explain ulit?', 'Who is eligible?'] as $question) {
+            $response = $this->ask($user, $question, $first['conversation_id'])->assertOk();
+            $this->assertNotEmpty($response['sources'], $question);
+            $this->assertContains('Wellness Leave', $this->titlesOnly($response['sources']), $question);
+            $this->assertStringNotContainsString("couldn't find this", $response['answer'], $question);
+        }
+        $this->assertCount(8, $store->requests);
+        $this->assertCount(7, end($store->requests)['messages']);
+        $this->ask($user, 'Tell me about maternity leave.', $first['conversation_id'])->assertOk()
+            ->assertJsonMissing(['sources' => ['Wellness Leave']]);
+    }
+
+    public function test_followup_does_not_reuse_a_policy_that_was_deactivated(): void
+    {
+        $store = $this->fakeAnthropic();
+        $user = $this->makeUser();
+        $first = $this->ask($user, 'Wellness leave?')->assertOk();
+        \App\Models\HrPolicyDocument::query()->update(['is_active' => false]);
+        $this->ask($user, 'Can you explain it further?', $first['conversation_id'])->assertOk()->assertJsonPath('sources', []);
+        $this->assertCount(1, $store->requests);
+    }
+
+    public function test_english_filing_followup_and_tagalog_request_keep_the_wellness_policy(): void
+    {
+        $store = $this->fakeAnthropic();
+        $user = $this->makeUser();
+        $first = $this->ask($user, 'What is wellness leave?')->assertOk();
+        $conversationId = $first['conversation_id'];
+
+        foreach (['How to file it?', 'Pwede bang tagalog ang pagsagot mo sakin?',
+            'Paano ko ito ia-apply?', 'Paano ang proseso ng pag-file?'] as $question) {
+            $response = $this->ask($user, $question, $conversationId)->assertOk();
+            $this->assertSame(['Wellness Leave'], $this->titlesOnly($response['sources']), $question);
+            $this->assertSame($question, end($store->requests)['messages'][count(end($store->requests)['messages']) - 1]['content']);
+        }
+
+        $this->assertCount(5, $store->requests);
+        $this->assertStringContainsString('latest language explicitly requested', $store->requests[2]['system'][0]['text']);
+        $this->assertSame('How to file it?', $store->requests[2]['messages'][2]['content']);
+        $this->assertSame('Pwede bang tagalog ang pagsagot mo sakin?', $store->requests[3]['messages'][4]['content']);
+
+        $changedTopic = $this->ask($user, 'How does this maternity leave work?', $conversationId)->assertOk();
+        $this->assertSame(['Maternity Leave'], $this->titlesOnly($changedTopic['sources']));
+    }
+
+    public function test_chat_page_renders_its_scroll_layout_with_the_view(): void
+    {
+        $this->actingAs($this->makeUser(), 'web')->get(route('hr.chat.index'))->assertOk()
+            ->assertSee('grid-template-rows: auto minmax(0, 1fr) auto;', false)
+            ->assertSee('scrollbar-gutter: stable;', false);
+    }
 }

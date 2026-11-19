@@ -2,17 +2,17 @@
 
 Laravel/Backpack helpdesk for employee concerns, ticket handling, customer satisfaction surveys and HR policy assistance.
 
-The current application provides role-scoped tickets, skill/workload assignment, organizational reassignment, discussion/files, resolution/reopening, database notifications, dashboards/PDF reports, public satisfaction/ARTA forms and an OCR-backed policy assistant. See the [documentation index](docs/README.md) for the complete source-based handover package.
+The current application provides role-scoped tickets, skill/workload assignment, organizational reassignment, discussion/files, resolution/reopening, database notifications, dashboards/PDF reports, public satisfaction/ARTA forms and an OCR-backed policy assistant. It also includes office and master-data lifecycle guards. See the [project handover](docs/PROJECT-HANDOVER.md) and [documentation index](docs/README.md) for more detail; older guides may describe the pre-upgrade application.
 
-## Verified stack
+## Current stack
 
-- Project standard: PHP 7.4 and Laravel 8; Composer requires Laravel ^8.75 and the lockfile records 8.x-dev.
-- Backpack CRUD 5.6.1, PermissionManager 6.0.17, Spatie Permission and Livewire 2.
-- Blade, Bootstrap, jQuery, Laravel Mix/Webpack; selected report/chat libraries also load from CDNs.
-- MySQL configuration default, with SQL Server connections, migrations and SQL dialect handling. Actual deployment must be verified separately.
-- Dompdf, PDFParser, Tesseract/Poppler and selected Anthropic integration.
+- PHP **8.5** (current CLI: 8.5.12) and Laravel **13.39.0** in `composer.lock`.
+- Backpack CRUD **7.1.22**, PermissionManager **7.3.1**, CoreUI 4 theme **1.2.7**, Livewire **3.8.11**, Spatie Permission **6.25.0**, and Sanctum **4.3.3** in `composer.lock`.
+- Blade, CoreUI 4 / Bootstrap 5, jQuery and Laravel Mix/Webpack. Some pages use separate frontend assets.
+- MySQL is the configuration default; SQL Server connections and database-specific code are also present. The active deployment database is not established by this README.
+- Dompdf, PDFParser, Tesseract/Poppler OCR and an Anthropic-backed HR assistant.
 
-The documentation snapshot is dated **2026-10-27**, based on the working tree at Git HEAD 4927f4e plus existing uncommitted changes. It does not certify production deployment or newer runtime compatibility. A Filament replacement is not implemented.
+These versions describe the current local source and lockfile, including uncommitted work. Older PHP 7.4 / Laravel 8 documents are historical. The separate Filament rebuild specifications are plans, not this application's implementation.
 
 ## Development quick start
 
@@ -26,7 +26,7 @@ composer install
 composer check-platform-reqs
 ```
 
-Configure the new local .env privately: APP_ENV=local, correct APP_URL, isolated DB connection, session/cookie settings and selected service options. For HTTP-only local development SESSION_SECURE_COOKIE=false is needed; production should use HTTPS/secure cookies.
+Configure the new local `.env` privately: `APP_ENV=local`, the correct `APP_URL`, an isolated database connection, session/cookie settings and selected service options. For HTTP-only local development `SESSION_SECURE_COOKIE=false` is needed; production should use HTTPS and secure cookies. Keep web, CLI and queue workers on a compatible PHP runtime.
 
 ```powershell
 php artisan key:generate
@@ -39,9 +39,9 @@ php artisan serve
 
 Generate a key only for a new installation. Review seeders before any db:seed: they synchronize reference/role data and create demo users only in local/testing. This README does not publish login credentials or employee records. Production account provisioning requires an approved process.
 
-Open `/employee-care/login` locally; non-local login-page requests redirect to an external HRDO login in current source. Public forms are `/survey` and `/arta-form`. The kiosk supports offline viewing and requires a connection to submit.
+Open `/employee-care/login` locally; current source redirects non-local login-page requests to the external HRDO login. Public forms are `/survey` and `/arta-form`. The survey kiosk supports offline viewing but requires a connection to submit.
 
-The repository URL above is preserved from the original README; remote availability was not checked in this documentation task.
+The repository has a GitHub `origin` remote, but remote connectivity and authentication should be checked from the environment where it will be used.
 
 ## Policy OCR and worker
 
@@ -61,7 +61,11 @@ Browser policy uploads use a dedicated database queue regardless of the default 
 php artisan queue:listen policy_ingestion --queue=policy-ingestion --sleep=3 --tries=1 --timeout=900 --memory=256
 ```
 
-Production needs supervised execution. Upload success means saved/queued, not extraction complete. See [queue operations](docs/09-DEPLOYMENT-AND-MAINTENANCE.md) and the existing [queue supplement](docs/POLICY_INGESTION_QUEUE.md). Configure provider keys privately; do not commit secrets.
+Production needs supervised execution. Upload success means saved/queued, not extraction complete. OCR results needing review are excluded from the active document library until their status becomes active. See [queue operations](docs/09-DEPLOYMENT-AND-MAINTENANCE.md) and the [queue supplement](docs/POLICY_INGESTION_QUEUE.md). Configure provider keys privately; do not commit secrets.
+
+## HR policy assistant
+
+The assistant retrieves excerpts from active uploaded policy PDFs for each question. It uses recent conversation turns to interpret follow-ups, but earlier answers are not policy evidence. The prompt limits it to document-supported policy and process guidance; it does not perform HR actions or learn automatically from user questions. When retrieval finds no matching excerpt, the application returns a fixed reply directing the user to HRDO. See the [prompt rules](app/Services/PolicyChatPrompt.php), [retriever](app/Services/PolicyRetriever.php) and [evaluation guide](docs/hr-chat-evaluation/README.md). The evaluation questions and baseline are draft review material, not HR-approved answer-quality certification.
 
 ## Documentation and verification
 
@@ -69,9 +73,16 @@ Production needs supervised execution. Upload success means saved/queued, not ex
 - [Functional rules and role matrix](docs/04-FUNCTIONAL-SPECIFICATIONS.md), [route/API reference](docs/07-ROUTES-AND-API.md), [traceability](docs/TRACEABILITY-MATRIX.md).
 - [Administrator manual](docs/10-ADMINISTRATOR-MANUAL.md), [role-specific user manual](docs/11-USER-MANUAL.md), [troubleshooting](docs/13-TROUBLESHOOTING.md).
 - [Security](docs/08-SECURITY-DOCUMENTATION.md), [deployment](docs/09-DEPLOYMENT-AND-MAINTENANCE.md), [testing](docs/12-TESTING-AND-QA.md), [known gaps](docs/DOCUMENTATION-GAPS.md).
-- [Documentation coverage and current verification](docs/DOCUMENTATION-COVERAGE-REPORT.md).
+- [Upgrade notes](docs/PHP85_UPGRADE.md), [CoreUI migration](docs/COREUI4_MIGRATION.md), [browser fixes](docs/BROWSER_FIXES.md), and [project handover](docs/PROJECT-HANDOVER.md).
 
-Current documentation-task verification: 48 JavaScript tests passed; PHP suites, database-engine probes, production build and deployed browser workflows were not run. Tests and operational commands require the isolation procedures in the testing guide. Existing audit documents contain historical results, not fresh certification.
+The ordinary PHP suite uses the guarded SQLite `:memory:` test setup and fake storage; it does not certify SQL Server or a deployed browser workflow. Run it only after reviewing the [testing guide](docs/12-TESTING-AND-QA.md) and `phpunit.xml`:
+
+```powershell
+php artisan test
+node --test (Get-ChildItem -File tests/JavaScript/*Test.cjs).FullName
+```
+
+On **2026-11-19**, local cleanup verification reported **586 PHP tests passed, 3 skipped, 1 failed** (4,992 assertions) both before and after removal of a stale ignored cache file. The failure is the subprocess timing assertion in `tests/Feature/PolicyChatIngestionTest.php:92`; the simulated OCR call took longer than its 3.5-second limit. The JavaScript suite reported **128 passed**, and Composer validation passed. This is a recorded local result, not a claim that all application flows or integrations work. Native SQL Server, live AI/OCR/mail, production configuration and full browser acceptance require separate verification.
 
 ## License
 

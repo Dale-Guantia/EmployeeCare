@@ -9,8 +9,8 @@
                     <form class="col-md-12 p-t-10" role="form" method="POST" action="{{ route('backpack.auth.register') }}">
                         {!! csrf_field() !!}
 
-                        <div class="form-group">
-                            <label class="control-label" for="name">{{ trans('backpack::base.name') }}</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="name">{{ trans('backpack::base.name') }}</label>
 
                             <div>
                                 <input type="text" class="form-control{{ $errors->has('name') ? ' is-invalid' : '' }}" name="name" id="name" value="{{ old('name') }}">
@@ -23,8 +23,8 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="control-label" for="username">Username</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="username">Username</label>
 
                             <div>
                                 <input type="text" class="form-control{{ $errors->has('username') ? ' is-invalid' : '' }}" name="username" id="username" value="{{ old('username') }}">
@@ -37,8 +37,8 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="control-label" for="{{ backpack_authentication_column() }}">{{ config('backpack.base.authentication_column_name') }}</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="{{ backpack_authentication_column() }}">{{ config('backpack.base.authentication_column_name') }}</label>
 
                             <div>
                                 <input type="{{ backpack_authentication_column()==backpack_email_column()?'email':'text'}}" class="form-control{{ $errors->has(backpack_authentication_column()) ? ' is-invalid' : '' }}" name="{{ backpack_authentication_column() }}" id="{{ backpack_authentication_column() }}" value="{{ old(backpack_authentication_column()) }}">
@@ -51,8 +51,8 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="control-label" for="password">{{ trans('backpack::base.password') }}</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="password">{{ trans('backpack::base.password') }}</label>
 
                             <div>
                                 <input type="password" class="form-control{{ $errors->has('password') ? ' is-invalid' : '' }}" name="password" id="password">
@@ -65,8 +65,8 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label class="control-label" for="password_confirmation">{{ trans('backpack::base.confirm_password') }}</label>
+                        <div class="mb-3">
+                            <label class="form-label" for="password_confirmation">{{ trans('backpack::base.confirm_password') }}</label>
 
                             <div>
                                 <input type="password" class="form-control{{ $errors->has('password_confirmation') ? ' is-invalid' : '' }}" name="password_confirmation" id="password_confirmation">
@@ -79,9 +79,9 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
+                        <div class="mb-3">
                             <div>
-                                <button type="submit" class="btn btn-block btn-primary">
+                                <button type="submit" class="btn w-100 btn-primary">
                                     {{ trans('backpack::base.register') }}
                                 </button>
                             </div>

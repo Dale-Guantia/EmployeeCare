@@ -122,6 +122,7 @@ class RoleCrudController extends VendorRoleCrudController
             $ordered = collect(['view', 'create', 'update', 'delete'])->map(function ($action) use ($groupPermissions, $group) {
                 return $groupPermissions->firstWhere('name', $group . '.' . $action);
             })->filter();
+            $ordered = $ordered->concat($groupPermissions->whereNotIn('id', $ordered->pluck('id'))->sortBy('name'));
 
             foreach ($ordered as $permission) {
                 $checked = in_array($permission->id, $selectedPermissions) ? 'checked' : '';

@@ -11,10 +11,24 @@ class Status extends Model
 {
     use CrudTrait;
     use HasFactory;
+    use \App\Models\Concerns\HasMasterDataLifecycle;
+    use \App\Models\Concerns\HasPermanentCode;
+
+    public const CODE_COLUMN = 'status_code';
+    public const RESOLVED = 'resolved';
+    public const PENDING = 'pending';
+    public const UNASSIGNED = 'unassigned';
+    public const REOPENED = 'reopened';
+    public const CORE_CODES = [self::UNASSIGNED, self::PENDING, self::RESOLVED, self::REOPENED];
+
+    protected $attributes = ['is_active' => true];
+    protected $casts = ['is_active' => 'boolean'];
 
     protected $fillable = [
         'status_name',
-        'status_color'
+        'status_code',
+        'status_color',
+        'is_active',
     ];
 
     const CACHE_KEY = 'ref:statuses.by_name';
@@ -35,13 +49,7 @@ class Status extends Model
         return $this->hasMany(\App\Models\Ticket::class);
     }
 
-    /**
-     * All status ids keyed by status_name, cache-backed (15 min TTL,
-     * invalidated immediately on any Status save/delete) so the same
-     * lookup that used to run as Status::where('status_name', ...)->value('id')
-     * in a dozen places across the app now hits the DB at most once per
-     * cache window instead of once per call site per request.
-     */
+    /** Legacy display-label lookup. Workflow logic must use idsByCode(). */
     public static function idsByName(): \Illuminate\Support\Collection
     {
         return Cache::remember(self::CACHE_KEY, now()->addMinutes(15), function () {
@@ -49,6 +57,7 @@ class Status extends Model
         });
     }
 
+    /** Legacy display-label lookup. Workflow logic must use idByCode(). */
     public static function idByName(string $name): ?int
     {
         $id = self::idsByName()->get($name);

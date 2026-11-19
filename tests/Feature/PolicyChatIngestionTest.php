@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 class PolicyChatIngestionTest extends TestCase
 {
-    /** @dataProvider incompleteResults */
+    #[\PHPUnit\Framework\Attributes\DataProvider('incompleteResults')]
     public function test_incomplete_or_unscored_ocr_is_never_chatbot_visible($confidence, $failedPage)
     {
         $document = app(PolicyIngestService::class)->store(UploadedFile::fake()->create('policy.pdf', 1, 'application/pdf'), ['title' => 'Synthetic policy', 'category' => 'general']);
@@ -59,7 +59,6 @@ class PolicyChatIngestionTest extends TestCase
     public function test_failed_conversion_cannot_be_treated_as_success_from_partial_stdout()
     {
         $method = new \ReflectionMethod(OcrService::class, 'runCommand');
-        $method->setAccessible(true);
         $this->assertNull($method->invoke(new OcrService, [PHP_BINARY, '-r', 'echo "partial conversion output"; exit(1);']));
         $this->assertSame('complete', $method->invoke(new OcrService, [PHP_BINARY, '-r', 'echo "complete";']));
     }
@@ -77,19 +76,17 @@ class PolicyChatIngestionTest extends TestCase
         Storage::put('poppler/page-01.pgm', 'fixture');
         Storage::put('poppler/page-10.pgm', 'fixture');
         $method = new \ReflectionMethod(OcrService::class, 'sortedPageImages');
-        $method->setAccessible(true);
         $images = $method->invoke(new OcrService, Storage::path('poppler'));
         $this->assertSame([1, 10], array_keys($images));
         $this->assertStringEndsWith('page-01.pgm', $images[1]);
     }
 
-    /** @group subprocess */
+    #[\PHPUnit\Framework\Attributes\Group('subprocess')]
     public function test_real_process_polling_enforces_per_page_timeout()
     {
         config(['services.ocr.tesseract_path' => PHP_BINARY, 'ocr.page_timeout' => 1, 'ocr.max_concurrency' => 1]);
         Storage::put('slow-ocr.php', '<?php sleep(4); echo "never reached";');
         $method = new \ReflectionMethod(OcrService::class, 'ocrImagesConcurrently');
-        $method->setAccessible(true);
         $start = microtime(true);
         $result = $method->invoke(new OcrService, [1 => Storage::path('slow-ocr.php')]);
         $this->assertLessThan(3.5, microtime(true) - $start);

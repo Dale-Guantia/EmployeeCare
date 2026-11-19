@@ -26,7 +26,7 @@ class TicketChat extends Component
 
     public function getIsResolvedProperty()
     {
-        return optional($this->ticket->status)->status_name === 'Resolved';
+        return $this->ticket->status?->hasCode(\App\Models\Status::RESOLVED) ?? false;
     }
 
     public function render()
@@ -48,13 +48,15 @@ class TicketChat extends Component
         }
 
         if (isset($this->attachments[$index])) {
-            $this->removeUpload('attachments', $this->attachments[$index]->getFilename());
+            $this->_removeUpload('attachments', $this->attachments[$index]->getFilename());
         }
     }
 
     public function sendComment()
     {
-        if ($this->isResolved) {
+        // Reauthorize every write independently of Livewire's computed-property cache.
+        $ticket = $this->getTicketProperty();
+        if ($ticket->status?->hasCode(\App\Models\Status::RESOLVED)) {
             $this->addError('comment', 'This ticket is resolved. Reopen it to continue the conversation.');
             return;
         }
@@ -75,14 +77,14 @@ class TicketChat extends Component
             return $createdComment ? (optional(TicketComment::find($createdComment->id))->attachment ?: []) : [];
         };
         try {
-            \Illuminate\Support\Facades\DB::transaction(function () use ($paths, &$createdComment) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($paths, $ticket, &$createdComment) {
                 $createdComment = TicketComment::create([
-                    'ticket_id' => $this->ticketId,
+                    'ticket_id' => $ticket->id,
                     'user_id' => backpack_user()->id,
                     'comment' => $this->comment ?? '',
                     'attachment' => $paths,
                 ]);
-                app(TicketNotificationService::class)->notifyTicketCommented($this->ticket, backpack_user());
+                app(TicketNotificationService::class)->notifyTicketCommented($ticket, backpack_user());
             });
             app(\App\Services\AttachmentTransactions::class)->track(\Illuminate\Support\Facades\DB::connection(), $paths, $references);
         } catch (\Throwable $e) {
@@ -96,6 +98,6 @@ class TicketChat extends Component
         $this->attachments = [];
         $this->resetErrorBag();
 
-        $this->emit('commentSent');
+        $this->dispatch('commentSent');
     }
 }

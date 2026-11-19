@@ -16,7 +16,7 @@ class UserCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as protected traitDestroy; }
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 
     public function setup()
@@ -42,6 +42,12 @@ class UserCrudController extends CrudController
         }
     }
 
+    public function destroy($id)
+    {
+        // Role/permission deletion hooks must roll back if the user is still referenced.
+        return $this->crud->model->getConnection()->transaction(fn () => $this->traitDestroy($id));
+    }
+
     protected function setupListOperation()
     {
         CRUD::column('name');
@@ -65,8 +71,8 @@ class UserCrudController extends CrudController
                 'element' => 'span',
                 'class' => function ($crud, $column, $entry) {
                     return $entry->is_active
-                        ? 'badge badge-success'
-                        : 'badge badge-secondary';
+                        ? 'badge bg-success'
+                        : 'badge bg-danger';
                 },
             ],
         ]);
@@ -151,9 +157,14 @@ class UserCrudController extends CrudController
     protected function addDynamicDropdownFields()
     {
         $department = request()->input('department_id');
+        $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+        $retain = $entry && !$entry->is_active && !request()->boolean('is_active', $entry->is_active);
+        $retainedDepartment = $retain ? $entry->department_id : null;
+        $retainedDivision = $retain ? $entry->division_id : null;
         CRUD::setValidation([
-            'department_id' => 'nullable|integer|exists:departments,id',
-            'division_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('divisions', 'id')->where('department_id', is_scalar($department) ? $department : null)],
+            'department_id' => ['nullable', 'integer', \App\Services\OfficeSelectionRules::departmentRule($retainedDepartment)],
+            'division_id' => ['nullable', 'integer', \App\Services\OfficeSelectionRules::divisionRule($department, $retainedDivision)],
+            'id' => $entry ? ['sometimes', 'integer', \Illuminate\Validation\Rule::in([$entry->id])] : ['prohibited'],
         ]);
         CRUD::addField([
             'label'      => "Department",
@@ -162,6 +173,7 @@ class UserCrudController extends CrudController
             'entity'     => 'department',
             'model'      => "App\Models\Department",
             'attribute'  => 'department_name',
+            'options' => fn ($query) => \App\Services\OfficeSelectionRules::departments($query, $retainedDepartment)->get(),
             'attributes' => [
                 'id' => 'department_dropdown'
             ]
@@ -174,6 +186,7 @@ class UserCrudController extends CrudController
             'entity'     => 'division',
             'model'      => "App\Models\Division",
             'attribute'  => 'division_name',
+            'options' => fn ($query) => \App\Services\OfficeSelectionRules::divisions($query, null, $retainedDivision)->get(),
             'attributes' => [
                 'id'       => 'division_dropdown',
                 'disabled' => 'disabled', // Automatically locked on page load
@@ -181,7 +194,8 @@ class UserCrudController extends CrudController
         ]);
 
         // Get all divisions as a JSON string to use directly in JavaScript
-        $divisionsJson = Division::all(['id', 'department_id', 'division_name'])->toJson();
+        $divisionsJson = \App\Services\OfficeSelectionRules::divisions(Division::query(), null, $retainedDivision)
+            ->get(['id', 'department_id', 'division_name'])->toJson(JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
         CRUD::addField([
             'name'  => 'custom_toggle_script',

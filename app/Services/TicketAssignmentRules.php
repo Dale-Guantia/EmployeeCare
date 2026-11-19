@@ -12,12 +12,18 @@ class TicketAssignmentRules
             || ($actor->hasRole('hr_staff') && $actor->can('ticket.assign')));
     }
 
+    public static function eligibleStaff()
+    {
+        return User::role('hr_staff')->where('is_active', true)
+            ->whereHas('department', fn ($department) => $department->where('is_active', true))
+            ->whereHas('division', function ($division) {
+                $division->where('is_active', true)->whereColumn('divisions.department_id', 'users.department_id');
+            });
+    }
+
     public static function candidates($actor, $ticket = null)
     {
-        $query = User::role('hr_staff')->where('is_active', true)
-            ->whereHas('division', function ($division) {
-                $division->whereColumn('divisions.department_id', 'users.department_id');
-            });
+        $query = self::eligibleStaff();
         if (!self::canAssign($actor)) {
             return $query->whereRaw('1 = 0');
         }

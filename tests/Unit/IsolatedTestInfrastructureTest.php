@@ -9,6 +9,13 @@ use Tests\TestCase;
 
 class IsolatedTestInfrastructureTest extends TestCase
 {
+    public function test_admin_asset_tests_use_isolated_storage_without_a_shared_cache_map(): void
+    {
+        $this->assertFalse(config('backpack.basset.cache_map'));
+        $this->assertStringContainsString('framework' . DIRECTORY_SEPARATOR . 'testing',
+            str_replace(['/', '\\'], DIRECTORY_SEPARATOR, \Illuminate\Support\Facades\Storage::disk('basset')->path('')));
+    }
+
     public function test_unfaked_http_cannot_reach_an_external_service()
     {
         $this->expectException(\LogicException::class);
@@ -23,7 +30,7 @@ class IsolatedTestInfrastructureTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    /** @dataProvider elapsedTimes */
+    #[\PHPUnit\Framework\Attributes\DataProvider('elapsedTimes')]
     public function test_sqlite_elapsed_times_match_production_semantics($start, $end, $hours, $minutes)
     {
         $row = DB::query()->fromSub(DB::query()->selectRaw('? AS created_at, ? AS resolved_at', [$start, $end]), 'timing')
@@ -34,7 +41,7 @@ class IsolatedTestInfrastructureTest extends TestCase
         $this->assertEquals($minutes, $row->minutes);
     }
 
-    public function elapsedTimes(): array
+    public static function elapsedTimes(): array
     {
         return [
             ['2026-01-01 00:00:00', '2026-01-04 01:30:59', 73, 4410],

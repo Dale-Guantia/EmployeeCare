@@ -18,12 +18,20 @@ class IsolatedDatabase
         Storage::fake('public');
         Storage::fake('ticket_attachments');
         Storage::fake('local');
+        Storage::fake('basset');
+        $app->forgetInstance('basset');
+        \Backpack\Basset\Facades\Basset::clearResolvedInstance('basset');
+        $config->set('backpack.basset.fetch_retries', 1);
+        $config->set('backpack.basset.cache_map', false);
+        $config->set('backpack.basset.fetch_retry_delay', 0);
+        $config->set('backpack.basset.dev_mode', false);
         foreach (['public', 'ticket_attachments', 'local'] as $name) {
             $config->set('filesystems.disks.' . $name . '.root', Storage::disk($name)->path(''));
         }
         $config->set('filesystems.default', 'local');
         Http::swap(new OfflineHttpFactory($app['events']));
-        $app['db']->connection()->setQueryGrammar(new SqliteTestGrammar);
+        $connection = $app['db']->connection();
+        $connection->setQueryGrammar(new SqliteTestGrammar($connection));
 
         $app['migration.repository']->createRepository();
         // Only forward migrations, on the verified empty in-memory connection.

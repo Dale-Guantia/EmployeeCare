@@ -61,7 +61,7 @@
 
                     <div class="card-body backpack-profile-form bold-labels">
                         <div class="row">
-                            <div class="col-md-6 form-group">
+                            <div class="col-md-6 mb-3">
                                 @php
                                     $label = trans('backpack::base.name');
                                     $field = 'name';
@@ -69,7 +69,7 @@
                                 <label class="required">{{ $label }}</label>
                                 <input required class="form-control" type="text" name="{{ $field }}" value="{{ old($field) ? old($field) : $user->$field }}">
                             </div>
-                            <div class="col-md-6 form-group">
+                            <div class="col-md-6 mb-3">
                                 <label class="required">Username</label>
                                 <input
                                     required
@@ -79,7 +79,7 @@
                                     value="{{ old('username', $user->username ?? '') }}"
                                 >
                             </div>
-                            <div class="col-md-6 form-group">
+                            <div class="col-md-6 mb-3">
                                 @php
                                     $label = config('backpack.base.authentication_column_name');
                                     $field = backpack_authentication_column();
@@ -87,28 +87,28 @@
                                 <label>{{ $label }}</label>
                                 <input required class="form-control" type="{{ backpack_authentication_column()==backpack_email_column()?'email':'text' }}" name="{{ $field }}" value="{{ old($field) ? old($field) : $user->$field }}">
                             </div>
-                            <div class="col-md-6 form-group">
-                                <label class="font-weight-bold">User Role</label>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold">User Role</label>
                                 <p class="text-muted bg-light p-2 rounded border">
                                     {{ optional(backpack_user()->roles->first())->name ?? 'No User Role' }}
                                 </p>
                             </div>
-                            <div class="col-md-6 form-group">
-                                <label class="font-weight-bold">Department</label>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold">Department</label>
                                 <p class="text-muted bg-light p-2 rounded border">
                                     {{ optional(backpack_user()->department)->department_name ?? 'No Department Assigned' }}
                                 </p>
                             </div>
 
-                            <div class="col-md-6 form-group">
-                                <label class="font-weight-bold">Division</label>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold">Division</label>
                                 <p class="text-muted bg-light p-2 rounded border">
                                     {{ optional(backpack_user()->division)->division_name ?? 'No Division Assigned' }}
                                 </p>
                             </div>
 
-                            <div class="col-md-6 form-group">
-                                <label class="font-weight-bold">Profile Avatar</label>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold">Profile Avatar</label>
 
                                 <div class="d-flex align-items-center mb-3">
                                     <img
@@ -145,8 +145,8 @@
                                 @endif
                             </div>
 
-                            <div class="col-md-6 form-group">
-                                <label class="font-weight-bold">Skills</label>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold">Skills</label>
 
                                 {{-- Visual Tag Container --}}
                                 <div id="skills-container" class="form-control" style="height: auto; min-height: 45px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; cursor: text;">
@@ -197,7 +197,7 @@
 
                     <div class="card-body backpack-profile-form bold-labels">
                         <div class="row">
-                            <div class="col-md-4 form-group">
+                            <div class="col-md-4 mb-3">
                                 @php
                                     $label = trans('backpack::base.old_password');
                                     $field = 'old_password';
@@ -206,7 +206,7 @@
                                 <input autocomplete="new-password" required class="form-control" type="password" name="{{ $field }}" id="{{ $field }}" value="">
                             </div>
 
-                            <div class="col-md-4 form-group">
+                            <div class="col-md-4 mb-3">
                                 @php
                                     $label = trans('backpack::base.new_password');
                                     $field = 'new_password';
@@ -215,7 +215,7 @@
                                 <input autocomplete="new-password" required class="form-control" type="password" name="{{ $field }}" id="{{ $field }}" value="">
                             </div>
 
-                            <div class="col-md-4 form-group">
+                            <div class="col-md-4 mb-3">
                                 @php
                                     $label = trans('backpack::base.confirm_password');
                                     $field = 'confirm_password';
@@ -249,62 +249,62 @@
                     <div class="card-body backpack-profile-form bold-labels">
                         <div class="row">
                             @if(backpack_user()->hasAnyRole(['admin', 'dept_head', 'div_head']))
-                                <div class="col-md-6 form-group">
-                                    <div class="custom-control custom-switch">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check form-switch">
                                         <input
                                             type="checkbox"
-                                            class="custom-control-input"
+                                            class="form-check-input"
                                             id="notify_ticket_created"
                                             name="notify_ticket_created"
                                             {{ old('notify_ticket_created', $user->notify_ticket_created) ? 'checked' : '' }}
                                         >
-                                        <label class="custom-control-label" for="notify_ticket_created">
+                                        <label class="form-check-label" for="notify_ticket_created">
                                             Notify me when a ticket is created
                                         </label>
                                     </div>
                                 </div>
                             @endif
 
-                            <div class="col-md-6 form-group">
-                                <div class="custom-control custom-switch">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
                                     <input
                                         type="checkbox"
-                                        class="custom-control-input"
+                                        class="form-check-input"
                                         id="notify_ticket_assigned"
                                         name="notify_ticket_assigned"
                                         {{ old('notify_ticket_assigned', $user->notify_ticket_assigned) ? 'checked' : '' }}
                                     >
-                                    <label class="custom-control-label" for="notify_ticket_assigned">
+                                    <label class="form-check-label" for="notify_ticket_assigned">
                                         Notify me when a ticket is assigned
                                     </label>
                                 </div>
                             </div>
 
-                            <div class="col-md-6 form-group">
-                                <div class="custom-control custom-switch">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
                                     <input
                                         type="checkbox"
-                                        class="custom-control-input"
+                                        class="form-check-input"
                                         id="notify_ticket_status_changed"
                                         name="notify_ticket_status_changed"
                                         {{ old('notify_ticket_status_changed', $user->notify_ticket_status_changed) ? 'checked' : '' }}
                                     >
-                                    <label class="custom-control-label" for="notify_ticket_status_changed">
-                                        Notify me when ticket status changes
+                                    <label class="form-check-label" for="notify_ticket_status_changed">
+                                        Notify me about ticket status changes and deadlines
                                     </label>
                                 </div>
                             </div>
 
-                            <div class="col-md-6 form-group">
-                                <div class="custom-control custom-switch">
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
                                     <input
                                         type="checkbox"
-                                        class="custom-control-input"
+                                        class="form-check-input"
                                         id="notify_ticket_commented"
                                         name="notify_ticket_commented"
                                         {{ old('notify_ticket_commented', $user->notify_ticket_commented) ? 'checked' : '' }}
                                     >
-                                    <label class="custom-control-label" for="notify_ticket_commented">
+                                    <label class="form-check-label" for="notify_ticket_commented">
                                         Notify me when a ticket gets a new comment
                                     </label>
                                 </div>
@@ -371,7 +371,7 @@
 
         function renderBadge(skillName) {
             const badge = document.createElement('span');
-            badge.className = 'badge badge-primary mr-1 mb-1 d-flex align-items-center skill-badge';
+            badge.className = 'badge bg-primary me-1 mb-1 d-flex align-items-center skill-badge';
             badge.style.fontSize = '14px';
             badge.style.padding = '6px 12px';
             badge.setAttribute('data-skill', skillName);
@@ -381,7 +381,7 @@
             label.textContent = skillName;
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
-            removeButton.className = 'la la-times ml-2 border-0 bg-transparent text-white p-0';
+            removeButton.className = 'la la-times ms-2 border-0 bg-transparent text-white p-0';
             removeButton.setAttribute('aria-label', 'Remove skill ' + skillName);
             removeButton.addEventListener('click', function() { removeTag(badge, skillName); });
             badge.appendChild(label);

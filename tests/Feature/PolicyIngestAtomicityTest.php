@@ -73,7 +73,7 @@ class PolicyIngestAtomicityTest extends TestCase
         $this->assertSame('active', $second->fresh()->status);
     }
 
-    /** @dataProvider unfinishedStatuses */
+    #[\PHPUnit\Framework\Attributes\DataProvider('unfinishedStatuses')]
     public function test_unfinished_extractions_are_not_cache_candidates($status)
     {
         $this->document($status);
@@ -84,7 +84,7 @@ class PolicyIngestAtomicityTest extends TestCase
         $this->assertStringContainsString('replacement policy', $second->fresh()->extracted_text);
     }
 
-    public function unfinishedStatuses(): array
+    public static function unfinishedStatuses(): array
     {
         return [['pending'], ['processing'], ['failed']];
     }

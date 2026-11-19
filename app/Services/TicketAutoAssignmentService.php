@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Ticket;
-use App\Models\User;
 use App\Models\Status;
 use Illuminate\Support\Str;
 
@@ -24,7 +23,8 @@ class TicketAutoAssignmentService
         $ticket->syncOriginal();
 
         // 1. Base Query: Find all "hr_staff" within the specific Department
-        $query = User::role('hr_staff')->where('is_active', true)->where('department_id', $ticket->department_id);
+        if (!$ticket->department_id) { return false; }
+        $query = TicketAssignmentRules::eligibleStaff()->where('department_id', $ticket->department_id);
 
         // Handle hierarchy: If the department has divisions, filter by the ticket's division
         if ($ticket->division_id) {
@@ -46,7 +46,7 @@ class TicketAutoAssignmentService
             $ticket->assigned_to = $bestStaff->id;
 
             // EXPLICIT STATUS UPDATE: Change to "Pending"
-            $pendingStatusId = Status::idByName('Pending');
+            $pendingStatusId = Status::idByCode(Status::PENDING);
             if ($pendingStatusId) {
                 $ticket->status_id = $pendingStatusId;
             }
@@ -65,8 +65,8 @@ class TicketAutoAssignmentService
     private function analyzeContentAndMatch(Ticket $ticket, $eligibleStaff)
     {
         // Fetch exact IDs for active statuses to prevent hardcoding errors
-        $pendingId = Status::idByName('Pending');
-        $reopenedId = Status::idByName('Reopened');
+        $pendingId = Status::idByCode(Status::PENDING);
+        $reopenedId = Status::idByCode(Status::REOPENED);
         $activeStatusIds = array_filter([$pendingId, $reopenedId]);
 
         // Count active tickets for each staff member to ensure FAIRNESS.

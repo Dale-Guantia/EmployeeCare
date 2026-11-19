@@ -99,18 +99,41 @@
         border: 1px solid #ffeeba;
         border-radius: 4px;
     }
+    /* Backpack common.css forces .card and .card-body to overflow: visible
+       !important. Restore containment only for this chat. */
+    #hr-assistant-page .hr-chat-card {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        height: clamp(420px, calc(100dvh - 220px), 900px);
+        overflow: hidden !important;
+    }
+    #hr-assistant-page #hrc-thread {
+        min-height: 0;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+    }
+    #hr-assistant-page #hrc-conversations-card .card-body {
+        max-height: 60dvh;
+        overflow-y: auto;
+    }
+    @media (max-width: 767.98px) {
+        #hr-assistant-page .hr-chat-card { height: 70dvh; min-height: 360px; }
+        #hr-assistant-page #hrc-conversations-card .card-body { max-height: 220px; }
+    }
 </style>
 @endsection
 
 @section('content')
-<div class="row">
+<div class="row" id="hr-assistant-page">
 
     {{-- ── Sidebar ──────────────────────────────────────────── --}}
-    <div class="col-md-3">
+    <div class="col-12 col-xl-3">
 
         <div class="card mt-3" id="hrc-conversations-card">
             <div class="card-body p-2">
-                <button class="btn btn-primary btn-block btn-sm mb-2" id="hrc-new-chat">
+                <button class="btn btn-primary w-100 btn-sm mb-2" id="hrc-new-chat">
                     <i class="la la-plus"></i> New chat
                 </button>
 
@@ -143,12 +166,12 @@
     </div>
 
     {{-- ── Main chat area ───────────────────────────────────── --}}
-    <div class="col-md-9">
-        <div class="card" style="height:calc(100vh - 220px);min-height:500px;display:flex;flex-direction:column;">
+    <div class="col-12 col-xl-9">
+        <div class="card hr-chat-card">
 
             <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
                 <span><i class="la la-robot"></i> <strong>HRDO Policy Assistant</strong>
-                    <span class="badge badge-light ml-2">AI-Powered</span></span>
+                    <span class="badge bg-light text-dark ms-2">AI-Powered</span></span>
                 <button type="button" class="btn btn-sm btn-outline-light" onclick="hrChat.clearView()"
                     aria-label="Clear the visible chat"
                     title="Clears the chat view only — your question history is still saved">
@@ -157,8 +180,7 @@
             </div>
 
             {{-- Message thread --}}
-            <div class="card-body" id="hrc-thread"
-                style="overflow-y:auto;flex:1;background:#f8f9fa;">
+            <div class="card-body" id="hrc-thread" role="log" aria-label="Conversation" aria-live="polite">
 
                 {{-- Empty state --}}
                 <div id="hrc-empty" class="text-center text-muted mt-5">
@@ -175,13 +197,10 @@
                     <input type="text" id="hrc-input" class="form-control" aria-label="Your question"
                         placeholder="Ask about HR policies… (Enter to send)"
                         onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing) { event.preventDefault(); hrChat.send(); }">
-                    <div class="input-group-append">
                         <button type="button" class="btn btn-primary" id="hrc-send" aria-label="Send question" onclick="hrChat.send()">
                             <i class="la la-paper-plane"></i>
                         </button>
-                    </div>
                 </div>
-                <small class="text-muted">Press <kbd>Enter</kbd> to send</small>
             </div>
 
         </div>
@@ -197,9 +216,7 @@
                 <h5 class="modal-title" id="hrc-rename-modal-title">
                     <i class="la la-edit"></i> Rename conversation
                 </h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <label for="hrc-rename-input" class="small text-muted mb-1">
@@ -212,7 +229,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="hrc-rename-save">
                     <i class="la la-save"></i> Save
                 </button>
@@ -275,15 +292,15 @@
             bubbleUser: 'p-2 rounded shadow-sm bg-primary text-white hrchat-bubble',
             bubbleBot: 'p-2 rounded shadow-sm bg-white border chat-markdown hrchat-bubble',
             bubbleBotError: 'p-2 rounded shadow-sm bg-warning chat-markdown hrchat-bubble',
-            copyBtn: 'btn btn-lg btn-outline-primary py-0 px-1 ml-1',
+            copyBtn: 'btn btn-lg btn-outline-primary py-0 px-1 ms-1',
             sourcesWrap: 'mt-1',
-            sourcePill: 'badge badge-light border mr-1',
+            sourcePill: 'badge bg-dark border me-1',
             notGroundedBanner: 'hrchat-not-grounded',
             typingBubble: 'p-2 rounded bg-white border',
             feedbackWrap: 'mt-1 d-flex align-items-center',
             feedbackLabel: 'text-muted',
-            feedbackBtnUp: 'btn btn-sm btn-outline-success ml-1',
-            feedbackBtnDown: 'btn btn-sm btn-outline-danger ml-1',
+            feedbackBtnUp: 'btn btn-sm btn-outline-success ms-1',
+            feedbackBtnDown: 'btn btn-sm btn-outline-danger ms-1',
         },
         typingHtml: '<span class="text-muted"><i class="la la-circle-notch la-spin"></i> %SEARCHING%</span>',
         strings: {
@@ -341,10 +358,10 @@
         var dropdownWrap = document.createElement('div');
         dropdownWrap.className = 'dropdown';
         dropdownWrap.innerHTML =
-            '<button class="btn btn-sm btn-link text-muted p-0 px-1" data-toggle="dropdown" aria-label="Options">' +
+            '<button class="btn btn-sm btn-link text-muted p-0 px-1" data-bs-toggle="dropdown" aria-label="Options">' +
                 '<i class="la la-ellipsis-v"></i>' +
             '</button>' +
-            '<div class="dropdown-menu dropdown-menu-right">' +
+            '<div class="dropdown-menu dropdown-menu-end">' +
                 '<a class="dropdown-item hrc-conv-star" href="#"><i class="la la-star"></i> ' + (conv.is_starred ? 'Unstar' : 'Star') + '</a>' +
                 '<a class="dropdown-item hrc-conv-rename" href="#"><i class="la la-edit"></i> Rename</a>' +
                 '<a class="dropdown-item text-danger hrc-conv-delete" href="#"><i class="la la-trash"></i> Delete</a>' +
@@ -430,10 +447,10 @@
         var input = document.getElementById('hrc-rename-input');
         input.value = currentTitle || '';
         input.classList.remove('is-invalid');
-        $('#hrc-rename-modal').modal('show');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('hrc-rename-modal')).show();
     }
 
-    $('#hrc-rename-modal').on('shown.bs.modal', function () {
+    document.getElementById('hrc-rename-modal').addEventListener('shown.bs.modal', function () {
         var input = document.getElementById('hrc-rename-input');
         input.focus();
         input.select();
@@ -461,7 +478,7 @@
         })
             .then(function () {
                 saveBtn.disabled = false;
-                $('#hrc-rename-modal').modal('hide');
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('hrc-rename-modal')).hide();
                 refreshConversationList();
             })
             ['catch'](function () {

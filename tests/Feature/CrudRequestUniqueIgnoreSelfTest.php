@@ -47,7 +47,7 @@ class CrudRequestUniqueIgnoreSelfTest extends TestCase
 
     public function test_status_request_ignores_its_own_id_on_update()
     {
-        $status = Status::create(['status_name' => 'IgnoreSelfTest_' . uniqid(), 'status_color' => '#111111']);
+        $status = Status::create(['status_name' => 'IgnoreSelfTest_' . uniqid(), 'status_color' => '#111111', 'is_active' => false]);
 
         $rules = $this->rulesWithRouteId(StatusRequest::class, $status->id);
 
@@ -88,8 +88,8 @@ class CrudRequestUniqueIgnoreSelfTest extends TestCase
 
     public function test_status_request_still_rejects_a_real_duplicate_name()
     {
-        $statusA = Status::create(['status_name' => 'DupCheckA_' . uniqid(), 'status_color' => '#111111']);
-        $statusB = Status::create(['status_name' => 'DupCheckB_' . uniqid(), 'status_color' => '#222222']);
+        $statusA = Status::create(['status_name' => 'DupCheckA_' . uniqid(), 'status_color' => '#111111', 'is_active' => false]);
+        $statusB = Status::create(['status_name' => 'DupCheckB_' . uniqid(), 'status_color' => '#222222', 'is_active' => false]);
 
         $rules = $this->rulesWithRouteId(StatusRequest::class, $statusB->id);
 

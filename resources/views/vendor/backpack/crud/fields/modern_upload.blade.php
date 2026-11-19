@@ -14,7 +14,7 @@
     }
 @endphp
 
-<div class="form-group" bp-field-name="{{ $field['name'] }}">
+<div class="mb-3" bp-field-name="{{ $field['name'] }}">
     <label>{!! $field['label'] !!}</label>
 
     <div id="drop-zone-{{ $field['name'] }}" class="border rounded p-4 text-center"
@@ -28,7 +28,7 @@
     </div>
 
     <div id="preview-container-{{ $field['name'] }}" class="mt-2 {{ count($existingFiles) > 0 ? '' : 'd-none' }}">
-        <label class="text-muted small font-weight-bold mb-1">Files for this ticket:</label>
+        <label class="text-muted small fw-bold mb-1">Files for this ticket:</label>
         <div id="file-list-{{ $field['name'] }}" class="d-flex flex-column gap-2">
 
             @foreach($existingFiles as $index => $filePath)
@@ -38,14 +38,14 @@
                 <div class="alert alert-secondary d-flex align-items-center mb-1 py-2 px-3 m-0 rounded existing-file-item"
                      style="gap: 10px;" data-file-path="{{ $filePath }}">
                     <i class="la la-paperclip text-primary" style="font-size:1.2rem;"></i>
-                    <div class="text-truncate mr-2" style="max-width: 75%;">
-                        <a href="{{ \App\Services\AttachmentStorage::ticketUrl($crud->getCurrentEntry(), $filePath) }}" target="_blank" class="font-weight-bold text-dark">
+                    <div class="text-truncate me-2" style="max-width: 75%;">
+                        <a href="{{ \App\Services\AttachmentStorage::ticketUrl($crud->getCurrentEntry(), $filePath) }}" target="_blank" class="fw-bold text-dark">
                             {{ $filename }}
                         </a>
                     </div>
                     <input type="hidden" name="{{ $field['name'] }}[]" value="{{ $filePath }}" class="retain-file-input">
 
-                    <button type="button" class="close ml-auto p-0 text-danger remove-existing-btn" style="font-size: 1.4rem; line-height: 1;">
+                    <button type="button" class="btn btn-link ms-auto p-0 text-danger remove-existing-btn" style="font-size: 1.4rem; line-height: 1;">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
@@ -70,6 +70,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Click to browse
     dropZone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener('click', (event) => event.stopPropagation());
 
     // Drag interactions
     dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.style.background = "#e8f4f8"; });
@@ -85,7 +86,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Handle new input selections
     fileInput.addEventListener("change", function () {
-        if (this.files.length) updateNewFilePreviews(this.files);
+        updateNewFilePreviews(this.files);
+        checkVisibility();
     });
 
     // Handle removal of existing files
@@ -111,17 +113,17 @@ document.addEventListener("DOMContentLoaded", function () {
             item.style.gap = "10px";
             item.innerHTML = `
                 <i class="la la-paperclip text-primary" style="font-size:1.2rem;"></i>
-                <div class="text-truncate mr-2" style="max-width: 75%;">
+                <div class="text-truncate me-2" style="max-width: 75%;">
                     <strong class="text-dark" data-upload-filename></strong>
-                    <span class="text-dark small ml-1">(${sizeInMB} MB)</span>
+                    <span class="text-dark small ms-1">(${sizeInMB} MB)</span>
                 </div>
-                <button type="button" class="close ml-auto p-0 text-danger" style="font-size: 1.4rem; line-height: 1;">
+                <button type="button" data-remove-new-file class="btn btn-link ms-auto p-0 text-danger" style="font-size: 1.4rem; line-height: 1;" aria-label="Remove selected attachment">
                     <span aria-hidden="true">&times;</span>
                 </button>
             `;
             item.querySelector('[data-upload-filename]').textContent = file.name;
 
-            item.querySelector('.close').addEventListener('click', (e) => {
+            item.querySelector('[data-remove-new-file]').addEventListener('click', (e) => {
                 e.stopPropagation();
                 removeNewFile(index);
             });

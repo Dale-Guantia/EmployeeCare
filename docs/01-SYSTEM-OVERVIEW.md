@@ -6,7 +6,7 @@ Source review date: **2026-10-27**. This describes the current checkout, includi
 
 Employee Care System is a Laravel helpdesk for employee concerns. Employees submit catalog or custom issues; organizational heads and HR staff handle tickets, assignment, discussion and resolution. The same application provides public customer satisfaction and ARTA questionnaires, reporting, account preferences, database notifications, and an HR policy assistant.
 
-This is the existing Backpack application. A Filament replacement and framework/runtime upgrade were discussed but are **proposed work**, not implemented features.
+This is the existing Backpack application. The PHP 8.5 / Laravel 13 upgrade and CoreUI v4 migration are implemented. A separate Filament replacement remains proposed work; see [current upgrade notes](PHP85_UPGRADE.md).
 
 ## Users
 
@@ -37,15 +37,15 @@ Roles alone do not grant every action. Active status, permissions, ticket visibi
 
 | Layer | Verified evidence |
 | --- | --- |
-| Backend | PHP CLI observed 7.4.14; project standard PHP 7.4; Composer constraint `^7.3\|^8.0` is not a certification of all PHP 8 releases |
-| Framework | Laravel constraint `^8.75`; lockfile records `8.x-dev`, not a numbered stable release |
-| Administration | Backpack CRUD 5.6.1; PermissionManager 6.0.17; Spatie Permission 5.11.1 |
-| UI | Blade, Livewire 2.12.8, Bootstrap/jQuery; local assets plus CDN Chart.js, DataTables and Marked where referenced |
+| Backend | PHP 8.5; Composer requirement `^8.5` |
+| Framework | Laravel 13; install the stable release recorded in composer.lock |
+| Administration | Backpack CRUD 7; PermissionManager 7; Spatie Permission 6 |
+| UI | Blade, Livewire 3, CoreUI v4 / Bootstrap 5 and jQuery (independent public forms retain their own styles); local assets plus CDN Chart.js, DataTables and Marked where referenced |
 | Build | Laravel Mix 6/Webpack 5; Axios, Lodash and PostCSS; no Vite build configured |
 | Database | MySQL default in configuration; SQL Server support and engine-specific SQL/migrations. This checkout was previously observed configured for SQL Server; no live database inspected for this package |
 | Documents | Smalot PDFParser, Dompdf; Tesseract and Poppler for OCR |
 | AI | Active HTTP integration: Anthropic; Gemini and OpenRouter service code also exists but is not selected by the chat controller |
-| Tests | PHPUnit 9, Node built-in test runner, SQLite isolation and opt-in database-engine probes |
+| Tests | PHPUnit 12, Node built-in test runner, SQLite isolation and opt-in database-engine probes |
 
 Sources: [composer.json](../composer.json), [composer.lock](../composer.lock), [package.json](../package.json), [database config](../config/database.php), [frontend inventory](IMPLEMENTATION-INVENTORY.md).
 

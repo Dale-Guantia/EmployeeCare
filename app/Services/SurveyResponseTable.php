@@ -16,6 +16,8 @@ class SurveyResponseTable
             'order.0.column' => 'nullable|integer|min:0', 'order.0.dir' => 'nullable|in:asc,desc']);
         $query = $arta ? ArtaSurvey::query() : Survey::query()->leftJoin('users', 'users.id', '=', 'surveys.user_id')
             ->leftJoin('divisions', 'divisions.id', '=', 'users.division_id')->leftJoin('issues', 'issues.id', '=', 'surveys.issue_id');
+        $period = SurveyReportFilters::dates($request, true);
+        SurveyReportFilters::apply($query, $period[1], $period[2], $arta ? null : ReportOfficeScope::fromRequest($request));
         $table = $arta ? 'arta_surveys' : 'surveys';
         $date = $table . '.created_at';
         $driver = $query->getModel()->getConnection()->getDriverName();

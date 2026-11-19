@@ -9,12 +9,13 @@ class HrConversation extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'title', 'is_starred', 'last_message_at'];
+    protected $fillable = ['user_id', 'title', 'is_starred', 'last_message_at', 'context_state'];
 
     protected $casts = [
         'is_starred'      => 'boolean',
         'last_message_at' => 'datetime',
         'user_id'         => 'integer',
+        'context_state'   => 'array',
     ];
 
     public function logs()

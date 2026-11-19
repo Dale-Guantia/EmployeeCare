@@ -40,6 +40,12 @@ class RolesAndPermissionsSeeder extends Seeder
             }
         }
 
+        foreach (['department', 'division', 'issue', 'priority', 'status'] as $entity) {
+            foreach (['archive', 'reactivate'] as $action) {
+                Permission::firstOrCreate(['name' => "{$entity}.{$action}", 'guard_name' => $guardName]);
+            }
+        }
+
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => $guardName]);
         Permission::firstOrCreate(['name' => 'ticket.assign', 'guard_name' => $guardName]);
         $deptHead = Role::firstOrCreate(['name' => 'dept_head', 'guard_name' => $guardName]);

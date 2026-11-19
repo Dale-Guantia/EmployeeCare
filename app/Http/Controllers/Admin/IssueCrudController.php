@@ -18,6 +18,7 @@ class IssueCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \App\Http\Controllers\Admin\Operations\MasterDataArchivingOperation;
 
     /**
      * Configure the CrudPanel object. Apply settings to all operations.
@@ -55,6 +56,15 @@ class IssueCrudController extends CrudController
      */
     protected function setupListOperation()
     {
+        $this->crud->removeButton('delete');
+        $this->crud->addButtonFromView('line', 'master_data_delete', 'master_data_delete', 'end');
+        $this->crud->addButtonFromView('line', 'issue_archive', 'issue_archive', 'end');
+        $this->crud->moveButton('issue_archive', 'after', 'update');
+        CRUD::addColumn([
+            'name' => 'is_active', 'label' => 'State', 'type' => 'closure',
+            'function' => fn ($entry) => !$entry->is_active ? 'Archived'
+                : ($entry->department?->is_active && (!$entry->division_id || $entry->division?->is_active) ? 'Active' : 'Office archived'),
+        ]);
         CRUD::addColumn([
             'label'     => "Department",
             'name'      => 'department_id',
@@ -103,29 +113,57 @@ class IssueCrudController extends CrudController
     protected function setupCreateOperation()
     {
         CRUD::setValidation(IssueRequest::class);
+        if ($this->crud->getCurrentOperation() === 'update') {
+            CRUD::addField(['name' => 'reason', 'label' => 'Reason for change (optional)', 'type' => 'textarea',
+                'attributes' => ['maxlength' => 1000, 'rows' => 2], 'hint' => 'Stored in the audit history.']);
+        }
 
         CRUD::addField([
             'name' => 'department_id', 'type' => 'select', 'label' => 'Department',
             'entity' => 'department', 'model' => \App\Models\Department::class,
             'attribute' => 'department_name', 'allows_null' => true,
+            'options' => function ($query) {
+                $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                return \App\Services\OfficeSelectionRules::departments($query, $entry?->department_id)->get();
+            },
         ]);
         CRUD::addField([
             'name' => 'division_id', 'type' => 'select', 'label' => 'Division',
             'entity' => 'division', 'model' => \App\Models\Division::class,
             'attribute' => 'division_name', 'allows_null' => true,
+            'attributes' => ['disabled' => 'disabled'],
+            'options' => function ($query) {
+                $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                return \App\Services\OfficeSelectionRules::divisions($query, null, $entry?->division_id)->get();
+            },
         ]);
         CRUD::addField([
             'name' => 'priority_id', 'type' => 'select', 'label' => 'Priority',
             'entity' => 'priority', 'model' => \App\Models\Priority::class,
             'attribute' => 'priority_name', 'allows_null' => true,
+            'options' => function ($query) {
+                $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                return \App\Services\PrioritySelectionRules::options($query, $entry?->priority_id)->get();
+            },
+            'hint' => 'Archived priorities are available only when already assigned to this issue.',
         ]);
         CRUD::field('issue_description');
+        CRUD::addField([
+            'name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'default' => 1,
+            'hint' => 'Archived issues remain visible on existing tickets and surveys and cannot be newly selected.',
+        ]);
         CRUD::addField([
             'name'  => 'icon',
             'label' => 'Icon',
             'type'  => 'iconpicker',
             'hint'  => 'Pick a Font Awesome icon. Example saved value: fas fa-balance-scale',
         ]);
+        $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+        CRUD::addField(['name' => 'office_selection', 'type' => 'view',
+            'view' => 'vendor.backpack.crud.fields.issue_office_selection',
+            'division_options' => \App\Services\OfficeSelectionRules::divisions(\App\Models\Division::query(), null, $entry?->division_id)
+                ->get(['id', 'department_id', 'division_name']),
+            'retained_null_department' => $entry && $entry->division_id === null ? $entry->department_id : null]);
 
         /**
          * Fields can be defined using the fluent syntax or array syntax:

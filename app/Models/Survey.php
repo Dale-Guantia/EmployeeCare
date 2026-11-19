@@ -8,6 +8,19 @@ use Illuminate\Database\Eloquent\Model;
 class Survey extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\LocksOfficeReferences;
+
+    protected static function booted()
+    {
+        static::saving(function ($survey) {
+            if ((!$survey->exists || $survey->isDirty('issue_id'))
+                && !\App\Services\IssueSelectionRules::options(Issue::query())->whereKey($survey->issue_id)->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'issue_id' => 'The selected service is unavailable or archived. Choose an active service.',
+                ]);
+            }
+        });
+    }
 
     protected $table = 'surveys';
 

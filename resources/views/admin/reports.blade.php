@@ -6,13 +6,14 @@
             <span class="text-capitalize">{{ $title }}</span>
         </h2>
 
-        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#downloadReportModal">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#downloadReportModal">
             <i class="la la-download"></i> Download Report
         </button>
     </section>
 @endsection
 
 @section('content')
+<div class="ec-analytics ec-reports">
     @if($periodError)
         <div class="row mb-2">
             <div class="col-12">
@@ -23,7 +24,7 @@
 
     <div class="row mb-3 align-items-end" id="reportsPeriodControl">
         <div class="col-auto">
-            <label for="periodSelect" class="small text-muted text-uppercase font-weight-bold mb-1">Date Range</label>
+            <label for="periodSelect" class="small text-muted text-uppercase fw-bold mb-1">Date Range</label>
             <select id="periodSelect" class="form-control form-control-sm">
                 <option value="all" {{ $activePeriod === 'all' ? 'selected' : '' }}>All Time</option>
                 <option value="month" {{ $activePeriod === 'month' ? 'selected' : '' }}>This Month</option>
@@ -32,8 +33,10 @@
             </select>
         </div>
 
+        @include('admin.office_filters')
+
         <div class="col-auto" id="halfToggleWrap" style="{{ $activePeriod === 'half' ? '' : 'display:none;' }}">
-            <label for="halfSelect" class="small text-muted text-uppercase font-weight-bold mb-1">Half</label>
+            <label for="halfSelect" class="small text-muted text-uppercase fw-bold mb-1">Half</label>
             <select id="halfSelect" class="form-control form-control-sm">
                 <option value="h1" {{ $activeHalf === 'h1' ? 'selected' : '' }}>Jan &ndash; Jun {{ $activeYear }}</option>
                 <option value="h2" {{ $activeHalf === 'h2' ? 'selected' : '' }}>Jul &ndash; Dec {{ $activeYear }}</option>
@@ -41,13 +44,13 @@
         </div>
 
         <div class="col-auto" id="customRangeWrap" style="{{ $activePeriod === 'custom' ? '' : 'display:none;' }}">
-            <div class="form-row align-items-end">
+            <div class="row g-3 align-items-end">
                 <div class="col-auto">
-                    <label for="customStart" class="small text-muted text-uppercase font-weight-bold mb-1">Start Date</label>
+                    <label for="customStart" class="small text-muted text-uppercase fw-bold mb-1">Start Date</label>
                     <input type="date" id="customStart" class="form-control form-control-sm" value="{{ request('start') }}">
                 </div>
                 <div class="col-auto">
-                    <label for="customEnd" class="small text-muted text-uppercase font-weight-bold mb-1">End Date</label>
+                    <label for="customEnd" class="small text-muted text-uppercase fw-bold mb-1">End Date</label>
                     <input type="date" id="customEnd" class="form-control form-control-sm" value="{{ request('end') }}">
                 </div>
                 <div class="col-auto">
@@ -56,88 +59,58 @@
             </div>
         </div>
 
-        <div class="col-auto ml-auto">
+        <div class="col-auto ms-auto">
             <small class="text-muted">Data shown for: {{ $reportWidgetStart->format('M j, Y') }} &ndash; {{ $reportWidgetEnd->format('M j, Y') }}</small>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-dark">
+    @php
+        $cards = [
+            ['key' => 'visitors', 'id' => 'kpiVisitors', 'label' => 'Visitors', 'value' => $reportVisitors, 'icon' => 'la-users', 'tone' => 'slate', 'note' => 'Signed in today; selected office'],
+            ['key' => 'total', 'id' => 'kpiTotal', 'label' => 'Total Tickets', 'value' => $reportKpis['total'], 'icon' => 'la-ticket', 'tone' => 'blue', 'note' => 'Created in the selected period'],
+            ['key' => 'resolved', 'id' => 'kpiResolved', 'label' => 'Resolved', 'value' => $reportKpis['resolved'], 'icon' => 'la-check-circle', 'tone' => 'green', 'note' => 'Currently resolved tickets'],
+            ['key' => 'pending', 'id' => 'kpiPending', 'label' => 'Pending', 'value' => $reportKpis['pending'], 'icon' => 'la-hourglass-half', 'tone' => 'amber', 'note' => 'Tickets in Pending status'],
+            ['key' => 'overdue', 'id' => 'kpiOverdue', 'label' => 'Overdue (SLA)', 'value' => $reportKpis['overdue_pct'] . '%', 'icon' => 'la-exclamation-circle', 'tone' => 'red', 'note' => 'Open overdue and resolved late'],
+            ['key' => 'reopen', 'id' => 'kpiReopenRate', 'label' => 'Reopen Rate', 'value' => $reportKpis['reopen_rate'] . '%', 'icon' => 'la-undo-alt', 'tone' => 'blue', 'note' => 'Reopened or marked as previously reopened'],
+        ];
+    @endphp
+    @include('admin.partials.report_kpi_cards', ['cards' => $cards])
+
+    <div class="row g-4 mb-4 ec-reports-chart-row">
+        <div class="col-xl-8">
+            <div class="card h-100">
+                <div class="card-header"><div><strong>Ticket Volume Trend</strong><div class="ec-chart-subtitle">Tickets created over time</div></div></div>
                 <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="nav-icon la la-ticket"></i></div>
-                    <div class="text-value" id="kpiTotal">{{ $reportKpis['total'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Total Tickets</small>
+                    <div class="ec-reports-chart-canvas" data-analytics-chart-panel>
+                        <canvas id="volumeTrendChart" role="img" aria-label="Ticket counts over time for the global filters"></canvas>
+                        <p class="ec-chart-empty" data-analytics-chart-empty hidden>No tickets created for these filters.</p>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-success">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="nav-icon la la-list-alt"></i></div>
-                    <div class="text-value" id="kpiResolved">{{ $reportKpis['resolved'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Resolved</small>
+        <div class="col-xl-4">
+            <div class="card h-100">
+                <div class="card-header justify-content-between gap-2">
+                    <div><strong>Tickets Overview</strong><div class="ec-chart-subtitle">Current status of selected tickets</div></div>
+                    <span class="ec-chart-total">{{ $reportKpis['total'] }} tickets</span>
                 </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-warning">
                 <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="nav-icon la la-hourglass-half"></i></div>
-                    <div class="text-value" id="kpiPending">{{ $reportKpis['pending'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Pending</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white" style="background-color: #9966FF;">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="nav-icon la la-user-clock"></i></div>
-                    <div class="text-value" id="kpiAvgResolution">{{ $reportKpis['avg_resolution_formatted'] }}</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Avg Resolution</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white" style="background-color: {{ $reportKpis['overdue_pct'] >= 20 ? '#de4759' : '#41ba96' }};">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="nav-icon la la-exclamation-circle"></i></div>
-                    <div class="text-value" id="kpiOverdue">{{ $reportKpis['overdue_pct'] }}%</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Overdue (SLA)</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-md-2">
-            <div class="card text-white bg-primary">
-                <div class="card-body">
-                    <div class="h1 text-muted text-right"><i class="nav-icon la la-undo-alt"></i></div>
-                    <div class="text-value" id="kpiReopenRate">{{ $reportKpis['reopen_rate'] }}%</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Reopen Rate</small>
+                    <div class="ec-reports-chart-canvas" data-analytics-chart-panel>
+                        <canvas id="statusChart" role="img" aria-label="Ticket counts by status for the global filters"></canvas>
+                        <p class="ec-chart-empty" data-analytics-chart-empty hidden>No tickets for these filters.</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-8 mb-4">
-            <div class="card h-100">
-                <div class="card-header"><strong>Ticket Volume Trend</strong></div>
-                <div class="card-body">
-                    <div style="height: 300px; position: relative;">
-                        <canvas id="volumeTrendChart"></canvas>
-                    </div>
-                </div>
-            </div>
+    <div class="row g-4 mb-4 ec-reports-metric-row">
+        <div class="col-xl-6">
+            @include('admin.partials.average_resolution_card', ['kpis' => $reportKpis, 'resolutionTone' => 'green'])
         </div>
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-header"><strong>Resolution Time Distribution</strong></div>
-                <div class="card-body">
-                    <div style="height: 300px; position: relative;">
-                        <canvas id="resolutionDistributionChart"></canvas>
-                    </div>
-                </div>
-            </div>
+        <div class="col-xl-6">
+            @include('admin.partials.reassignment_rate_card', ['rate' => $reportReassignment['rate'],
+                'reassigned' => $reportReassignment['reassigned_count'], 'total' => $reportReassignment['total']])
         </div>
     </div>
 
@@ -165,33 +138,24 @@
     </div>
     @endif
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header"><strong>Status Funnel</strong></div>
-                <div class="card-body" style="min-height: 320px;">
-                    <div style="height: 280px; position: relative;">
-                        <canvas id="statusFunnelChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 mb-4">
-            <div class="card h-100" style="font-size: 0.85rem;">
-                <div class="card-header"><strong>Overdue vs On-Time by Issue Type</strong></div>
-                <div class="card-body table-responsive" style="min-height: 320px; max-height: 320px; overflow-y: auto;">
-                    <table class="table table-sm">
-                        <thead><tr><th>Issue</th><th>Total</th><th>Overdue</th><th>%</th></tr></thead>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card mb-0" data-report-sla>
+                <div class="card-header"><div><strong>SLA by Issue Type</strong><div class="ec-chart-subtitle">Includes open and resolved tickets</div></div></div>
+                <div class="card-body ec-sla-table-scroll">
+                    <table class="table table-hover ec-report-table ec-sla-table">
+                        <caption class="visually-hidden">Overdue ticket counts and percentages by issue type for the global filters.</caption>
+                        <thead><tr><th scope="col">Issue</th><th scope="col">Total</th><th scope="col">Overdue</th><th scope="col">Overdue %</th></tr></thead>
                         <tbody>
                         @forelse($reportSlaBreakdown['by_issue'] as $issueName => $row)
                             <tr>
                                 <td>{{ $issueName }}</td>
-                                <td>{{ $row['total'] }}</td>
-                                <td>{{ $row['overdue'] }}</td>
-                                <td>{{ $row['total'] > 0 ? round(($row['overdue'] / $row['total']) * 100, 1) : 0 }}%</td>
+                                <td class="ec-table-number">{{ $row['total'] }}</td>
+                                <td><span class="ec-sla-count {{ $row['overdue'] > 0 ? 'ec-sla-late' : 'ec-sla-clear' }}">{{ $row['overdue'] }}</span></td>
+                                <td class="ec-table-number">{{ $row['total'] > 0 ? round(($row['overdue'] / $row['total']) * 100, 1) : 0 }}%</td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="text-center text-muted">No data for this range</td></tr>
+                            <tr><td colspan="4" class="text-center text-muted py-4">No tickets for these filters.</td></tr>
                         @endforelse
                         </tbody>
                     </table>
@@ -201,76 +165,10 @@
     </div>
 
     <div class="row">
-        <div class="col-md-8 mb-4">
-            <div class="card h-100">
-                <div class="card-header"><strong>Reassignment by Division</strong></div>
-                <div class="card-body">
-                    <div style="height: 220px; position: relative;">
-                        <canvas id="reassignmentByDivisionChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body text-center d-flex flex-column justify-content-center" style="min-height: 320px;">
-                    <div class="text-value">{{ $reportReassignment['rate'] }}%</div>
-                    <small class="text-muted text-uppercase font-weight-bold">Reassignment Rate</small>
-                    <div class="text-muted small mt-1">{{ $reportReassignment['reassigned_count'] }} of {{ $reportReassignment['total'] }} tickets</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
-                    <table id="latestTicketsTable" class="table table-striped table-hover text-nowrap w-100">
-                        <thead>
-                        <tr>
-                            <th>Reference ID</th>
-                            <th>Created by</th>
-                            <th>Issue</th>
-                            <th>Custom Issue</th>
-                            <th>Message</th>
-                            <th>Status</th>
-                            <th>Priority</th>
-                            <th>Date</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($latestTickets as $ticket)
-                            <tr>
-                                <td>{{ $ticket->reference_id ?? 'N/A'}}</td>
-                                <td>{{ $ticket->user->name ?? 'N/A'}}</td>
-                                <td>{{ $ticket->issue->issue_description ?? 'N/A'}}</td>
-                                <td>{{ $ticket->custom_issue ?? 'N/A'}}</td>
-                                <td>{{ $ticket->message ?? 'N/A'}}</td>
-                                <td>
-                                    @if($ticket->status)
-                                        <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #000000;">
-                                            {{ $ticket->status->status_name }}
-                                        </span>
-                                    @else
-                                        <span>N/A</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($ticket->priority)
-                                        <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #000000;">
-                                            {{ $ticket->priority->priority_name }}
-                                        </span>
-                                    @else
-                                        <span>N/A</span>
-                                    @endif
-                                </td>
-                                <td>{{ optional($ticket->created_at)->format('m/d/Y - g:i A') ?? 'N/A' }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                    @include('admin.partials.latest_tickets_table')
                 </div>
             </div>
         </div>
@@ -279,28 +177,29 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
-                    <p class="text-muted small mb-2">Totals below are all-time, not limited to the period above.</p>
-                    <table id="userActivityTable" class="table table-striped table-hover text-nowrap w-100">
+                    <p class="text-muted small mb-2">Totals reflect the selected date range and office.</p>
+                    <table id="userActivityTable" class="table table-hover w-100 ec-report-table" data-report-table aria-label="User Activity">
                         <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Division</th>
+                            <th class="control report-details-cell"><span class="visually-hidden">Details</span></th>
+                            <th data-priority="1">Name</th>
+                            <th data-priority="5">Division</th>
                             <th>Assigned</th>
-                            <th>Total Resolved Tickets</th>
-                            <th>Overdue Tickets</th>
+                            <th data-priority="2">Resolved</th>
+                            <th data-priority="3">Overdue</th>
                             <th>Avg Resolution</th>
                         </tr>
                         </thead>
                         <tbody>
                             @foreach($users as $user)
                             <tr>
+                                <td class="report-details-cell"><button type="button" class="btn btn-sm btn-outline-secondary report-details-toggle" aria-label="Show additional staff details" aria-expanded="false">+</button></td>
                                 <td>{{ $user->name ?? 'N/A'}}</td>
                                 <td>{{ $user->division->division_name ?? 'N/A'}}</td>
                                 <td>{{ $user->assigned_count }}</td>
                                 <td>{{ $user->resolved_tickets_count}}</td>
                                 <td>{{ $user->overdue_tickets_count}}</td>
-                                <td>{{ $user->avg_resolution_formatted }}</td>
+                                <td data-order="{{ $user->avg_resolution_minutes ?? -1 }}">@include('admin.partials.resolution_average', ['formatted' => $user->avg_resolution_formatted])</td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -313,23 +212,24 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    {{-- FIX: Removed the HTML table-responsive wrapper here --}}
-                    <table id="ticketsPerDivisionTable" class="table table-striped table-hover text-nowrap w-100">
+                    <table id="ticketsPerDivisionTable" class="table table-hover w-100 ec-report-table" data-report-table aria-label="Tickets per Category Overview">
                         <thead>
                         <tr>
-                            <th>Issue description</th>
-                            <th>Division</th>
-                            <th>Total tickets</th>
+                            <th class="control report-details-cell"><span class="visually-hidden">Details</span></th>
+                            <th data-priority="1">Issue description</th>
+                            <th data-priority="5">Division</th>
+                            <th data-priority="2">Total tickets</th>
                             <th>Average resolve time per ticket</th>
                         </tr>
                         </thead>
                         <tbody>
                             @foreach($ticketOverview as $row)
                             <tr>
+                                <td class="report-details-cell"><button type="button" class="btn btn-sm btn-outline-secondary report-details-toggle" aria-label="Show additional category details" aria-expanded="false">+</button></td>
                                 <td>{{ $row->issue_description ?? 'N/A' }}</td>
                                 <td>{{ $row->division_name ?? 'N/A' }}</td>
                                 <td>{{ $row->total_tickets }}</td>
-                                <td>{{ $row->formatted_time }}</td>
+                                <td data-order="{{ $row->avg_resolve_minutes ?? -1 }}">@include('admin.partials.resolution_average', ['formatted' => $row->formatted_time])</td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -348,13 +248,15 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Select Date Range</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
-                    <div class="form-group">
+                    @if($officeFiltersEnabled)
+                        <input type="hidden" name="department_id" value="{{ $selectedDepartmentId }}">
+                        <input type="hidden" name="division_id" value="{{ $selectedDivisionId }}">
+                    @endif
+                    <div class="mb-3">
                         <label>Start Date <span class="text-danger">*</span></label>
                         <input
                             type="date"
@@ -365,7 +267,7 @@
                         >
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>End Date <span class="text-danger">*</span></label>
                         <input
                             type="date"
@@ -394,7 +296,7 @@
                     <button type="submit" class="btn btn-primary">
                         Generate Report
                     </button>
-                    <button type="button" class="btn btn-light" data-dismiss="modal">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">
                         Cancel
                     </button>
                 </div>
@@ -406,20 +308,13 @@
 @endsection
 
 @push('after_styles')
+@basset(public_path('css/analytics.css'))
+@basset(public_path('css/reassignment-card.css'))
 
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap4.min.css">
+@basset('https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css')
+@basset('https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css')
 
-<style>
 
-/* Align DataTables controls nicely */
-div.dataTables_wrapper div.dataTables_length select {
-    width: auto;
-    display: inline-block;
-    min-width: 3.6rem;
-}
-
-</style>
 
 @endpush
 
@@ -427,20 +322,16 @@ div.dataTables_wrapper div.dataTables_length select {
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<script>
-const reportVolumeTrendLabels = @json($reportVolumeTrend['labels']);
-const reportVolumeTrendCounts = @json($reportVolumeTrend['counts']);
-const reportResolutionLabels = @json($reportResolutionDistribution['labels']);
-const reportResolutionCounts = @json($reportResolutionDistribution['counts']);
-const reportColorPalette = ['#FF6384', '#36A2EB', '#4BC0C0', '#FFCE56', '#9966FF', '#FF9F40', '#C9CBCF', '#4D5360'];
-const reportSlaDeptLabels = @json($reportSlaBreakdown['department_labels']);
-const reportSlaDeptOverdue = @json($reportSlaBreakdown['department_overdue']);
-const reportSlaDeptOnTime = @json($reportSlaBreakdown['department_on_time']);
-const reportStatusFunnelLabels = @json($reportStatusFunnel['labels']);
-const reportStatusFunnelCounts = @json($reportStatusFunnel['counts']);
-const reportReassignDivisionLabels = @json($reportReassignment['division_labels']);
-const reportReassignDivisionRates = @json($reportReassignment['division_rates']);
+@php
+    $reportCharts = [
+        'volume' => ['canvasId' => 'volumeTrendChart', 'labels' => $reportVolumeTrend['labels'], 'counts' => $reportVolumeTrend['counts']],
+        'status' => $reportTicketsOverview,
+    ];
+@endphp
+<script type="application/json" data-report-charts>@json($reportCharts)</script>
+@basset(public_path('js/analytics-charts.js'))
 
+<script>
 function buildReportsUrl(params) {
     const url = new URL(window.location.href);
     url.search = '';
@@ -449,126 +340,14 @@ function buildReportsUrl(params) {
             url.searchParams.set(key, params[key]);
         }
     });
+    const officeDepartment = document.querySelector('[data-report-department]');
+    const officeDivision = document.querySelector('[data-report-division]');
+    if (officeDepartment?.value) url.searchParams.set('department_id', officeDepartment.value);
+    if (officeDivision?.value) url.searchParams.set('division_id', officeDivision.value);
     return url.toString();
 }
 
-function initVolumeTrendChart() {
-    const el = document.getElementById('volumeTrendChart');
-    if (!el || !reportVolumeTrendLabels.length) return;
-    new Chart(el, {
-        type: 'line',
-        data: {
-            labels: reportVolumeTrendLabels,
-            datasets: [{
-                label: 'Tickets Created',
-                data: reportVolumeTrendCounts,
-                borderColor: '#36A2EB',
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                fill: true,
-                tension: 0.2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-        }
-    });
-}
-
-function initResolutionDistributionChart() {
-    const el = document.getElementById('resolutionDistributionChart');
-    if (!el || !reportResolutionLabels.length) return;
-    new Chart(el, {
-        type: 'bar',
-        data: {
-            labels: reportResolutionLabels,
-            datasets: [{
-                label: 'Resolved Tickets',
-                data: reportResolutionCounts,
-                backgroundColor: reportColorPalette
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-        }
-    });
-}
-
-// Not called while the by-department chart is hidden (see the conditional block wrapping the department chart above).
-function initSlaByDepartmentChart() {
-    const el = document.getElementById('slaByDepartmentChart');
-    if (!el || !reportSlaDeptLabels.length) return;
-    new Chart(el, {
-        type: 'bar',
-        data: {
-            labels: reportSlaDeptLabels,
-            datasets: [
-                { label: 'On-Time', data: reportSlaDeptOnTime, backgroundColor: '#28a745' },
-                { label: 'Overdue', data: reportSlaDeptOverdue, backgroundColor: '#dc3545' }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }
-        }
-    });
-}
-
-function initStatusFunnelChart() {
-    const el = document.getElementById('statusFunnelChart');
-    if (!el || !reportStatusFunnelLabels.length) return;
-    new Chart(el, {
-        type: 'bar',
-        data: {
-            labels: reportStatusFunnelLabels,
-            datasets: [{
-                label: 'Tickets',
-                data: reportStatusFunnelCounts,
-                backgroundColor: reportColorPalette
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
-        }
-    });
-}
-
-function initReassignmentByDivisionChart() {
-    const el = document.getElementById('reassignmentByDivisionChart');
-    if (!el || !reportReassignDivisionLabels.length) return;
-    new Chart(el, {
-        type: 'bar',
-        data: {
-            labels: reportReassignDivisionLabels,
-            datasets: [{
-                label: 'Reassignment Rate %',
-                data: reportReassignDivisionRates,
-                backgroundColor: '#FF9F40'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, max: 100 } }
-        }
-    });
-}
-
 $(document).ready(function () {
-    initVolumeTrendChart();
-    initResolutionDistributionChart();
-    initStatusFunnelChart();
-    initReassignmentByDivisionChart();
 
     const periodSelect = document.getElementById('periodSelect');
     const halfSelect = document.getElementById('halfSelect');
@@ -610,8 +389,9 @@ $(document).ready(function () {
 });
 </script>
 
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+@basset('https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js')
+@basset('https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js')
+@include('admin.partials.report_table_assets')
 
 <script>
 
@@ -622,53 +402,6 @@ $(document).ready(function () {
         }
     });
 
-    $(document).ready(function () {
-
-        let LatestTicketTable = $('#latestTicketsTable').DataTable({
-            pageLength: 10,
-            responsive: false,
-            ordering: true,
-            searching: true,
-
-            // FIX: Added 'table-responsive' directly to the 'tr' (table rows) wrapper part of the DOM string
-            dom:
-            "<'row align-items-center'<'col-md-6 latest-title'><'col-md-6'f>>" +
-            "<'row'<'col-sm-12 table-responsive'tr>>" +
-            "<'row'<'col-sm-6'l><'col-sm-6'p>>"
-        });
-
-        $('.latest-title').html('<h5 class="mb-2 font-weight-bold">Latest Tickets</h5>');
-
-        let UserActivityTable = $('#userActivityTable').DataTable({
-            pageLength: 10,
-            responsive: false,
-            ordering: true,
-            searching: true,
-
-            // FIX: Added 'table-responsive' here too
-            dom:
-            "<'row align-items-center'<'col-md-6 user-activity'><'col-md-6'f>>" +
-            "<'row'<'col-sm-12 table-responsive'tr>>" +
-            "<'row'<'col-sm-6'l><'col-sm-6'p>>"
-        });
-
-        $('.user-activity').html('<h5 class="mb-2 font-weight-bold">User Activity</h5>');
-
-        let TicketOverviewTable = $('#ticketsPerDivisionTable').DataTable({
-            pageLength: 10,
-            responsive: false,
-            ordering: true,
-            searching: true,
-
-            // FIX: Added 'table-responsive' here too
-            dom:
-            "<'row align-items-center'<'col-md-6 overview-title'><'col-md-6'f>>" +
-            "<'row'<'col-sm-12 table-responsive'tr>>" +
-            "<'row'<'col-sm-6'l><'col-sm-6'p>>"
-            });
-
-        $('.overview-title').html('<h5 class="mb-2 font-weight-bold">Tickets per Category Overview</h5>');
-    });
 </script>
 
 @endpush

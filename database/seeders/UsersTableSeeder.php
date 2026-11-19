@@ -19,9 +19,7 @@ class UsersTableSeeder extends Seeder
             throw new \LogicException('Demonstration accounts may only be seeded locally or in tests.');
         }
 
-        $department = Department::firstOrCreate([
-            'department_name' => 'City Human Resource Development Office',
-        ]);
+        $department = Department::where('department_code', Department::HRDO)->firstOrFail();
 
         // Was missing entirely — this is why $divisionIds was undefined
         $divisionIds = $this->divisionIds($department->id);
@@ -135,7 +133,7 @@ class UsersTableSeeder extends Seeder
             'email' => 'admin@example.com',
             'password' => bcrypt('12341234'),
             'department_id' => $department->id,
-            'division_id' => $divisionIds['Information Technology'] ?? null,
+            'division_id' => $divisionIds['it'] ?? null,
             'is_active' => 1,
             'email_verified_at' => now(),
         ], 'admin');
@@ -146,24 +144,24 @@ class UsersTableSeeder extends Seeder
             'email' => 'departmenthead@example.com',
             'password' => bcrypt('12341234'),
             'department_id' => $department->id,
-            'division_id' => $divisionIds['Department Head'] ?? null,
+            'division_id' => $divisionIds['dh'] ?? null,
             'is_active' => 1,
             'email_verified_at' => now(),
         ], 'dept_head');
 
         $divisionHeads = [
-            ['100561', 'Edwin B. Correa', 'correaedwin', 'EDWIN', 'Administrative'],
-            ['4417351', 'Robert Henry H. Flores', 'floresroberthenry', 'HENRY', 'Payroll'],
-            ['100970', 'Haydie V. Santos', 'santoshaydie', 'HAYDIE', 'Records'],
-            ['1100255', 'Maria Luisa N. Buenafe', 'buenafemarialuisa', 'MALU', 'Claims and Benefits'],
-            ['100325', 'Minerva V. Rosas', 'rosasminerva', 'MINNIE', 'RSP'],
-            ['408433', 'Analiza V. Tatco', 'tatcoanaliza', 'ANA', 'Learning and Development'],
-            ['2300769', 'Iluminada T. Vierne', 'vierneiluminada', 'GINA', 'Performance Management'],
-            ['4416266', 'Myls S. Duza', 'duzamyls', 'MYLS', 'Information Technology'],
+            ['100561', 'Edwin B. Correa', 'correaedwin', 'EDWIN', Division::ADMINISTRATIVE],
+            ['4417351', 'Robert Henry H. Flores', 'floresroberthenry', 'HENRY', Division::PAYROLL],
+            ['100970', 'Haydie V. Santos', 'santoshaydie', 'HAYDIE', Division::RECORDS],
+            ['1100255', 'Maria Luisa N. Buenafe', 'buenafemarialuisa', 'MALU', Division::CLAIMS],
+            ['100325', 'Minerva V. Rosas', 'rosasminerva', 'MINNIE', Division::RSP],
+            ['408433', 'Analiza V. Tatco', 'tatcoanaliza', 'ANA', Division::LEARNING_AND_DEVELOPMENT],
+            ['2300769', 'Iluminada T. Vierne', 'vierneiluminada', 'GINA', Division::PERFORMANCE_MANAGEMENT],
+            ['4416266', 'Myls S. Duza', 'duzamyls', 'MYLS', Division::INFORMATION_TECHNOLOGY],
         ];
 
         foreach ($divisionHeads as $head) {
-            [$empNo, $name, $username, $nickname, $divisionName] = $head;
+            [$empNo, $name, $username, $nickname, $divisionCode] = $head;
 
             $this->seedUser([
                 'emp_no' => $empNo,
@@ -173,7 +171,7 @@ class UsersTableSeeder extends Seeder
                 'password' => bcrypt('12341234'),
                 'nickname' => $nickname,
                 'department_id' => $department->id,
-                'division_id' => $divisionIds[$divisionName] ?? null,
+                'division_id' => $divisionIds[$divisionCode] ?? null,
                 'is_active' => 1,
                 'email_verified_at' => now(),
             ], 'div_head');
@@ -188,14 +186,14 @@ class UsersTableSeeder extends Seeder
             'email_verified_at' => now(),
         ], 'employee');
 
-        $this->seedGroup($admin, $department->id, $divisionIds['Administrative'] ?? null);
-        $this->seedGroup($rsp, $department->id, $divisionIds['RSP'] ?? null);
-        $this->seedGroup($claims, $department->id, $divisionIds['Claims and Benefits'] ?? null);
-        $this->seedGroup($lnd, $department->id, $divisionIds['Learning and Development'] ?? null);
-        $this->seedGroup($payroll, $department->id, $divisionIds['Payroll'] ?? null);
-        $this->seedGroup($records, $department->id, $divisionIds['Records'] ?? null);
-        $this->seedGroup($pm, $department->id, $divisionIds['Performance Management'] ?? null);
-        $this->seedGroup($it, $department->id, $divisionIds['Information Technology'] ?? null);
+        $this->seedGroup($admin, $department->id, $divisionIds['admin'] ?? null);
+        $this->seedGroup($rsp, $department->id, $divisionIds['rsp'] ?? null);
+        $this->seedGroup($claims, $department->id, $divisionIds['claims'] ?? null);
+        $this->seedGroup($lnd, $department->id, $divisionIds['lnd'] ?? null);
+        $this->seedGroup($payroll, $department->id, $divisionIds['payroll'] ?? null);
+        $this->seedGroup($records, $department->id, $divisionIds['records'] ?? null);
+        $this->seedGroup($pm, $department->id, $divisionIds['pm'] ?? null);
+        $this->seedGroup($it, $department->id, $divisionIds['it'] ?? null);
     }
 
     private function seedGroup(array $users, int $departmentId, ?int $divisionId): void
@@ -252,33 +250,9 @@ class UsersTableSeeder extends Seeder
 
     private function divisionIds(int $departmentId): array
     {
-        $names = [
-            'Department Head',
-            'Information Technology',
-            'Administrative',
-            'Payroll',
-            'Records',
-            'Claims and Benefits',
-            'RSP',
-            'Learning and Development',
-            'Performance Management',
-        ];
-
         $ids = [];
-
-        foreach ($names as $name) {
-            $division = Division::firstOrCreate(
-                [
-                    'division_name' => $name,
-                    'department_id' => $departmentId,
-                ],
-                [
-                    'division_name' => $name,
-                    'department_id' => $departmentId,
-                ]
-            );
-
-            $ids[$name] = $division->id;
+        foreach (Division::where('department_id', $departmentId)->get() as $division) {
+            $ids[$division->division_code] = $division->id;
         }
 
         return $ids;

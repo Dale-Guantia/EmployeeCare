@@ -7,14 +7,90 @@ use Illuminate\Support\Facades\Log;
 
 class PolicyRetriever
 {
-    public function retrieveForConversation(string $question, array $recentQuestions): Collection
+    public function retrieveForConversation(string $question, array $recentQuestions, array $recentChunkIds = []): Collection
     {
-        // Only expand subject-free follow-ups. Explicit new subjects must stand alone.
         if (!preg_match('/[\p{L}\p{N}]/u', $question)) { return collect(); }
-        $procedural = ['apply', 'magapply', 'application', 'applications', 'requirements', 'required', 'eligible', 'eligibility', 'avail', 'availing', 'qualify', 'qualified', 'days', 'araw', 'ilang', 'sino', 'sinu', 'process', 'procedure', 'long', 'last'];
-        $subjects = array_diff($this->extractKeywords($question), $procedural);
-        $query = $subjects ? $question : implode(' ', array_reverse($recentQuestions)) . ' ' . $question;
-        return $this->retrieve(trim($query));
+        if ($this->hasSubject($question)) {
+            $currentMatches = $this->retrieve($question);
+            if (! $this->refersToCurrentTopic($question)) { return $currentMatches; }
+            $namedMatches = $this->namedPolicyMatches($question, $currentMatches);
+            if ($namedMatches->isNotEmpty()) { return $namedMatches; }
+        }
+
+        // Carry the latest topic, rather than mixing all earlier subjects together.
+        $anchor = '';
+        foreach (array_slice($recentQuestions, 0, 6) as $previous) {
+            if (is_string($previous) && $this->hasSubject($previous) && ! $this->refersToCurrentTopic($previous)) {
+                $anchor = $previous;
+                break;
+            }
+        }
+        // Re-resolve the named topic from current active policies. A generic word
+        // such as "file" must not replace Wellness Leave with a general leave rule.
+        if ($anchor !== '') {
+            $topicChunks = $this->retrieve($anchor);
+            if ($topicChunks->isEmpty()) { return collect(); }
+            $documentId = $topicChunks->first()->document_id;
+            if ($documentId === null) { return $topicChunks; }
+            if (preg_match('/\b(?:compare|versus|vs|difference|between|kumpara|pagkakaiba)\b/iu', $question)) {
+                return $this->retrieve(trim($anchor . ' ' . $question));
+            }
+            $related = $this->retrieveMatching(trim($anchor . ' ' . $question), 5, [$documentId]);
+            return $related->concat($topicChunks->where('document_id', $documentId))->unique('id')->take(5)->values();
+        }
+
+        $anchors = HrPolicyChunk::whereIn('id', array_slice($recentChunkIds, 0, 5))
+            ->whereHas('document', fn ($q) => $q->where('is_active', true)->where('status', 'active'))
+            ->with('document')->limit(5)->get()
+            ->sortBy(fn ($chunk) => array_search($chunk->id, $recentChunkIds, true))->values();
+        if ($anchors->isNotEmpty()) {
+            $documentId = $anchors->first()->document_id;
+            // Historical answers are not evidence; these chunks belong to active documents now.
+            $related = $this->retrieveMatching($question, 5, [$documentId]);
+            return $related->concat($anchors->where('document_id', $documentId))->unique('id')->take(5)->values();
+        }
+        return $this->retrieve($question);
+    }
+
+    private function refersToCurrentTopic(string $question): bool
+    {
+        return (bool) preg_match('/\b(?:it|its|this|that|these|those|them|same|previous|earlier|'
+            . 'ito|nito|dito|iyan|niyan|diyan|iyon|yon|yan|niya|sakin|saakin|tagalog|filipino)\b/iu', $question);
+    }
+
+    private function namedPolicyMatches(string $question, Collection $chunks): Collection
+    {
+        // A pronoun can coexist with an explicit new topic ("this maternity leave").
+        // Only words from an active retrieved policy title can override the old topic.
+        $generic = ['leave', 'policy', 'policies', 'rule', 'rules', 'benefit', 'benefits',
+            'order', 'series', 'document', 'documents', 'government', 'pasig', 'executive',
+            'omnibus', 'hrdo', 'city', 'employee', 'employees'];
+        $words = array_diff($this->extractKeywords($question), $generic);
+        if (! $words) { return collect(); }
+        return $chunks->filter(function ($chunk) use ($words, $generic) {
+            $titleWords = array_diff($this->extractKeywords($chunk->document->title ?? ''), $generic);
+            return count(array_intersect($words, $titleWords)) > 0;
+        })->values();
+    }
+
+    private function hasSubject(string $question): bool
+    {
+        $procedural = [
+            'apply', 'magapply', 'application', 'applications', 'requirements', 'requirement', 'required',
+            'eligible', 'eligibility', 'avail', 'availing', 'available', 'qualify', 'qualified', 'days', 'day', 'araw', 'ilang',
+            'sino', 'sinu', 'process', 'procedure', 'long', 'last', 'documents', 'document', 'paperwork',
+            'submit', 'submission', 'forms', 'form', 'steps', 'step', 'file', 'filing', 'paid', 'unpaid', 'explain', 'explanation',
+            'elaborate', 'clarify', 'clarification', 'continue', 'example', 'examples', 'simpler', 'simply', 'terms',
+            'further', 'detail', 'details', 'next', 'number', 'paki',
+            'mean', 'means', 'meaning', 'summarize', 'summary', 'again', 'you', 'work', 'works', 'happens',
+            'approved', 'approve', 'approval', 'denied', 'denial', 'rejected', 'deadline', 'before', 'after',
+            'maximum', 'minimum', 'limit', 'limits', 'duration', 'pay', 'payment', 'salary', 'salaries',
+            'contractual', 'regular', 'permanent', 'temporary', 'probationary', 'employee', 'employees',
+            'ako', 'nito', 'niyan', 'iyan', 'iyon', 'pano', 'ulit', 'paliwanag', 'kailangan', 'kailangang',
+            'ipaliwanag', 'pakipaliwanag', 'halimbawa', 'bayad', 'puwede', 'pwedeng', 'natin', 'kami', 'sila', 'siya',
+            'proseso', 'pag', 'pagfile', 'magfile', 'ifile', 'pagapply', 'iapply', 'magagamit', 'gamitin', 'makuha',
+        ];
+        return count(array_filter(array_diff($this->extractKeywords($question), $procedural), fn ($word) => !is_numeric($word))) > 0;
     }
 
     public function promptChunks(Collection $chunks): Collection
@@ -22,7 +98,7 @@ class PolicyRetriever
         $selected = collect();
         foreach ($chunks as $chunk) {
             $candidate = $selected->concat([$chunk]);
-            if (mb_strlen($this->formatForPrompt($candidate), 'UTF-8') > PolicyChatPrompt::CONTEXT_LIMIT) { break; }
+            if (mb_strlen($this->formatForPrompt($candidate), 'UTF-8') > PolicyChatPrompt::CONTEXT_LIMIT) { continue; }
             $selected->push($chunk);
         }
         return $selected;
@@ -33,7 +109,12 @@ class PolicyRetriever
     // policy questions. 5 chunks gives Claude richer context without token issues.
     public function retrieve(string $question, int $limit = 5): Collection
     {
-        $keywords = $this->extractKeywords($question);
+        return $this->retrieveMatching($question, $limit);
+    }
+
+    private function retrieveMatching(string $question, int $limit, ?array $documentIds = null): Collection
+    {
+        $keywords = $this->searchTerms($question);
 
         // FIX: If no keywords were extracted (e.g. pure greeting "Hello"),
         // return empty rather than running a query that would match every row.
@@ -42,37 +123,53 @@ class PolicyRetriever
         }
 
         try {
-            // Score expression: counts how many keywords match per chunk.
-            // Chunks matching more keywords float to the top — gives Claude
-            // the most relevant context rather than just any matching chunk.
-            $scoreExpr = '';
-            $bindings  = [];
-
-            foreach ($keywords as $word) {
-                $scoreExpr .= ($scoreExpr ? ' + ' : '') . 'CASE WHEN content LIKE ? THEN 1 ELSE 0 END';
-                $bindings[] = '%' . $word . '%';
-            }
-
-            $results = HrPolicyChunk::whereHas('document', function ($q) {
+            $results = HrPolicyChunk::when($documentIds !== null, fn ($q) => $q->whereIn('document_id', $documentIds))
+                ->whereHas('document', function ($q) {
                     $q->where('is_active', true)
-                      ->where('status', 'active'); // FIX: Also filter by status, not just is_active
+                      ->where('status', 'active');
                 })
                 ->where(function ($q) use ($keywords) {
                     foreach ($keywords as $word) {
                         $q->orWhere('content', 'LIKE', '%' . $word . '%');
+                        $q->orWhere('section_title', 'LIKE', '%' . $word . '%');
                     }
+                    $q->orWhereHas('document', function ($doc) use ($keywords) {
+                        $doc->where(function ($titles) use ($keywords) {
+                            foreach ($keywords as $word) { $titles->orWhere('title', 'LIKE', '%' . $word . '%'); }
+                        });
+                    });
                 })
-                ->orderByRaw('(' . $scoreExpr . ') DESC', $bindings)
                 ->orderBy('id')
-                ->limit(max(1, min(5, $limit)))
+                ->limit(500)
                 ->get();
 
-            // FIX: Eager load the document relationship to avoid N+1 queries.
-            // Without this, formatForPrompt() fires one SELECT per chunk to get
-            // the document title, causing N separate queries for N chunks.
+            // Rank a bounded candidate set in PHP for SQL Server/MySQL/SQLite parity.
             $results->load('document');
 
-            return $results;
+            $original = $this->extractKeywords($question);
+            preg_match('/\b(?:section|sec\.?)\s*(\d+[a-z]?)/iu', $question, $sectionMatch);
+            $sectionNumber = $sectionMatch[1] ?? null;
+            $temporal = (bool) preg_match('/\b(?:effectivity|effective|before|after|rely|took|kailan|noong|hunyo|hulyo|june|july)\b/iu', $question);
+            $ranked = $results->sort(function ($a, $b) use ($keywords, $original, $sectionNumber, $temporal) {
+                return $this->score($b, $keywords, $original, $sectionNumber, $temporal) <=> $this->score($a, $keywords, $original, $sectionNumber, $temporal)
+                    ?: $a->id <=> $b->id;
+            })->values();
+            $max = max(1, min(5, $limit));
+            $procedural = (bool) preg_match('/\b(?:apply|application|requirements|steps|process|procedure|submit|filing|form|magapply|proseso)\b/iu', $question);
+            $selected = $ranked->take($procedural && $max > 1 ? $max - 1 : $max);
+            if ($procedural) {
+                foreach ($selected->take(2) as $chunk) {
+                    if ($selected->count() >= $max) { break; }
+                    $neighbor = HrPolicyChunk::where('document_id', $chunk->document_id)
+                        ->where('chunk_index', $chunk->chunk_index + 1)->with('document')->first();
+                    if ($neighbor && ! $selected->contains('id', $neighbor->id)) { $selected->push($neighbor); }
+                }
+            }
+            foreach ($ranked as $chunk) {
+                if ($selected->count() >= $max) { break; }
+                if (! $selected->contains('id', $chunk->id)) { $selected->push($chunk); }
+            }
+            return $selected->values();
 
         } catch (\Throwable $e) {
             Log::error('[PolicyRetriever] Query unavailable.', ['error_type' => get_class($e)]);
@@ -85,10 +182,51 @@ class PolicyRetriever
         if ($chunks->isEmpty()) return '';
 
         return $chunks->map(function ($chunk) {
-            $source  = $chunk->document->title ?? 'Unknown Document';
-            $section = $chunk->section_title ? ' — ' . $chunk->section_title : '';
-            return '[Source: ' . $source . $section . "]\n" . $chunk->content;
+            $doc = $chunk->document;
+            $parts = [$doc->title ?? 'Unknown Document'];
+            if ($chunk->section_title) { $parts[] = $chunk->section_title; }
+            if ($chunk->page_number) { $parts[] = 'PDF p. ' . $chunk->page_number . ($chunk->end_page_number && $chunk->end_page_number !== $chunk->page_number ? '-' . $chunk->end_page_number : ''); }
+            return '[Source: ' . implode(' | ', $parts) . "]\n" . $chunk->content;
         })->join("\n\n---\n\n");
+    }
+
+    private function searchTerms(string $question): array
+    {
+        $words = $this->extractKeywords($question);
+        $equivalents = [
+            'benepisyo' => ['benefit'], 'pagliban' => ['leave'], 'bakasyon' => ['leave'],
+            'magapply' => ['application', 'apply'], 'pagapply' => ['application'],
+            'requirements' => ['required', 'requirement'], 'kailangan' => ['required'],
+            'filing' => ['file', 'submit'], 'saln' => ['assets', 'liabilities'],
+            'regalo' => ['gift', 'gifts'], 'pagtanggap' => ['acceptance'],
+            'gifts' => ['gift'], 'epektibo' => ['effective', 'effectivity'],
+            'rely' => ['effectivity', 'effective'], 'probationary' => ['probation'],
+        ];
+        foreach ($words as $word) {
+            foreach ($equivalents[$word] ?? [] as $equivalent) { $words[] = $equivalent; }
+        }
+        return array_slice(array_values(array_unique($words)), 0, 18);
+    }
+
+    private function score(HrPolicyChunk $chunk, array $terms, array $original, ?string $sectionNumber, bool $temporal): int
+    {
+        $title = mb_strtolower($chunk->document->title ?? '', 'UTF-8');
+        $section = mb_strtolower($chunk->section_title ?? '', 'UTF-8');
+        $content = mb_strtolower($chunk->content, 'UTF-8');
+        $score = 0;
+        foreach ($terms as $term) {
+            $weight = in_array($term, $original, true) ? 2 : 1;
+            if (str_contains($title, $term)) { $score += 4 * $weight; }
+            if (str_contains($section, $term)) { $score += 3 * $weight; }
+            $score += min(3, substr_count($content, $term)) * $weight;
+        }
+        if ($sectionNumber && preg_match('/\b(?:section|sec\.?)\s*' . preg_quote($sectionNumber, '/') . '\b/iu', $section . ' ' . $content)) {
+            $score += 30;
+        }
+        if ($temporal && (str_contains($content, 'effectivity') || str_contains($content, 'take effect'))) {
+            $score += 12;
+        }
+        return $score;
     }
 
     private function extractKeywords(string $text): array
@@ -96,7 +234,7 @@ class PolicyRetriever
         // FIX: Expanded stop words list to include more common Filipino/Taglish
         // phrases that appear in HR questions but add no retrieval value.
         $stopWords = [
-            'what', 'how', 'when', 'where', 'does', 'the', 'for',
+            'what', 'how', 'when', 'where', 'which', 'whether', 'does', 'the', 'for',
             'and', 'our', 'can', 'will', 'are', 'is', 'my', 'your',
             'that', 'this', 'with', 'have', 'from', 'about', 'show',
             'tell', 'give', 'want', 'need', 'please', 'much', 'many',

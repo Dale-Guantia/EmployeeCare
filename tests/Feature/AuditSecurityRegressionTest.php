@@ -53,7 +53,7 @@ class AuditSecurityRegressionTest extends TestCase
             return Ticket::create(array_merge([
                 'reference_id' => uniqid('AUDIT-'), 'user_id' => $owner->id,
                 'department_id' => $owner->department_id, 'division_id' => $owner->division_id,
-                'status_id' => Status::idByName('Unassigned'), 'is_custom_issue' => true,
+                'status_id' => Status::idByCode(Status::UNASSIGNED), 'is_custom_issue' => true,
                 'custom_issue' => 'Audit issue', 'message' => 'Private message ' . uniqid(),
             ], $extra));
         });
@@ -83,19 +83,22 @@ class AuditSecurityRegressionTest extends TestCase
     {
         $response = $this->dispatchAs($user, 'GET', '/employee-care/ticket/' . $ticket->id . '/show');
         $response->assertOk();
-        $this->assertSame(1, preg_match('/wire:initial-data="([^"]+)"/', $response->getContent(), $match));
+        $this->assertSame(1, preg_match('/wire:snapshot="([^"]+)"/', $response->getContent(), $match));
         return json_decode(html_entity_decode($match[1], ENT_QUOTES, 'UTF-8'), true);
     }
 
     private function sendSignedChat(User $user, array $initial, $ticketId, array $before = [])
     {
-        return $this->actingAs($user, 'web')->postJson('/livewire/message/ticket-chat', [
-            'fingerprint' => $initial['fingerprint'], 'serverMemo' => $initial['serverMemo'],
-            'updates' => array_merge($before, [
-                ['type' => 'syncInput', 'payload' => ['name' => 'ticketId', 'value' => $ticketId]],
-                ['type' => 'syncInput', 'payload' => ['name' => 'comment', 'value' => 'Audit comment']],
-                ['type' => 'callMethod', 'payload' => ['id' => 'audit-call', 'method' => 'sendComment', 'params' => []]],
-            ]),
+        $calls = array_map(function ($update) {
+            return ['path' => '', 'method' => $update['payload']['method'], 'params' => $update['payload']['params']];
+        }, $before);
+        $calls[] = ['path' => '', 'method' => 'sendComment', 'params' => []];
+        return $this->actingAs($user, 'web')->postJson('/livewire/update', [
+            'components' => [[
+                'snapshot' => json_encode($initial),
+                'updates' => ['ticketId' => $ticketId, 'comment' => 'Audit comment'],
+                'calls' => $calls,
+            ]],
         ], ['X-Livewire' => 'true']);
     }
 
@@ -125,13 +128,13 @@ class AuditSecurityRegressionTest extends TestCase
         $this->assertSame([], $comment->attachment);
     }
 
-    /** @dataProvider livewireBasePaths */
+    #[\PHPUnit\Framework\Attributes\DataProvider('livewireBasePaths')]
     public function test_chat_assets_messages_and_signed_uploads_use_the_page_origin(string $basePath)
     {
         $actor = $this->user();
         $ticket = $this->ticket($actor);
         $origin = 'http://127.0.0.1:8765';
-        Storage::fake(\Livewire\FileUploadConfiguration::disk());
+        Storage::fake(\Livewire\Features\SupportFileUploads\FileUploadConfiguration::disk());
         $this->app['config']->set('app.url', 'http://unreachable.example.test:9999');
         $this->withServerVariables([
             'SCRIPT_NAME' => $basePath . '/index.php',
@@ -143,42 +146,35 @@ class AuditSecurityRegressionTest extends TestCase
         $this->assertSame(1, preg_match('/<script src="([^"]*livewire[^"]*)"/', $html, $asset));
         $this->assertStringStartsWith($basePath . '/livewire/', $asset[1]);
         $this->assertNull(parse_url($asset[1], PHP_URL_HOST));
-        $this->assertSame(1, preg_match("/window\\.livewire_app_url = '([^']*)';/", $html, $appUrl));
-        $this->assertSame($basePath, $appUrl[1]);
-        $this->assertSame(1, preg_match('/wire:initial-data="([^"]+)"/', $html, $match));
+        $this->assertSame(1, preg_match('/data-update-uri="([^"]+)"/', $html, $updateUri));
+        $this->assertSame($basePath . '/livewire/update', $updateUri[1]);
+        $this->assertSame(1, preg_match('/wire:snapshot="([^"]+)"/', $html, $match));
         $snapshot = json_decode(html_entity_decode($match[1], ENT_QUOTES, 'UTF-8'), true);
-        $endpoint = $origin . $appUrl[1] . '/livewire/message/ticket-chat';
-        $send = function (array $updates) use (&$snapshot, $endpoint) {
+        $endpoint = $origin . $updateUri[1];
+        $send = function (array $updates, array $calls) use (&$snapshot, $endpoint) {
             $response = $this->postJson($endpoint, [
-                'fingerprint' => $snapshot['fingerprint'], 'serverMemo' => $snapshot['serverMemo'],
-                'updates' => $updates,
+                'components' => [['snapshot' => json_encode($snapshot), 'updates' => $updates, 'calls' => $calls]],
             ], ['X-Livewire' => 'true'])->assertOk();
-            // The browser merges partial memo data into the previous snapshot.
-            $memo = $response->json('serverMemo');
-            $memo['data'] = array_replace($snapshot['serverMemo']['data'], $memo['data'] ?? []);
-            $snapshot['serverMemo'] = array_replace($snapshot['serverMemo'], $memo);
+            $snapshot = json_decode($response->json('components.0.snapshot'), true);
             return $response;
         };
         $call = function ($method, array $params) {
-            return ['type' => 'callMethod', 'payload' => ['id' => uniqid('chat-'), 'method' => $method, 'params' => $params]];
+            return ['path' => '', 'method' => $method, 'params' => $params];
         };
 
-        $send([
-            ['type' => 'syncInput', 'payload' => ['name' => 'comment', 'value' => 'Reply through page origin']],
-            $call('sendComment', []),
-        ]);
+        $send(['comment' => 'Reply through page origin'], [$call('sendComment', [])]);
         $this->assertDatabaseHas('ticket_comments', ['ticket_id' => $ticket->id, 'comment' => 'Reply through page origin']);
 
         $file = UploadedFile::fake()->createWithContent('reply.txt', 'Actual discussion attachment bytes');
-        $start = $send([$call('startUpload', ['attachments', [
+        $start = $send([], [$call('_startUpload', ['attachments', [
             ['name' => $file->getClientOriginalName(), 'size' => $file->getSize(), 'type' => $file->getMimeType()],
         ], true])]);
-        $event = collect($start->json('effects.emits'))->firstWhere('event', 'upload:generatedSignedUrl');
-        $uploadUrl = $event['params'][1];
+        $event = collect($start->json('components.0.effects.dispatches'))->firstWhere('name', 'upload:generatedSignedUrl');
+        $uploadUrl = $event['params']['url'];
         $this->assertStringStartsWith($origin . $basePath . '/livewire/upload-file?', $uploadUrl);
         $upload = $this->call('POST', $uploadUrl, [], [], ['files' => [$file]], ['HTTP_ACCEPT' => 'application/json'])->assertOk();
-        $send([$call('finishUpload', ['attachments', $upload->json('paths'), true])]);
-        $send([$call('sendComment', [])]); // Attachment-only replies are still allowed.
+        $send([], [$call('_finishUpload', ['attachments', $upload->json('paths'), true])]);
+        $send([], [$call('sendComment', [])]); // Attachment-only replies are still allowed.
 
         $comments = TicketComment::where('ticket_id', $ticket->id)->orderBy('id')->get();
         $this->assertCount(2, $comments);
@@ -187,7 +183,7 @@ class AuditSecurityRegressionTest extends TestCase
         Storage::disk('public')->assertMissing($comments->last()->attachment[0]);
     }
 
-    public function livewireBasePaths(): array
+    public static function livewireBasePaths(): array
     {
         return ['domain root' => [''], 'subdirectory' => ['/EmployeeCare/public']];
     }
@@ -393,11 +389,11 @@ class AuditSecurityRegressionTest extends TestCase
         $assigned = $this->ticket($this->user(), ['assigned_to' => $actor->id]);
         $foreign = $this->ticket($this->user());
         $this->dispatchAs($actor, 'GET', '/employee-care/dashboard')
-            ->assertOk()->assertDontSee($foreign->message)
-            ->assertViewHas('latestTickets', function ($tickets) use ($own, $assigned) {
-                return $tickets->pluck('id')->map('intval')->sort()->values()->all() === collect([$own->id, $assigned->id])->sort()->values()->all();
+            ->assertOk()->assertDontSee($foreign->reference_id)
+            ->assertViewHas('attentionTickets', function ($rows) use ($own, $assigned) {
+                return $rows->pluck('ticket.id')->map('intval')->sort()->values()->all() === collect([$own->id, $assigned->id])->sort()->values()->all();
             });
-        $this->dispatchAs($this->user('admin'), 'GET', '/employee-care/dashboard')->assertOk()->assertSee($foreign->message);
+        $this->dispatchAs($this->user('admin'), 'GET', '/employee-care/dashboard')->assertOk()->assertSee($foreign->reference_id);
     }
 
     public function test_non_debug_500_does_not_render_exception_details()
@@ -426,7 +422,6 @@ class AuditSecurityRegressionTest extends TestCase
         $actor = $this->user();
         $hash = $actor->password;
         $method = new \ReflectionMethod(\Database\Seeders\UsersTableSeeder::class, 'seedUser');
-        $method->setAccessible(true);
         $method->invoke(new \Database\Seeders\UsersTableSeeder, [
             'username' => $actor->username, 'name' => 'Updated name', 'email' => $actor->email,
             'password' => bcrypt('different-fixture-password'), 'is_active' => true,

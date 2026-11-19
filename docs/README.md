@@ -2,6 +2,11 @@
 
 Snapshot: **2026-10-27**, current working tree at HEAD 4927f4e including existing uncommitted changes. Source behavior is distinct from live deployment. Missing facts are marked **Not Verified**. No application changes or production operations were authorized/performed by this documentation package.
 
+Current-source addenda (2026-10-29): [PHP 8.5 / Laravel 13](PHP85_UPGRADE.md),
+[CoreUI v4](COREUI4_MIGRATION.md), and [browser fixes and verification](BROWSER_FIXES.md).
+These supersede older runtime/version and UI descriptions below. Historical audits,
+test counts and rebuild plans are retained as dated evidence, not current certification.
+
 ## Start here
 
 - New developer: overview, architecture, database, installation and developer guide.

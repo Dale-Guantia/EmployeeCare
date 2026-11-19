@@ -41,7 +41,7 @@ class NotificationSettingsTest extends TestCase
         return Ticket::create([
             'user_id' => $owner->id,
             'issue_id' => Issue::firstOrFail()->id,
-            'status_id' => Status::idByName('Unassigned'),
+            'status_id' => Status::idByCode(Status::UNASSIGNED),
             'message' => 'Notification settings integration test',
         ]);
     }
@@ -128,7 +128,7 @@ class NotificationSettingsTest extends TestCase
         $this->assertSame($before, $user->fresh()->only(self::SETTINGS));
     }
 
-    /** @dataProvider ticketEvents */
+    #[\PHPUnit\Framework\Attributes\DataProvider('ticketEvents')]
     public function test_saved_switch_controls_real_event_delivery(string $event, string $key): void
     {
         $recipient = $this->makeUser($event === 'created' ? 'admin' : 'employee');
@@ -147,7 +147,7 @@ class NotificationSettingsTest extends TestCase
                 $ticket->update(['assigned_to' => $actor->id]);
             } elseif ($event === 'status_changed') {
                 $ticket = $ticket->fresh();
-                $ticket->update(['status_id' => Status::idByName('Reopened')]);
+                $ticket->update(['status_id' => Status::idByCode(Status::REOPENED)]);
             } elseif ($event === 'commented') {
                 Livewire::test(TicketChat::class, ['ticketId' => $ticket->id])
                     ->set('comment', 'Testing notification preferences')
@@ -161,10 +161,12 @@ class NotificationSettingsTest extends TestCase
             if ($enabled) {
                 $data = $notifications->first()->data;
                 $this->assertSame('ticket_' . $event, $data['type']);
+                $this->assertSame($actor->id, $data['actor_id']);
                 $this->assertSame($ticket->id, $data['ticket_id']);
                 $this->assertSame(backpack_url('ticket/' . $ticket->id . '/show'), $data['url']);
                 if ($event === 'status_changed') {
                     $this->assertStringContainsString('Reopened', $data['message']);
+                    $this->assertSame(Status::REOPENED, $data['status_code']);
                 }
                 $this->actingAs($recipient, backpack_guard_name());
                 $this->getJson(route('notifications.feed'))->assertOk()
@@ -175,7 +177,7 @@ class NotificationSettingsTest extends TestCase
         }
     }
 
-    public function ticketEvents(): array
+    public static function ticketEvents(): array
     {
         return [
             'created' => ['created', 'notify_ticket_created'],
@@ -221,7 +223,7 @@ class NotificationSettingsTest extends TestCase
         $ticket = $this->makeTicket($recipient)->fresh(['status']);
         $recipient->notifications()->delete();
 
-        $ticket->update(['status_id' => Status::idByName('Reopened')]);
+        $ticket->update(['status_id' => Status::idByCode(Status::REOPENED)]);
 
         $this->assertSame('Reopened', $ticket->fresh()->status->status_name);
         $notifications = $recipient->notifications()->get();
@@ -243,23 +245,24 @@ class NotificationSettingsTest extends TestCase
         }
         $this->actingAs($owner, backpack_guard_name());
         $ticket = Ticket::create(['user_id' => $owner->id, 'issue_id' => $issue->id,
-            'status_id' => Status::idByName('Unassigned'), 'message' => 'Automatically assigned at creation']);
+            'status_id' => Status::idByCode(Status::UNASSIGNED), 'message' => 'Automatically assigned at creation']);
         $this->assertSame($staff->id, (int) $ticket->fresh()->assigned_to);
-        $this->assertSame((int) Status::idByName('Pending'), (int) $ticket->fresh()->status_id);
+        $this->assertSame((int) Status::idByCode(Status::PENDING), (int) $ticket->fresh()->status_id);
         $this->assertSame(1, $head->notifications()->where('data->type', 'ticket_created')->count());
         foreach ([$staff, $head] as $recipient) {
             $this->assertSame(1, $recipient->notifications()->where('data->type', 'ticket_assigned')->count());
+            $this->assertNull($recipient->notifications()->where('data->type', 'ticket_assigned')->first()->data['actor_id']);
             $this->assertSame(0, $recipient->notifications()->where('data->type', 'ticket_status_changed')->count());
         }
         // Laravel keeps this flag set on the same model even after the creation call returns.
         $this->assertTrue($ticket->wasRecentlyCreated);
-        $ticket->update(['status_id' => Status::idByName('Resolved')]);
+        $ticket->update(['status_id' => Status::idByCode(Status::RESOLVED)]);
         foreach ([$staff, $head] as $recipient) {
             $updates = $recipient->notifications()->where('data->type', 'ticket_status_changed')->get();
             $this->assertCount(1, $updates);
             $this->assertStringContainsString('Resolved', $updates->first()->data['message']);
         }
-        $ticket->update(['status_id' => Status::idByName('Pending')]);
+        $ticket->update(['status_id' => Status::idByCode(Status::PENDING)]);
         foreach ([$staff, $head] as $recipient) {
             $updates = $recipient->notifications()->where('data->type', 'ticket_status_changed')->get();
             $this->assertCount(2, $updates);

@@ -25,7 +25,7 @@ class TicketReportWidgets
                 return false;
             }
 
-            return $createdAt->diffInHours(Carbon::parse($ticket->resolved_at)) > 72;
+            return (int) $createdAt->diffInHours(Carbon::parse($ticket->resolved_at), true) > 72;
         }
 
         return $createdAt->lt(now()->subDays(3));
@@ -37,6 +37,11 @@ class TicketReportWidgets
         $minutes = $totalMinutes % 60;
 
         return sprintf('%dh %02dm', $hours, $minutes);
+    }
+
+    public static function formatAverageMinutes(?int $totalMinutes): string
+    {
+        return $totalMinutes === null ? '—' : self::formatMinutes($totalMinutes);
     }
 
     public static function buildKpiWidget($tickets, int $resolvedStatusId, int $pendingStatusId, int $reopenedStatusId): array
@@ -57,7 +62,7 @@ class TicketReportWidgets
                 return $ticket->resolved_at !== null;
             })
             ->map(function ($ticket) {
-                return Carbon::parse($ticket->created_at)->diffInMinutes(Carbon::parse($ticket->resolved_at));
+                return (int) Carbon::parse($ticket->created_at)->diffInMinutes(Carbon::parse($ticket->resolved_at), true);
             });
 
         $avgResolutionMinutes = $resolutionMinutes->count() > 0
@@ -84,7 +89,7 @@ class TicketReportWidgets
             'resolved' => $resolved,
             'pending' => $pending,
             'avg_resolution_minutes' => $avgResolutionMinutes,
-            'avg_resolution_formatted' => self::formatMinutes($avgResolutionMinutes),
+            'avg_resolution_formatted' => self::formatAverageMinutes($resolutionMinutes->isEmpty() ? null : $avgResolutionMinutes),
             'overdue_count' => $overdueCount,
             'overdue_pct' => $total > 0 ? round(($overdueCount / $total) * 100, 1) : 0.0,
             'reopen_count' => $reopenedCount,
@@ -94,7 +99,7 @@ class TicketReportWidgets
 
     public static function buildVolumeTrendWidget($tickets, Carbon $start, Carbon $end, $forceUnit = null): array
     {
-        $rangeDays = $start->copy()->startOfDay()->diffInDays($end->copy()->startOfDay());
+        $rangeDays = (int) $start->copy()->startOfDay()->diffInDays($end->copy()->startOfDay(), true);
 
         if ($forceUnit) {
             $unit = $forceUnit;
@@ -165,7 +170,7 @@ class TicketReportWidgets
                 continue;
             }
 
-            $hours = Carbon::parse($ticket->created_at)->diffInHours(Carbon::parse($ticket->resolved_at));
+            $hours = (int) Carbon::parse($ticket->created_at)->diffInHours(Carbon::parse($ticket->resolved_at), true);
 
             if ($hours < 24) {
                 $buckets['<1 day']++;
@@ -238,21 +243,23 @@ class TicketReportWidgets
     {
         $counts = $tickets->countBy('status_id');
 
-        $statusIdsByName = Status::pluck('id', 'status_name');
-
-        $order = ['Unassigned', 'Pending', 'Resolved', 'Reopened'];
+        $statuses = Status::whereIn('status_code', Status::CORE_CODES)->get()->keyBy('status_code');
         $labels = [];
         $data = [];
+        $colors = [];
 
-        foreach ($order as $name) {
-            $statusId = $statusIdsByName[$name] ?? null;
-            $labels[] = $name;
-            $data[] = $statusId !== null ? (int) ($counts[$statusId] ?? 0) : 0;
+        foreach (Status::CORE_CODES as $code) {
+            $status = $statuses->get($code);
+            $labels[] = $status?->status_name ?? $code;
+            $data[] = $status ? (int) ($counts[$status->id] ?? 0) : 0;
+            $color = $status?->status_color;
+            $colors[] = is_string($color) && preg_match('/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $color) ? $color : '#e2e8f0';
         }
 
         return [
             'labels' => $labels,
             'counts' => $data,
+            'colors' => $colors,
         ];
     }
 
@@ -272,7 +279,7 @@ class TicketReportWidgets
 
         $reassignedCount = count($reassignedTicketIds);
 
-        $hrDepartmentId = (int) optional(Department::allCached()->firstWhere('department_name', 'City Human Resource Development Office'))->id;
+        $hrDepartmentId = (int) Department::idByCode(Department::HRDO);
 
         // Zero-fill every HR division up front so the chart always shows a
         // stable, complete set of bars rather than only the divisions that

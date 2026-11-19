@@ -50,7 +50,8 @@ class HrChatReliabilityTest extends TestCase
                 }
             });
         $response = $this->actingAs($this->user())->postJson(route('hr.chat.ask'), ['question' => 'Wellness leave?']);
-        $response->assertOk()->assertJson(['answer' => 'Synthetic Gemini answer', 'sources' => ['Leave rules']]);
+        $response->assertOk()->assertJson(['sources' => ['Leave rules']]);
+        $this->assertSame('Synthetic Gemini answer', $response['answer']);
         $this->postJson(route('hr.chat.ask'), ['question' => 'How many days?', 'conversation_id' => $response['conversation_id']])->assertOk();
         Http::assertSent(function ($request) {
             return count($request->data()['contents']) === 3 && $request->data()['contents'][1]['role'] === 'model';
@@ -85,7 +86,7 @@ class HrChatReliabilityTest extends TestCase
         $this->assertCount(0, $retriever->retrieveForConversation('!!!', ['Wellness leave?']));
     }
 
-    /** @dataProvider unavailablePolicies */
+    #[\PHPUnit\Framework\Attributes\DataProvider('unavailablePolicies')]
     public function test_unavailable_documents_are_excluded_even_if_chunks_remain($status, $active)
     {
         $this->document('Unavailable', 'Wellness leave applications.', $status, $active);

@@ -61,7 +61,7 @@ class TicketAutoAssignmentQueryCountTest extends TestCase
             'department_id' => $dept->id,
             'division_id' => $div->id,
             'issue_id' => $issue->id,
-            'status_id' => Status::idByName('Unassigned'),
+            'status_id' => Status::idByCode(Status::UNASSIGNED),
             'message' => 'auto-assign query count test ticket',
         ]);
         $ticket->save();

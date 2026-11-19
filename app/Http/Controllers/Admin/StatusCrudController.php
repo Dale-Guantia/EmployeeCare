@@ -18,6 +18,7 @@ class StatusCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \App\Http\Controllers\Admin\Operations\MasterDataArchivingOperation;
 
     /**
      * Configure the CrudPanel object. Apply settings to all operations.
@@ -55,7 +56,12 @@ class StatusCrudController extends CrudController
      */
     protected function setupListOperation()
     {
+        $this->crud->removeButton('delete');
+        $this->crud->addButtonFromView('line', 'master_data_delete', 'master_data_delete', 'end');
+        CRUD::addColumn(['name' => 'is_active', 'label' => 'State', 'type' => 'boolean', 'options' => [0 => 'Archived', 1 => 'Active']]);
+        $this->crud->addButtonFromView('line', 'status_archive', 'status_archive', 'end');
         CRUD::column('status_name');
+        // CRUD::column('status_code')->label('Code');
         CRUD::addColumn([
             'name'  => 'status_color',
             'label' => 'Status Color',
@@ -88,8 +94,16 @@ class StatusCrudController extends CrudController
     protected function setupCreateOperation()
     {
         CRUD::setValidation(StatusRequest::class);
+        $codeAttributes = ['maxlength' => 64];
+        if ($this->crud->getCurrentOperation() === 'update') $codeAttributes['readonly'] = 'readonly';
+        CRUD::addField(['name' => 'status_code', 'label' => 'Permanent code', 'type' => 'text',
+            'attributes' => $codeAttributes, 'hint' => 'Assigned once. Leave empty on creation to generate a code automatically.']);
+        if ($this->crud->getCurrentOperation() === 'update') {
+            CRUD::addField(['name' => 'reason', 'label' => 'Reason for change (optional)', 'type' => 'textarea',
+                'attributes' => ['maxlength' => 1000, 'rows' => 2], 'hint' => 'Stored in the audit history.']);
+        }
 
-        CRUD::field('status_name');
+        CRUD::field('status_name')->hint('The display name may be changed. The permanent code determines workflow behavior.');
         CRUD::addField([   // Color
             'name'    => 'status_color',
             'label'   => 'Status color',
@@ -113,5 +127,10 @@ class StatusCrudController extends CrudController
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();
+    }
+
+    protected function setupShowOperation()
+    {
+        $this->setupListOperation();
     }
 }

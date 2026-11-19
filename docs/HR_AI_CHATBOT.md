@@ -1,6 +1,23 @@
 # HR Assistant review and provider switching
 
-Anthropic remains the active dependency in `HrChatController`. PHP 7.4, Laravel 8, Backpack, package versions and lockfiles are unchanged. Tests use guarded SQLite `:memory:`, fake storage and offline/mocked HTTP. No live database migration, data update, attachment cleanup, deployment or paid provider request was performed.
+Anthropic remains the active dependency in `HrChatController`. The current runtime is PHP 8.5 / Laravel 13 with Backpack 7 / Livewire 3. Historical results below belong to the earlier provider review; current changes and test results are recorded in [BROWSER_FIXES.md](BROWSER_FIXES.md).
+
+Follow-ups now reuse the latest active policy sources within the owned conversation,
+even after the original topic leaves the short transcript window. Retrieval examines
+up to six recent turns and keeps the latest topic; provider history remains capped
+at three exchanges. Explicit topic changes retrieve independently. Deactivated or
+replaced sources are rechecked, and conversation history is never treated as policy
+evidence. The page has a bounded, independently scrolling transcript and the policy
+list automatically refreshes while ingestion is queued/processing.
+
+Follow-up correction (2026-10-29): English filing questions and Tagalog reply requests
+now retain the named policy before retrieval. An explicit new policy title can change
+the subject even when the question contains a pronoun. The last grounded turn supplies
+source references when a later turn has none. The HR Assistant view now includes its
+own scroll layout with a scoped `!important` override for Backpack's global
+`overflow: visible !important` rule on `.card` and `.card-body`. Chrome confirmed
+the loaded transcript scrolls inside the card. Automated tests verify sources and provider payloads; natural
+language answer quality still requires live provider review.
 
 ## Confirmed problems fixed
 

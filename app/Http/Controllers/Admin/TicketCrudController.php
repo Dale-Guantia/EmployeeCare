@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\DB;
 class TicketCrudController extends CrudController
 {
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as protected traitStore; }
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; }
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
@@ -127,7 +127,7 @@ class TicketCrudController extends CrudController
             'label'     => 'Status',
             'type'      => 'select',
             'entity'    => 'status',         // The relationship in your Ticket Model
-            'attribute' => 'status_name',    // The column in the Statuses table to show
+            'attribute' => 'status_name',    // Historical statuses remain visible.
             'model'     => "App\Models\Status",
             'wrapper'   => [
                 'element' => 'span',
@@ -152,9 +152,21 @@ class TicketCrudController extends CrudController
         ]);
     }
 
+    public function store()
+    {
+        $response = $this->traitStore();
+        return $this->crud->entry?->is_custom_issue ? redirect($this->crud->route) : $response;
+    }
+
     protected function setupCreateOperation()
     {
         CRUD::setValidation(TicketRequest::class);
+
+        if ($this->crud->getCurrentOperation() === 'create') {
+            $saveActions = $this->crud->getOperationSetting('save_actions');
+            $saveActions['save_and_back']['button_text'] = 'Submit';
+            $this->crud->setOperationSetting('save_actions', $saveActions);
+        }
 
         CRUD::addField([
             'label'       => "Select Issue/Problem",
@@ -164,6 +176,11 @@ class TicketCrudController extends CrudController
             'allows_null' => true,
             'model'       => "App\Models\Issue",
             'attribute'   => 'issue_description',
+            'options' => function ($query) {
+                $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                return \App\Services\IssueSelectionRules::options($query, $entry?->issue_id)->get();
+            },
+            'hint' => 'Archived issues can only be retained on tickets that already reference them.',
             'wrapper' => [
                 'class' => 'form-group col-md-12 issue-select-wrapper'
             ],
@@ -198,6 +215,10 @@ class TicketCrudController extends CrudController
             'entity'    => 'department',
             'model'     => "App\Models\Department",
             'attribute' => 'department_name',
+            'options' => function ($query) {
+                $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                return \App\Services\OfficeSelectionRules::departments($query, $entry?->department_id)->get();
+            },
             'wrapper'   => [
                 'class' => 'form-group col-md-12 dept-wrapper d-none'
             ],
@@ -209,6 +230,10 @@ class TicketCrudController extends CrudController
             'entity'    => 'division',
             'model'     => "App\Models\Division",
             'attribute' => 'division_name',
+            'options' => function ($query) {
+                $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                return \App\Services\OfficeSelectionRules::divisions($query, null, $entry?->division_id)->get();
+            },
             'attributes' => [
                 'disabled' => 'disabled',
             ],
@@ -339,9 +364,15 @@ class TicketCrudController extends CrudController
 
     protected function setupUpdateOperation()
     {
+        if ($this->crud->getRequest()->isMethod('PUT') && in_array($this->crud->getRequest()->input('_ticket_action'), [
+            'resolve', 'reopen', 'quick_assign', 'reassign_request', 'reassign_cancel', 'reassign_accept', 'reassign_reject',
+        ], true)) {
+            // These actions validate and authorize their own payload; no edit form is rendered.
+            return;
+        }
         $this->setupCreateOperation();
 
-        $this->crud->setEditContentClass('col-md-8');
+        $this->crud->setEditContentClass('col-12 col-xl-8');
 
         $ticket = $this->crud->getCurrentEntry();
         $user = backpack_user();
@@ -414,6 +445,17 @@ class TicketCrudController extends CrudController
                 'entity'    => 'status',
                 'model'     => "App\Models\Status",
                 'attribute' => 'status_name',
+                'options' => function ($query) {
+                    $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                    return $query->where(function ($query) use ($entry) {
+                        $query->where(function ($active) {
+                            $active->where('is_active', true)->whereIn('status_code', \App\Models\Status::CORE_CODES);
+                        });
+                        if ($entry?->status_id) {
+                            $query->orWhere('id', $entry->status_id);
+                        }
+                    })->get();
+                },
             ]);
         }
     }
@@ -444,9 +486,9 @@ class TicketCrudController extends CrudController
             abort(403, 'Only the ticket creator can reopen this ticket.');
         }
 
-        $reopenedId = Status::idByName('Reopened');
+        $reopenedId = Status::idByCode(Status::REOPENED);
 
-        abort_unless((int) $entry->status_id === (int) Status::idByName('Resolved'), 409, 'Only resolved tickets can be reopened.');
+        abort_unless((int) $entry->status_id === (int) Status::idByCode(Status::RESOLVED), 409, 'Only resolved tickets can be reopened.');
 
         if (!$reopenedId) {
             abort(500, 'Reopened status not found.');
@@ -474,7 +516,7 @@ class TicketCrudController extends CrudController
             abort(403, 'You are not allowed to resolve this ticket.');
         }
 
-        $resolvedId = Status::idByName('Resolved');
+        $resolvedId = Status::idByCode(Status::RESOLVED);
 
         if (!$resolvedId) {
             abort(500, 'Resolved status not found.');
@@ -525,7 +567,7 @@ class TicketCrudController extends CrudController
 
         $referrer = $request->get('_http_referrer') ?? $this->crud->route;
 
-        $resolvedId = Status::idByName('Resolved');
+        $resolvedId = Status::idByCode(Status::RESOLVED);
         if ($resolvedId && (int) $entry->status_id === (int) $resolvedId) {
             Alert::error('Cannot request reassignment for a resolved ticket.')->flash();
             return redirect($referrer);
@@ -544,12 +586,11 @@ class TicketCrudController extends CrudController
             return redirect($referrer);
         }
 
-        $divisionBelongs = Division::where('id', $toDivisionId)
-            ->where('department_id', $toDepartmentId)
-            ->exists();
+        $divisionBelongs = \App\Services\OfficeSelectionRules::divisions(Division::query(), $toDepartmentId)
+            ->whereKey($toDivisionId)->exists();
 
         if (!$divisionBelongs) {
-            Alert::error('The selected division does not belong to the selected department.')->flash();
+            Alert::error('Please select an active division belonging to an active target department.')->flash();
             return redirect($referrer);
         }
 
@@ -619,6 +660,12 @@ class TicketCrudController extends CrudController
 
         if (!$this->isReceivingHead($reassignment, $user)) {
             abort(403, 'Only the receiving department/division head can accept this reassignment.');
+        }
+
+        if (!\App\Services\OfficeSelectionRules::divisions(Division::query(), $reassignment->to_department_id)
+            ->whereKey($reassignment->to_division_id)->exists()) {
+            Alert::error('The target office has been archived. Cancel this request and choose an active office.')->flash();
+            return redirect($referrer);
         }
 
         // 1-3: move the ticket and clear the assignee. Part 0a's saving() guard
@@ -691,7 +738,7 @@ class TicketCrudController extends CrudController
         return redirect($referrer);
     }
 
-    private function runReassignmentAction($method, $request)
+    private function runTicketAction($method, $request)
     {
         return DB::transaction(function () use ($method, $request) {
             // Every transition locks the same parent row and reads fresh pending state.
@@ -714,19 +761,19 @@ class TicketCrudController extends CrudController
 
         switch ($action) {
             case 'reopen':
-                return $this->handleReopen($request);
+                return $this->runTicketAction('handleReopen', $request);
             case 'resolve':
-                return $this->handleResolve($request);
+                return $this->runTicketAction('handleResolve', $request);
             case 'quick_assign':
-                return $this->handleQuickAssign($request);
+                return $this->runTicketAction('handleQuickAssign', $request);
             case 'reassign_request':
-                return $this->runReassignmentAction('handleReassignRequest', $request);
+                return $this->runTicketAction('handleReassignRequest', $request);
             case 'reassign_cancel':
-                return $this->runReassignmentAction('handleReassignCancel', $request);
+                return $this->runTicketAction('handleReassignCancel', $request);
             case 'reassign_accept':
-                return $this->runReassignmentAction('handleReassignAccept', $request);
+                return $this->runTicketAction('handleReassignAccept', $request);
             case 'reassign_reject':
-                return $this->runReassignmentAction('handleReassignReject', $request);
+                return $this->runTicketAction('handleReassignReject', $request);
         }
 
         // Backpack authorizes and validates before writing; model cleanup runs after commit.
@@ -735,7 +782,7 @@ class TicketCrudController extends CrudController
 
     protected function setupShowOperation()
     {
-        $this->crud->setShowContentClass('col-md-8');
+        $this->crud->setShowContentClass('col-12 col-xl-8');
         $user = backpack_user();
 
         // Eager-load relations used below to avoid N+1 queries.
@@ -745,11 +792,14 @@ class TicketCrudController extends CrudController
             'status', 'priority', 'user', 'issue', 'department', 'division', 'pendingReassignmentRequest',
         ]);
 
-        $resolvedId = Status::idByName('Resolved');
-        $reopenedId = Status::idByName('Reopened');
+        $resolvedId = Status::idByCode(Status::RESOLVED);
+        $reopenedId = Status::idByCode(Status::REOPENED);
 
         CRUD::column('reference_id')->label('Reference Id');
-        CRUD::column('user_id')->type('select')->entity('user')->attribute('name')->label('Created by');
+        CRUD::addColumn([
+            'name' => 'user_id', 'type' => 'select', 'entity' => 'user',
+            'attribute' => 'name', 'model' => User::class, 'label' => 'Created by',
+        ]);
         CRUD::addColumn([
             'name'     => 'issue_id',
             'label'    => 'Issue',
@@ -762,15 +812,21 @@ class TicketCrudController extends CrudController
             },
         ]);
         CRUD::column('message');
-        CRUD::column('department_id')->type('select')->entity('department')->attribute('department_name')->label('Department')->limit(75);
-        CRUD::column('division_id')->type('select')->entity('division')->attribute('division_name')->label('Division');
+        CRUD::addColumn([
+            'name' => 'department_id', 'type' => 'select', 'entity' => 'department',
+            'attribute' => 'department_name', 'model' => Department::class, 'label' => 'Department', 'limit' => 75,
+        ]);
+        CRUD::addColumn([
+            'name' => 'division_id', 'type' => 'select', 'entity' => 'division',
+            'attribute' => 'division_name', 'model' => Division::class, 'label' => 'Division',
+        ]);
 
         CRUD::addColumn([
             'name'      => 'status_id',
             'label'     => 'Status',
             'type'      => 'select',
             'entity'    => 'status',         // The relationship in your Ticket Model
-            'attribute' => 'status_name',    // The column in the Statuses table to show
+            'attribute' => 'status_name',    // Historical statuses remain visible.
             'model'     => "App\Models\Status",
             'wrapper'   => [
                 'element' => 'span',
@@ -831,7 +887,7 @@ class TicketCrudController extends CrudController
                     $attributes = $isViewable
                         ? 'target="_blank"'
                         : 'download="' . $fileName . '"';
-                    $output .= '<a href="'.$url.'" '.$attributes.' class="btn btn-sm btn-outline-primary mr-1 mb-1" style="text-transform: none;">';
+                    $output .= '<a href="'.$url.'" '.$attributes.' class="btn btn-sm btn-outline-primary me-1 mb-1" style="text-transform: none;">';
                     $output .= '<i class="la la-paperclip"></i> ' . $fileName;
                     $output .= '</a> ';
                 }
@@ -859,7 +915,7 @@ class TicketCrudController extends CrudController
                                 <select class='form-control form-control-sm' style='width: 250px;' disabled>
                                     <option selected>{$currentName}</option>
                                 </select>
-                                <button type='button' class='btn btn-sm btn-success ml-1' disabled>
+                                <button type='button' class='btn btn-sm btn-success ms-1' disabled>
                                     <i class='la la-save'></i>
                                 </button>
                             </div>
@@ -876,7 +932,7 @@ class TicketCrudController extends CrudController
                     $options = '<option value="">- Select Staff -</option>';
                     foreach ($hrStaff as $staff) {
                         $selected = ($entry->assigned_to == $staff->id) ? 'selected' : '';
-                        $options .= "<option value='{$staff->id}' {$selected}>{$staff->name}</option>";
+                        $options .= "<option value='{$staff->id}' {$selected}>".e($staff->name).'</option>';
                     }
 
                     return "
@@ -885,12 +941,13 @@ class TicketCrudController extends CrudController
                             {$method}
                             <input type='hidden' name='_http_referrer' value='".url()->current()."'>
                             <input type='hidden' name='_ticket_action' value='quick_assign'>
-                            <div class='form-group mb-0'>
+                            <div class='form-group d-flex align-items-center mb-0'>
                                 <select name='assigned_to' class='form-control form-control-sm' style='width: 250px;'>
                                     {$options}
                                 </select>
-                                <button type='submit' class='btn btn-sm btn-success ml-1'>
+                                <button type='submit' class='btn btn-sm btn-success ms-1'>
                                     <i class='la la-save'></i>
+                                    Save
                                 </button>
                             </div>
                         </form>
@@ -941,7 +998,7 @@ class TicketCrudController extends CrudController
                     $resolveModalId = "resolveModal{$entry->id}";
 
                     $buttons .= "
-                        <button type='button' class='btn btn-sm btn-success mr-1' data-toggle='modal' data-target='#{$resolveModalId}'>
+                        <button type='button' class='btn btn-sm btn-success me-1' data-bs-toggle='modal' data-bs-target='#{$resolveModalId}'>
                             <i class='la la-check-circle'></i> Resolve
                         </button>
 
@@ -950,9 +1007,7 @@ class TicketCrudController extends CrudController
                                 <div class='modal-content'>
                                     <div class='modal-header bg-primary text-white'>
                                         <h5 class='modal-title'>Confirm Resolution</h5>
-                                        <button type='button' class='close text-white' data-dismiss='modal' aria-label='Close'>
-                                            <span aria-hidden='true'>&times;</span>
-                                        </button>
+                                        <button type='button' class='btn-close btn-close-white' data-bs-dismiss='modal' aria-label='Close'></button>
                                     </div>
                                     <form action='{$formUrl}' method='POST'>
                                         {$csrf}
@@ -961,12 +1016,12 @@ class TicketCrudController extends CrudController
                                         <input type='hidden' name='_ticket_action' value='resolve'>
                                         <input type='hidden' name='status_id' value='{$resolvedId}'>
 
-                                        <div class='modal-body text-left'>
+                                        <div class='modal-body text-start'>
                                             <p>Are you sure you want to mark Ticket <strong>{$entry->reference_id}</strong> as Resolved?</p>
                                             <p class='text-muted small'>This will notify the user and close the ticket.</p>
                                         </div>
                                         <div class='modal-footer'>
-                                            <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
+                                            <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cancel</button>
                                             <button type='submit' class='btn btn-success'>Yes, Resolve it</button>
                                         </div>
                                     </form>
@@ -990,7 +1045,7 @@ class TicketCrudController extends CrudController
                     $reopenModalId = "reopenModal{$entry->id}";
 
                     $buttons .= "
-                        <button type='button' class='btn btn-sm btn-warning mr-1' data-toggle='modal' data-target='#{$reopenModalId}'>
+                        <button type='button' class='btn btn-sm btn-warning me-1' data-bs-toggle='modal' data-bs-target='#{$reopenModalId}'>
                             <i class='la la-undo'></i> Reopen
                         </button>
 
@@ -999,9 +1054,7 @@ class TicketCrudController extends CrudController
                                 <div class='modal-content'>
                                     <div class='modal-header bg-warning text-dark'>
                                         <h5 class='modal-title'>Confirm Reopen</h5>
-                                        <button type='button' class='close' data-dismiss='modal' aria-label='Close'>
-                                            <span aria-hidden='true'>&times;</span>
-                                        </button>
+                                        <button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>
                                     </div>
                                     <form action='{$formUrl}' method='POST'>
                                         {$csrf}
@@ -1010,12 +1063,12 @@ class TicketCrudController extends CrudController
                                         <input type='hidden' name='_ticket_action' value='reopen'>
                                         <input type='hidden' name='reopen_ticket' value='1'>
 
-                                        <div class='modal-body text-left'>
+                                        <div class='modal-body text-start'>
                                             <p>Do you want to reopen Ticket <strong>{$entry->reference_id}</strong>?</p>
                                             <p class='text-muted small'>Use this if your concern is not yet resolved or you have follow-up questions.</p>
                                         </div>
                                         <div class='modal-footer'>
-                                            <button type='button' class='btn btn-secondary' data-dismiss='modal'>Cancel</button>
+                                            <button type='button' class='btn btn-secondary' data-bs-dismiss='modal'>Cancel</button>
                                             <button type='submit' class='btn btn-warning'>Yes, Reopen it</button>
                                         </div>
                                     </form>

@@ -11,10 +11,20 @@ class Department extends Model
 {
     use CrudTrait;
     use HasFactory;
+    use \App\Models\Concerns\HasMasterDataLifecycle;
+    use \App\Models\Concerns\HasPermanentCode;
+
+    public const CODE_COLUMN = 'department_code';
+    public const HRDO = 'hrdo';
 
     protected $fillable = [
         'department_name',
+        'department_code',
+        'is_active',
     ];
+
+    protected $attributes = ['is_active' => true];
+    protected $casts = ['is_active' => 'boolean'];
 
     const CACHE_KEY = 'ref:departments.all';
 

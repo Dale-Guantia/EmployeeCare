@@ -64,7 +64,7 @@ class AttachmentOperationsTest extends TestCase
         Storage::disk(AttachmentStorage::DISK)->assertExists($path);
     }
 
-    /** @dataProvider malformedReferences */
+    #[\PHPUnit\Framework\Attributes\DataProvider('malformedReferences')]
     public function test_malformed_references_prevent_all_cleanup($raw)
     {
         $path = $this->file(); $this->reference($raw);
@@ -72,7 +72,7 @@ class AttachmentOperationsTest extends TestCase
         Storage::disk(AttachmentStorage::DISK)->assertExists($path);
     }
 
-    public function malformedReferences(): array
+    public static function malformedReferences(): array
     {
         return [['not json'], ['null'], ['{}'], ['["attachments/../outside.txt"]'], ['["attachments\\\\outside.txt"]'],
             ['["attachments/C:secret.txt"]'], ['[null]'], ['["attachments/CON.txt"]']];

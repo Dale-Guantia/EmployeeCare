@@ -73,11 +73,11 @@
 @endcan
 
 @if(backpack_user()->canAny(['reports.view', 'survey-reports.view']))
-<li class="nav-item nav-dropdown">
-    <a class="nav-link nav-dropdown-toggle" href="#">
+<li class="nav-group">
+    <a class="nav-link nav-group-toggle" href="#">
         <i class="nav-icon la la-chart-bar"></i> Reports
     </a>
-    <ul class="nav-dropdown-items">
+    <ul class="nav-group-items">
         @can('reports.view')
         <li class="nav-item">
             <a class="nav-link" href="{{ backpack_url('reports') }}">
@@ -102,11 +102,11 @@
 @endif
 
 @if(backpack_user()->canAny(['user.view', 'role.view', 'permission.view']))
-<li class="nav-item nav-dropdown">
-    <a class="nav-link nav-dropdown-toggle" href="#">
+<li class="nav-group">
+    <a class="nav-link nav-group-toggle" href="#">
         <i class="nav-icon la la-user-lock"></i> Authentication
     </a>
-    <ul class="nav-dropdown-items">
+    <ul class="nav-group-items">
         @can('user.view')
         <li class="nav-item">
             <a class="nav-link" href="{{ backpack_url('user') }}">

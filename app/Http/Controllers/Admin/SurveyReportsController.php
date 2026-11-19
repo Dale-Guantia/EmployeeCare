@@ -8,6 +8,7 @@ use App\Models\Survey;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use App\Services\{ReportOfficeScope, SurveyReportFilters};
 
 class SurveyReportsController extends Controller
 {
@@ -22,9 +23,13 @@ class SurveyReportsController extends Controller
         });
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $data = $this->getReportData();
+        $period = SurveyReportFilters::dates($request);
+        $scope = ReportOfficeScope::fromRequest($request);
+        $data = $this->getReportData($period[1], $period[2], false, $scope);
+        $exportStart = $period[1] ?? SurveyReportFilters::apply(Survey::query(), null, null, $scope)->min('created_at');
+        $data['exportStartDate'] = $exportStart ? Carbon::parse($exportStart)->toDateString() : now()->startOfYear()->toDateString();
 
         return view('admin.survey_reports', array_merge([
             'title' => 'Survey Reports',
@@ -34,7 +39,7 @@ class SurveyReportsController extends Controller
             ],
             'page' => 'resources/views/admin/survey_reports.blade.php',
             'controller' => 'app/Http/Controllers/Admin/SurveyReportsController.php',
-        ], $data));
+        ], SurveyReportFilters::viewData($period), $scope->viewData(), $data));
     }
 
     public function responses(Request $request)
@@ -54,7 +59,7 @@ class SurveyReportsController extends Controller
         $endDate = Carbon::parse($request->end_date)->endOfDay();
         $includeZeroActivity = $request->boolean('include_zero_activity');
 
-        $data = $this->getReportData($startDate, $endDate, $includeZeroActivity);
+        $data = $this->getReportData($startDate, $endDate, $includeZeroActivity, ReportOfficeScope::fromRequest($request));
 
         try {
             $pdf = Pdf::loadView('admin.pdf.survey_pdf', array_merge($data, [
@@ -72,14 +77,13 @@ class SurveyReportsController extends Controller
         }
     }
 
-    protected function getReportData($startDate = null, $endDate = null, $includeZeroActivity = false)
+    protected function getReportData($startDate = null, $endDate = null, $includeZeroActivity = false, ?ReportOfficeScope $scope = null)
     {
-        $data = \App\Services\SurveyReportQueries::summary($startDate, $endDate, (bool) $includeZeroActivity);
+        $scope ??= ReportOfficeScope::fromRequest(request());
+        $data = \App\Services\SurveyReportQueries::summary($startDate, $endDate, (bool) $includeZeroActivity, $scope);
         // The PDF contains summaries only; response details use the paginated endpoint.
-        $data['responses'] = Survey::with(['staff.division', 'service'])
-            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
-                $query->whereBetween('created_at', [$startDate, $endDate]);
-            })->latest()->orderByDesc('id')->limit(10)->get();
+        $data['responses'] = SurveyReportFilters::apply(Survey::with(['staff.division', 'service']), $startDate, $endDate, $scope)
+            ->latest()->orderByDesc('id')->limit(10)->get();
         return $data;
     }
 }

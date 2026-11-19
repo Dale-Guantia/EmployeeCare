@@ -2,7 +2,7 @@
 
 @section('content')
 
-    <div class="container-fluid">
+    <div class="container-fluid ec-dashboard ec-analytics">
         @if($periodError)
             <div class="row mb-2">
                 <div class="col-12">
@@ -13,7 +13,7 @@
 
         <div class="row mb-3 align-items-end" id="dashboardPeriodControl">
             <div class="col-auto">
-                <label for="dashPeriodSelect" class="small text-muted text-uppercase font-weight-bold mb-1">Date Range</label>
+                <label for="dashPeriodSelect" class="small text-muted text-uppercase fw-bold mb-1">Date Range</label>
                 <select id="dashPeriodSelect" class="form-control form-control-sm">
                     <option value="all" {{ $activePeriod === 'all' ? 'selected' : '' }}>All Time</option>
                     <option value="month" {{ $activePeriod === 'month' ? 'selected' : '' }}>This Month</option>
@@ -22,8 +22,10 @@
                 </select>
             </div>
 
+        @include('admin.office_filters')
+
             <div class="col-auto" id="dashHalfToggleWrap" style="{{ $activePeriod === 'half' ? '' : 'display:none;' }}">
-                <label for="dashHalfSelect" class="small text-muted text-uppercase font-weight-bold mb-1">Half</label>
+                <label for="dashHalfSelect" class="small text-muted text-uppercase fw-bold mb-1">Half</label>
                 <select id="dashHalfSelect" class="form-control form-control-sm">
                     <option value="h1" {{ $activeHalf === 'h1' ? 'selected' : '' }}>Jan &ndash; Jun {{ $activeYear }}</option>
                     <option value="h2" {{ $activeHalf === 'h2' ? 'selected' : '' }}>Jul &ndash; Dec {{ $activeYear }}</option>
@@ -31,13 +33,13 @@
             </div>
 
             <div class="col-auto" id="dashCustomRangeWrap" style="{{ $activePeriod === 'custom' ? '' : 'display:none;' }}">
-                <div class="form-row align-items-end">
+                <div class="row g-3 align-items-end">
                     <div class="col-auto">
-                        <label for="dashCustomStart" class="small text-muted text-uppercase font-weight-bold mb-1">Start Date</label>
+                        <label for="dashCustomStart" class="small text-muted text-uppercase fw-bold mb-1">Start Date</label>
                         <input type="date" id="dashCustomStart" class="form-control form-control-sm" value="{{ request('start') }}">
                     </div>
                     <div class="col-auto">
-                        <label for="dashCustomEnd" class="small text-muted text-uppercase font-weight-bold mb-1">End Date</label>
+                        <label for="dashCustomEnd" class="small text-muted text-uppercase fw-bold mb-1">End Date</label>
                         <input type="date" id="dashCustomEnd" class="form-control form-control-sm" value="{{ request('end') }}">
                     </div>
                     <div class="col-auto">
@@ -46,411 +48,122 @@
                 </div>
             </div>
 
-            <div class="col-auto ml-auto">
-                <small class="text-muted">Data shown for: {{ $dashWidgetStart->format('M j, Y') }} &ndash; {{ $dashWidgetEnd->format('M j, Y') }}</small>
+            <div class="col-auto ms-auto">
+                <small>Data shown for: {{ $dashWidgetStart->format('M j, Y') }} &ndash; {{ $dashWidgetEnd->format('M j, Y') }}</small>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-sm-6 col-md-2">
-                <div class="card text-white bg-dark">
-                    <div class="card-body" style="">
-                        <div class="h1 text-muted text-right"><i class="nav-icon la la-users"></i></div>
-                            <div class="text-value">{{ \App\Models\User::activeToday()->count() }}</div><small class="text-muted text-uppercase font-weight-bold">Visitors</small>
-                    </div>
-                </div>
+        {{-- <div class="ec-dashboard-filter-note">
+            Summaries use ticket creation dates in the selected range. SLA deadlines use exact timestamps, 72 elapsed hours from creation.
+            <span>As of {{ $dashboardAsOf->format('M j, Y - g:i A') }}</span>
+        </div> --}}
+        @if($olderOpenCount > 0)
+            <div class="ec-dashboard-scope-notice" data-older-open-notice>
+                <i class="la la-info-circle" aria-hidden="true"></i>
+                <span>{{ $olderOpenCount }} older open {{ $olderOpenCount === 1 ? 'ticket is' : 'tickets are' }} outside this creation-date range.</span>
+                <a href="{{ route('backpack.dashboard', ['period' => 'all', 'department_id' => $selectedDepartmentId, 'division_id' => $selectedDivisionId, 'chart_department_id' => $divisionChartDepartmentId]) }}#dashboardAttention">View All Time</a>
             </div>
-            <!-- /.col-->
-            <div class="col-sm-6 col-md-2">
-                <div class="card text-white bg-green">
-                        <div class="card-body">
-                            <div class="h1 text-muted text-right"><i class="nav-icon la la-user"></i></div>
-                                <div class="text-value">{{ \App\Models\User::count() }}</div><small class="text-muted text-uppercase font-weight-bold">Total Users</small>
+        @endif
+
+        @include('admin.partials.dashboard_summary')
+
+        <div class="row g-4 mb-4 ec-dashboard-action-row">
+            <div class="col-xl-8">@include('admin.partials.dashboard_attention')</div>
+            <div class="col-xl-4">
+                <div class="card">
+                    <div class="card-header">
+                        <div><strong>Ticket Volume Trend</strong><div class="ec-chart-subtitle">Tickets created over time</div></div>
+                    </div>
+                    <div class="card-body">
+                        <div class="ec-dashboard-chart-canvas" data-analytics-chart-panel>
+                            <canvas id="dashVolumeTrendChart" role="img" aria-label="Ticket counts over time for the global filters"></canvas>
+                            <p class="ec-chart-empty" data-analytics-chart-empty hidden>No tickets created for these filters.</p>
                         </div>
-                </div>
-            </div>
-            <!-- /.col-->
-            <div class="col-sm-6 col-md-2">
-                <div class="card text-white bg-warning">
-                    <div class="card-body">
-                        <div class="h1 text-muted text-right"><i class="nav-icon la la-ticket"></i></div>
-                            <div class="text-value">{{ $dashKpis['total'] }}</div><small class="text-muted text-uppercase font-weight-bold">Total Tickets</small>
-                    </div>
-                </div>
-            </div>
-            <!-- /.col-->
-            <div class="col-sm-6 col-md-2">
-                <div class="card text-white" style="background-color: #9966FF;">
-                    <div class="card-body">
-                        <div class="h1 text-muted text-right"><i class="nav-icon la la-user-clock"></i></div>
-                            <div class="text-value">{{ $dashKpis['avg_resolution_formatted'] }}</div><small class="text-muted text-uppercase font-weight-bold">Avg Resolution</small>
-                    </div>
-                </div>
-            </div>
-            <!-- /.col-->
-            <div class="col-sm-6 col-md-2">
-                <div class="card text-white" style="background-color: {{ $dashKpis['overdue_pct'] >= 20 ? '#de4759' : '#41ba96' }};">
-                    <div class="card-body">
-                        <div class="h1 text-muted text-right"><i class="nav-icon la la-exclamation-circle"></i></div>
-                            <div class="text-value">{{ $dashKpis['overdue_pct'] }}%</div><small class="text-muted text-uppercase font-weight-bold">Overdue (SLA)</small>
-                    </div>
-                </div>
-            </div>
-            <!-- /.col-->
-            <div class="col-sm-6 col-md-2">
-                <div class="card text-white bg-primary">
-                    <div class="card-body">
-                        <div class="h1 text-muted text-right"><i class="nav-icon la la-undo-alt"></i></div>
-                            <div class="text-value">{{ $dashKpis['reopen_rate'] }}%</div><small class="text-muted text-uppercase font-weight-bold">Reopen Rate</small>
-                    </div>
-                </div>
-            </div>
-            <!-- /.col-->
-        </div>
-
-        {{-- Charts Row --}}
-        <div class="row">
-            {{-- Tickets per Division --}}
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header font-weight-bold">
-                        Tickets per Division
-                    </div>
-
-                    <div style="height:300px;">
-                        <canvas id="divisionChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Tickets Overview --}}
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header font-weight-bold">
-                        Tickets Overview
-                    </div>
-
-                    <div class="card-body" style="height:300px;">
-                        <canvas id="statusChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header font-weight-bold">
-                        Resolution Time Distribution
-                    </div>
-                    <div class="card-body" style="height:300px; position: relative;">
-                        <canvas id="dashResolutionDistributionChart"></canvas>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Latest Tickets -->
-        <div class="row">
-            <div class="col-md-12">
+        <div class="ec-dashboard-overview-grid">
+            <div>
+                @include('admin.partials.department_division_chart', ['chartTitle' => 'Tickets per Division',
+                    'chartId' => 'divisionChart', 'labels' => $divisionLabels, 'values' => $divisionCounts,
+                    'colors' => $divisionColors])
+            </div>
+            <div>
                 <div class="card">
-                    <div class="card-body">
-                            <table id="latestTicketsTable" class="table table-striped table-hover text-nowrap w-100">
-                                <thead>
-                                <tr>
-                                    <th>Reference ID</th>
-                                    <th>Created by</th>
-                                    <th>Issue</th>
-                                    <th>Custom Issue</th>
-                                    <th>Message</th>
-                                    <th>Status</th>
-                                    <th>Priority</th>
-                                    <th>Date</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($latestTickets as $ticket)
-                                    <tr>
-                                        <td>{{ $ticket->reference_id ?? 'N/A'}}</td>
-                                        <td>{{ $ticket->user->name ?? 'N/A'}}</td>
-                                        <td>{{ $ticket->issue->issue_description ?? 'N/A'}}</td>
-                                        <td>{{ $ticket->custom_issue ?? 'N/A'}}</td>
-                                        <td>{{ $ticket->message ?? 'N/A'}}</td>
-                                        <td>
-                                            @if($ticket->status)
-                                                <span class="badge" style="background-color: {{ $ticket->status->status_color }}; color: #000000;">
-                                                    {{ $ticket->status->status_name }}
-                                                </span>
-                                            @else
-                                                <span>N/A</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if($ticket->priority)
-                                                <span class="badge" style="background-color: {{ $ticket->priority->priority_color }}; color: #000000;">
-                                                    {{ $ticket->priority->priority_name }}
-                                                </span>
-                                            @else
-                                                <span>N/A</span>
-                                            @endif
-                                        </td>
-                                        <td>{{ optional($ticket->created_at)->format('m/d/Y - g:i A') ?? 'N/A' }}</td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
+                    <div class="card-header justify-content-between gap-2">
+                        <div><strong>Tickets Overview</strong><div class="ec-chart-subtitle">Current status of selected tickets</div></div>
+                        <span class="ec-chart-total">{{ $dashKpis['total'] }} tickets</span>
                     </div>
-
+                    <div class="card-body">
+                        <div class="ec-dashboard-chart-canvas" data-analytics-chart-panel>
+                            <canvas id="statusChart" role="img" aria-label="Ticket counts by status for the global filters"></canvas>
+                            <p class="ec-chart-empty" data-analytics-chart-empty hidden>No tickets for these filters.</p>
+                        </div>
+                    </div>
                 </div>
+            </div>
+            <div>
+                @include('admin.partials.staff_leaderboard')
             </div>
         </div>
-        <!-- End of Latest Tickets -->
 
-        {{-- Reports widgets (scoped to the selected date range) --}}
-        <div class="row">
-            <div class="col-md-8 mb-4">
-                <div class="card h-100">
-                    <div class="card-header font-weight-bold">
-                        Ticket Volume Trend
-                    </div>
-                    <div class="card-body" style="height:300px; position: relative;">
-                        <canvas id="dashVolumeTrendChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header font-weight-bold">
-                        Overdue vs On-Time by Issue Type
-                    </div>
-                    <div class="card-body table-responsive" style="min-height: 320px; max-height: 320px; overflow-y: auto; font-size: 0.85rem;">
-                        <table class="table table-sm">
-                            <thead><tr><th>Issue</th><th>Total</th><th>Overdue</th><th>%</th></tr></thead>
+        <div class="row mb-4">
+            <div class="col-12">
+                <section class="card mb-0" data-dashboard-sla>
+                    <div class="card-header"><div><strong>Issue Types and Delays</strong><div class="ec-chart-subtitle">Largest delay counts first; open overdue and late resolutions shown separately</div></div></div>
+                    <div class="card-body ec-sla-table-scroll">
+                        <table class="table table-hover ec-report-table ec-sla-table">
+                            <thead><tr><th scope="col">Issue</th><th scope="col">Open overdue</th><th scope="col">Resolved late</th><th scope="col">On-time resolution</th></tr></thead>
                             <tbody>
-                            @forelse($overdueByIssue as $issueName => $row)
+                            @forelse($dashboardIssues as $row)
                                 <tr>
-                                    <td>{{ $issueName }}</td>
-                                    <td>{{ $row['total'] }}</td>
-                                    <td>{{ $row['overdue'] }}</td>
-                                    <td>{{ $row['total'] > 0 ? round(($row['overdue'] / $row['total']) * 100, 1) : 0 }}%</td>
+                                    <td><strong>{{ $row['subject'] }}</strong><div class="ec-chart-subtitle">{{ $row['total'] }} tickets</div></td>
+                                    <td><span class="ec-sla-count {{ $row['overdue_open'] > 0 ? 'ec-sla-late' : 'ec-sla-clear' }}">{{ $row['overdue_open'] }}</span></td>
+                                    <td class="ec-table-number">{{ $row['late_resolved'] }}</td>
+                                    <td class="ec-table-number">{{ $row['on_time_rate'] === null ? '—' : $row['on_time_rate'] . '%' }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="4" class="text-center text-muted">No data</td></tr>
+                                <tr><td colspan="4" class="text-center text-muted py-4">No tickets for these filters.</td></tr>
                             @endforelse
                             </tbody>
                         </table>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body text-center d-flex flex-column justify-content-center" style="min-height: 300px;">
-                        <div class="text-value">{{ $reassignmentRate }}%</div>
-                        <small class="text-muted text-uppercase font-weight-bold">Reassignment Rate</small>
-                        <div class="text-muted small mt-1">{{ $reassignedCount }} of {{ $reassignmentTotal }} tickets</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-8 mb-4">
-                <div class="card h-100">
-                    <div class="card-header font-weight-bold">
-                        Reassignment by Division
-                    </div>
-                    <div class="card-body" style="min-height: 300x;">
-                        <div style="height: 280px; position: relative;">
-                            <canvas id="dashReassignmentByDivisionChart"></canvas>
-                        </div>
-                    </div>
-                </div>
+                </section>
             </div>
         </div>
     </div>
-</div>
 
 @endsection
-
 @section('after_styles')
+@basset(public_path('css/analytics.css'))
+@basset(public_path('css/dashboard-charts.css'))
+@basset(public_path('css/reassignment-card.css'))
 
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap4.min.css">
+@basset('https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css')
+@basset('https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css')
 
 @endsection
 
 @section('after_scripts')
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+@basset('https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js')
+@basset('https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js')
+@include('admin.partials.report_table_assets')
+@basset(public_path('js/department-division-charts.js'))
+
+@php
+    $dashboardCharts = [
+        'status' => ['labels' => $statusLabels, 'counts' => $statusData, 'colors' => $statusColors],
+        'volume' => ['labels' => $volumeTrendLabels, 'counts' => $volumeTrendCounts],
+    ];
+@endphp
+<script type="application/json" data-dashboard-charts>@json($dashboardCharts)</script>
+@basset(public_path('js/analytics-charts.js'))
 
 <script>
-
-const divisionLabels = @json($divisionLabels);
-const divisionCounts = @json($divisionCounts);
-const divisionColors = @json($divisionColors);
-
-const statusLabels = @json($statusLabels);
-const statusData = @json($statusData);
-const statusColors = @json($statusColors);
-
-const ctx = document.getElementById('divisionChart');
-
-new Chart(ctx, {
-    type: 'bar',
-    plugins: [ChartDataLabels],
-    data: {
-        labels: divisionLabels,
-        datasets: [{
-            label: 'Tickets',
-            data: divisionCounts,
-            // Use the array here!
-            backgroundColor: divisionColors,
-            borderColor: divisionColors,
-            borderWidth: 1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            // 2. Configure the Data Labels
-            datalabels: {
-                anchor: 'center',      // Position label at the top of the bar
-                align: 'top',       // Align it above the anchor point
-                color: '#444',      // Label color
-                font: {
-                    weight: 'bold',
-                    size: 12
-                },
-                formatter: function(value) {
-                    return value;   // Simply return the number (e.g., "2")
-                }
-            }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                suggestedMax: Math.max(...divisionCounts) + 1, // Gives space for the label
-                ticks: { precision: 0 }
-            },
-            x: {
-                ticks: {
-                    maxRotation: 45,
-                    minRotation: 45
-                }
-            }
-        }
-    }
-});
-
-
-const ctxStatus = document.getElementById('statusChart');
-
-new Chart(ctxStatus, {
-    type: 'pie',
-    data: {
-        labels: statusLabels,
-        datasets: [{
-            data: statusData,
-            backgroundColor: statusColors,
-            borderWidth: 1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return context.label + ': ' + context.parsed + ' tickets';
-                    }
-                }
-            }
-        }
-    }
-});
-
-// --- Reports widgets, scoped to the selected date range ---
-
-const dashReportColorPalette = ['#FF6384', '#36A2EB', '#4BC0C0', '#FFCE56', '#9966FF', '#FF9F40', '#C9CBCF', '#4D5360'];
-
-const dashVolumeTrendLabels = @json($volumeTrendLabels);
-const dashVolumeTrendCounts = @json($volumeTrendCounts);
-const dashResolutionLabels = @json($resolutionLabels);
-const dashResolutionCounts = @json($resolutionCounts);
-const dashReassignDivisionLabels = @json($reassignDivisionLabels);
-const dashReassignDivisionRates = @json($reassignDivisionRates);
-
-const dashVolumeTrendEl = document.getElementById('dashVolumeTrendChart');
-if (dashVolumeTrendEl && dashVolumeTrendLabels.length) {
-    new Chart(dashVolumeTrendEl, {
-        type: 'line',
-        data: {
-            labels: dashVolumeTrendLabels,
-            datasets: [{
-                label: 'Tickets Created',
-                data: dashVolumeTrendCounts,
-                borderColor: '#36A2EB',
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                fill: true,
-                tension: 0.2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-        }
-    });
-}
-
-const dashResolutionEl = document.getElementById('dashResolutionDistributionChart');
-if (dashResolutionEl && dashResolutionLabels.length) {
-    new Chart(dashResolutionEl, {
-        type: 'bar',
-        data: {
-            labels: dashResolutionLabels,
-            datasets: [{
-                label: 'Resolved Tickets',
-                data: dashResolutionCounts,
-                backgroundColor: dashReportColorPalette
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-        }
-    });
-}
-
-const dashReassignDivisionEl = document.getElementById('dashReassignmentByDivisionChart');
-if (dashReassignDivisionEl && dashReassignDivisionLabels.length) {
-    new Chart(dashReassignDivisionEl, {
-        type: 'bar',
-        data: {
-            labels: dashReassignDivisionLabels,
-            datasets: [{
-                label: 'Reassignment Rate %',
-                data: dashReassignDivisionRates,
-                backgroundColor: '#FF9F40'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, max: 100 } }
-        }
-    });
-}
-
 function buildDashboardUrl(params) {
     const url = new URL(window.location.href);
     url.search = '';
@@ -459,23 +172,17 @@ function buildDashboardUrl(params) {
             url.searchParams.set(key, params[key]);
         }
     });
+    const officeDepartment = document.querySelector('[data-report-department]');
+    const officeDivision = document.querySelector('[data-report-division]');
+    if (officeDepartment?.value) url.searchParams.set('department_id', officeDepartment.value);
+    if (officeDivision?.value) url.searchParams.set('division_id', officeDivision.value);
+    document.querySelectorAll('[data-division-chart-department]').forEach(chartDepartment => {
+        if (chartDepartment.value) url.searchParams.set(chartDepartment.getAttribute('data-division-chart-param') || 'chart_department_id', chartDepartment.value);
+    });
     return url.toString();
 }
 
 $(document).ready(function () {
-    $('#latestTicketsTable').DataTable({
-        pageLength: 10,
-        responsive: false,
-        ordering: true,
-        searching: true,
-        dom:
-        "<'row align-items-center'<'col-md-6 latest-title'><'col-md-6'f>>" +
-        "<'row'<'col-sm-12 table-responsive'tr>>" +
-        "<'row align-items-center'<'col-sm-4'l><'col-sm-4'><'col-sm-4 text-right'p>>"
-    });
-
-    $('.latest-title').html('<h5 class="mb-2 font-weight-bold">Latest Tickets</h5>');
-
     const periodSelect = document.getElementById('dashPeriodSelect');
     const halfSelect = document.getElementById('dashHalfSelect');
     const halfWrap = document.getElementById('dashHalfToggleWrap');

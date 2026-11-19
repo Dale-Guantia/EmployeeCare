@@ -42,6 +42,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
     protected function setupListOperation()
     {
+        CRUD::setListView('admin.hr_policy_list');
         CRUD::column('title')->label('Document title');
         CRUD::column('category')->label('Category');
         CRUD::column('chunk_count')->label('Chunks');
@@ -79,6 +80,20 @@ class HrPolicyDocumentCrudController extends CrudController
         CRUD::removeButton('create'); // replaced by custom upload page
     }
 
+    public function ingestionStatus()
+    {
+        $this->crud->hasAccessOrFail('list');
+        $state = HrPolicyDocument::selectRaw(
+            'SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as processing, MAX(updated_at) as latest',
+            ['pending', 'processing']
+        )->first();
+        $pending = (int) $state->pending;
+        $processing = (int) $state->processing;
+        return response()->json(['pending' => $pending, 'processing' => $processing,
+            'version' => sha1($pending . ':' . $processing . ':' . $state->latest)])
+            ->header('Cache-Control', 'no-store');
+    }
+
     // ── Custom upload (create) ─────────────────────────────────
 
     public function uploadForm()
@@ -107,7 +122,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
             $ingest->queue($document);
 
-            Alert::success("Policy \"{$document->title}\" uploaded and queued for background ingestion. Refresh this list to check its status.")->flash();
+            Alert::success("Policy \"{$document->title}\" uploaded and queued for background ingestion. The list will update automatically while processing runs.")->flash();
 
         } catch (PolicyIngestionSetupException $e) {
             return redirect()->route('hr.policy.upload.form')
@@ -154,7 +169,7 @@ class HrPolicyDocumentCrudController extends CrudController
                     $request->only('title', 'category', 'effective_date')
                 );
                 $ingest->queue($document, true);
-                $msg = 'Policy file replaced and queued for background ingestion. Refresh this list to check its status.';
+                $msg = 'Policy file replaced and queued for background ingestion. The list will update while processing runs.';
             } else {
                 // Metadata-only update — no re-ingest needed
                 $document->update($request->only('title', 'category', 'effective_date'));
@@ -234,7 +249,7 @@ class HrPolicyDocumentCrudController extends CrudController
 
         return response()->json([
             'success' => true,
-            'message' => 'Re-ingestion queued. Refresh this list to check its status.',
+            'message' => 'Re-ingestion queued. The list will update automatically while processing runs.',
         ]);
     }
 

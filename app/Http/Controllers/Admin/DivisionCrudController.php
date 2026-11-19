@@ -16,7 +16,8 @@ class DivisionCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as protected traitDestroy; }
+    use \App\Http\Controllers\Admin\Operations\OfficeArchivingOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 
     /**
@@ -55,7 +56,13 @@ class DivisionCrudController extends CrudController
      */
     protected function setupListOperation()
     {
+        $this->crud->removeButton('delete');
+        $this->crud->addButtonFromView('line', 'master_data_delete', 'master_data_delete', 'end');
+        $this->setupOfficeArchivingButtons();
+        CRUD::addColumn(['name' => 'availability', 'label' => 'State', 'type' => 'closure',
+            'function' => fn ($entry) => !$entry->is_active ? 'Archived' : ($entry->department?->is_active ? 'Active' : 'Department archived')]);
         CRUD::column('division_name');
+        // CRUD::column('division_code')->label('Code');
         CRUD::addColumn([
             'label'     => "Department",
             'type'      => 'select',
@@ -81,8 +88,14 @@ class DivisionCrudController extends CrudController
     protected function setupCreateOperation()
     {
         CRUD::setValidation(DivisionRequest::class);
-
-        CRUD::field('division_name');
+        $codeAttributes = ['maxlength' => 64];
+        if ($this->crud->getCurrentOperation() === 'update') $codeAttributes['readonly'] = 'readonly';
+        CRUD::addField(['name' => 'division_code', 'label' => 'Permanent code', 'type' => 'text',
+            'attributes' => $codeAttributes, 'hint' => 'Assigned once. Leave empty on creation to generate a code automatically.']);
+        if ($this->crud->getCurrentOperation() === 'update') {
+            CRUD::addField(['name' => 'reason', 'label' => 'Reason for change (optional)', 'type' => 'textarea',
+                'attributes' => ['maxlength' => 1000, 'rows' => 2], 'hint' => 'Stored in the audit history.']);
+        }
         CRUD::addField([
             'label'     => "Department",
             'type'      => 'select', // or 'select2' for a searchable dropdown
@@ -90,7 +103,15 @@ class DivisionCrudController extends CrudController
             'entity'    => 'department',    // The method name in your Division Model
             'model'     => "App\Models\Department", // The related Model
             'attribute' => 'department_name',          // The column to show in the dropdown
+            'options' => function ($query) {
+                $entry = $this->crud->getCurrentOperation() === 'update' ? $this->crud->getCurrentEntry() : null;
+                return \App\Services\OfficeSelectionRules::departments($query, $entry?->department_id)->get();
+            },
         ]);
+        CRUD::field('division_name');
+        CRUD::addField(['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'default' => 1,
+            'hint' => 'An archived parent department also makes this division unavailable for new selections.']);
+
 
         /**
          * Fields can be defined using the fluent syntax or array syntax:
@@ -108,5 +129,15 @@ class DivisionCrudController extends CrudController
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();
+    }
+
+    protected function setupShowOperation()
+    {
+        $this->setupListOperation();
+    }
+
+    public function destroy($id)
+    {
+        return $this->destroyOffice($id);
     }
 }

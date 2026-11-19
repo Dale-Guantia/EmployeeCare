@@ -26,10 +26,10 @@ class ReportQueryParityTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-10-07 12:00:00'));
         $owner = User::first();
-        $resolved = (int) Status::idByName('Resolved');
-        $pending = (int) Status::idByName('Pending');
-        $reopened = (int) Status::idByName('Reopened');
-        $states = [$resolved, $pending, $reopened, (int) Status::idByName('Unassigned')];
+        $resolved = (int) Status::idByCode(Status::RESOLVED);
+        $pending = (int) Status::idByCode(Status::PENDING);
+        $reopened = (int) Status::idByCode(Status::REOPENED);
+        $states = [$resolved, $pending, $reopened, (int) Status::idByCode(Status::UNASSIGNED)];
         $hours = [0, 23, 24, 71, 72, 73, 167, 168, -73];
         $rows = [];
         for ($i = 0; $i < 553; $i++) {
@@ -86,7 +86,7 @@ class ReportQueryParityTest extends TestCase
         DB::table('surveys')->insert(['user_id' => $staff->id, 'issue_id' => 1, 'timeliness_rating' => 'satisfied',
             'handling_rating' => 'Satisfied ', 'quality_rating' => 'Legacy value', 'overall_rating' => 'Satisfied', 'created_at' => now(), 'updated_at' => now()]);
         $controller = new LegacySurveyReports;
-        $method = new \ReflectionMethod($controller, 'getReportData'); $method->setAccessible(true);
+        $method = new \ReflectionMethod($controller, 'getReportData');
         foreach ([[null, null], [now()->subDays(10), now()], [now()->addYear(), now()->addYear()->endOfDay()]] as $range) {
             foreach ([true, false] as $includeZero) {
                 $old = $method->invoke($controller, $range[0], $range[1], $includeZero);

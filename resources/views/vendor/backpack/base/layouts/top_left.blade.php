@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 
-<html lang="{{ app()->getLocale() }}" dir="{{ config('backpack.base.html_direction') }}">
+<html lang="{{ app()->getLocale() }}" dir="{{ backpack_theme_config('html_direction') }}">
 
 <head>
   @include(backpack_view('inc.head'))
   @livewireStyles
 </head>
 
-<body class="{{ config('backpack.base.body_class') }}">
+<body class="{{ backpack_theme_config('classes.body') }}">
 
-  @include(backpack_view('inc.main_header'))
+  @include(backpack_view('inc.sidebar'))
 
-  <div class="app-body">
+  <div class="wrapper d-flex flex-column min-vh-100 bg-light">
 
-    @include(backpack_view('inc.sidebar'))
+    @include(backpack_view('inc.main_header'))
+
+    <div class="app-body flex-grow-1 px-2">
 
     <main class="main pt-2">
 
@@ -39,16 +41,29 @@
 
   </div>{{-- ./app-body --}}
 
-  <footer class="{{ config('backpack.base.footer_class') }}">
+  <footer class="{{ backpack_theme_config('classes.footer') }}">
     @include(backpack_view('inc.footer'))
   </footer>
+  </div>{{-- ./wrapper --}}
 
   @yield('before_scripts')
   @stack('before_scripts')
 
   @include(backpack_view('inc.scripts'))
+  @include(backpack_view('inc.theme_scripts'))
   {{-- Keep Livewire on the current origin, including installations in a subdirectory. --}}
-  @livewireScripts(['asset_url' => request()->getBaseUrl()])
+  @php
+    $baseUrl = request()->getBaseUrl();
+    $updateUri = app('livewire')->getUpdateUri();
+    $livewireScriptPath = app(\Livewire\Mechanisms\FrontendAssets\FrontendAssets::class)->javaScriptRoute->uri();
+    $livewireScripts = \Livewire\Mechanisms\FrontendAssets\FrontendAssets::scripts(['url' => $baseUrl . '/' . ltrim($livewireScriptPath, '/')]);
+    // Keep update requests under the same application mount as the page and assets.
+    if ($baseUrl !== '' && !Str::startsWith($updateUri, $baseUrl . '/')) {
+        $livewireScripts = str_replace('data-update-uri="' . e($updateUri) . '"',
+            'data-update-uri="' . e($baseUrl . $updateUri) . '"', $livewireScripts);
+    }
+  @endphp
+  {!! $livewireScripts !!}
 
   @yield('after_scripts')
   @stack('after_scripts')

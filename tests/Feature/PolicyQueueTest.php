@@ -66,7 +66,7 @@ class PolicyQueueTest extends TestCase
         $this->assertSame(2, DB::table('policy_jobs')->count());
         // An already queued re-run is idempotent, not a third dispatch.
         $this->post('/employee-care/hr-policy-documents/' . $document->id . '/reingest')->assertOk()->assertJsonPath('success', true)
-            ->assertJsonPath('message', 'Re-ingestion queued. Refresh this list to check its status.');
+            ->assertJsonPath('message', 'Re-ingestion queued. The list will update automatically while processing runs.');
         $this->assertSame(2, DB::table('policy_jobs')->count());
         $document->update(['status' => 'active']);
         $this->post('/employee-care/hr-policy-documents/' . $document->id . '/reingest')->assertOk()->assertJsonPath('success', true);

@@ -14,7 +14,7 @@
 @section('header')
     <section class="container-fluid d-print-none">
         {{-- Print button in preview/show pages --}}
-        {{-- <a href="javascript: window.print();" class="btn float-right"><i class="la la-print"></i></a> --}}
+        {{-- <a href="javascript: window.print();" class="btn float-end"><i class="la la-print"></i></a> --}}
         <h2>
             <span class="text-capitalize">{!! $crud->getHeading() ?? $crud->entity_name_plural !!}</span>
             <small>{!! $crud->getSubheading() ?? mb_ucfirst(trans('backpack::crud.preview')).' '.$crud->entity_name !!}.</small>
@@ -35,8 +35,8 @@
                     <div class="row">
                         <div class="col-md-12 mb-2">
                             {{-- Change translation button group --}}
-                            <div class="btn-group float-right">
-                                <button type="button" class="btn btn-sm btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <div class="btn-group float-end">
+                                <button type="button" class="btn btn-sm btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                     {{trans('backpack::crud.language')}}: {{ $crud->model->getAvailableLocales()[request()->input('_locale')?request()->input('_locale'):App::getLocale()] }} &nbsp; <span class="caret"></span>
                                 </button>
                                 <ul class="dropdown-menu">
@@ -62,7 +62,7 @@
 
         <!-- Right Column: The Chat Section (The Red Box) -->
         @if($entry instanceof \App\Models\Ticket)
-            <div class="col-md-4">
+            <div class="col-12 col-xl-4">
                 @livewire('ticket-chat', ['ticketId' => $entry->getKey()])
             </div>
         @endif

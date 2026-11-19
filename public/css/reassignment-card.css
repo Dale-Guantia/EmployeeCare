@@ -1,0 +1,54 @@
+.ec-reassignment-card {
+    background: linear-gradient(110deg, #edf3ff, #fff 75%);
+    border: 1px solid #d8e3f5;
+    border-left: 4px solid #375ca6;
+    border-radius: 0.75rem;
+}
+.ec-reassignment-card .card-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.5rem;
+}
+.ec-reassignment-main { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+.ec-reassignment-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 1rem;
+    background: #ffedd5;
+    color: #b45309;
+    font-size: 1.75rem;
+}
+.ec-reassignment-title { margin: 0; color: #40536f; font-size: 1rem; font-weight: 700; }
+.ec-reassignment-rate { color: #274b8a; font-size: 3rem; font-weight: 700; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.ec-reassignment-note, .ec-reassignment-scope { color: #53647d; font-size: 0.875rem; }
+.ec-reassignment-scope { flex-basis: 100%; }
+.ec-reassignment-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 0; }
+.ec-reassignment-counts > div { padding: 0.875rem 1.25rem; background: #fff; border: 1px solid #d8e3f5; border-radius: 0.5rem; }
+.ec-reassignment-counts dt { color: #53647d; font-size: 0.875rem; font-weight: 500; }
+.ec-reassignment-counts dd { margin: 0.25rem 0 0; color: #274b8a; font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ec-reassignment-counts .ec-reassignment-count { color: #b45309; }
+.ec-resolution-card {
+    background: linear-gradient(110deg, #f5f0ff, #fff 75%);
+    border-color: #e4d9f8;
+    border-left-color: #6f42c1;
+}
+.ec-resolution-card .ec-reassignment-icon { background: #efe5ff; color: #6f42c1; }
+.ec-resolution-card .ec-reassignment-rate { color: #59359a; font-size: 2.5rem; }
+.ec-resolution-card .ec-reassignment-counts > div { border-color: #e4d9f8; }
+.ec-resolution-card .ec-reassignment-counts .ec-reassignment-count { color: #6f42c1; }
+.ec-resolution-card-green { background: linear-gradient(110deg, #edf9f2, #fff 75%); border-color: #cce8d8; border-left-color: #198754; }
+.ec-resolution-card-green .ec-reassignment-icon { background: #dff3e8; color: #166044; }
+.ec-resolution-card-green .ec-reassignment-rate { color: #166044; }
+.ec-resolution-card-green .ec-reassignment-counts > div { border-color: #cce8d8; }
+.ec-resolution-card-green .ec-reassignment-counts .ec-reassignment-count { color: #166044; }
+@media (max-width: 575.98px) {
+    .ec-reassignment-card .card-body { padding: 1rem; }
+    .ec-reassignment-counts { width: 100%; }
+}

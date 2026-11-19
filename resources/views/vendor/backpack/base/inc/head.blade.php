@@ -1,72 +1,22 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    @if (config('backpack.base.meta_robots_content'))<meta name="robots" content="{{ config('backpack.base.meta_robots_content', 'noindex, nofollow') }}"> @endif
+    @if (config('backpack.ui.meta_robots_content'))<meta name="robots" content="{{ config('backpack.ui.meta_robots_content', 'noindex, nofollow') }}"> @endif
 
     <meta name="csrf-token" content="{{ csrf_token() }}" /> {{-- Encrypted CSRF token for Laravel, in order for Ajax requests to work --}}
-    <title>{{ isset($title) ? $title.' :: '.config('backpack.base.project_name') : config('backpack.base.project_name') }}</title>
+    <title>{{ isset($title) ? $title.' :: '.config('backpack.ui.project_name') : config('backpack.ui.project_name') }}</title>
 
     @yield('before_styles')
     @stack('before_styles')
 
-    @foreach(config('backpack.base.styles', []) as $path)
-        <link rel="stylesheet" type="text/css" href="{{ asset($path).'?v='.config('backpack.base.cachebusting_string') }}">
+    @foreach (config('backpack.ui.font_styles', []) as $fontStylesheet)
+        <link rel="stylesheet" href="{{ $fontStylesheet }}">
     @endforeach
 
-    @foreach(config('backpack.base.mix_styles', []) as $path => $manifest)
-        <link rel="stylesheet" type="text/css" href="{{ mix($path, $manifest) }}">
-    @endforeach
-
-    @if(!empty(config('backpack.base.vite_styles', [])))
-        @vite(config('backpack.base.vite_styles', []))
-    @endif
+    @include(backpack_view('inc.theme_styles'))
+    @include(backpack_view('inc.styles'))
 
     <style>
-        .app-header {
-            position: fixed !important;
-            top: 0;
-            left: 0;
-            right: 0;
-            width: 100%;
-            z-index: 1050;
-        }
-
-        .app-body {
-            margin-top: 55px;
-        }
-
-        /* keep sidebar below the fixed header */
-        .sidebar {
-            top: 55px !important;
-            height: calc(100vh - 56px) !important;
-        }
-
-        /* mobile fixes */
-        @media (max-width: 991.98px) {
-            .app-header {
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                right: 0 !important;
-                width: 100% !important;
-                z-index: 1050 !important;
-            }
-
-            .app-body {
-                margin-top: 55px !important;
-            }
-
-            .sidebar {
-                top: 55px !important;
-                height: calc(100vh - 55px) !important;
-                z-index: 1040 !important;
-            }
-
-            .main {
-                padding-top: 0 !important;
-            }
-        }
-
         /* Ticket show/preview: prevent long values (department names, attachment
            filenames) from overflowing their table row instead of wrapping. */
         .ticket-show table.table td,

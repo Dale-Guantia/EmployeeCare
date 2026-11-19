@@ -10,11 +10,17 @@ class EngineSubmissionRace
     public static function run(string $kind, array $payloads, string $token, string $mode = 'isolated'): array
     {
         $processes = []; $inputs = []; $output = ['', ''];
+        $environment = [];
+        foreach (getenv() as $key => $value) {
+            if (strpos($key, 'ENGINE_TEST_') === 0 || strpos($key, 'ENGINE_DATA_TEST_') === 0) {
+                $environment[$key] = $value;
+            }
+        }
         try {
             foreach ($payloads as $i => $payload) {
                 $inputs[$i] = new InputStream;
                 $processes[$i] = new Process([PHP_BINARY, dirname(__DIR__) . '/Engine/submission-worker.php',
-                    $kind, json_encode($payload), $token, $mode], base_path(), null, $inputs[$i], 30);
+                    $kind, json_encode($payload), $token, $mode], base_path(), $environment, $inputs[$i], 30);
                 $processes[$i]->start();
             }
             $deadline = microtime(true) + 20;

@@ -71,8 +71,7 @@ class TicketReassignmentTest extends TestCase
         $crud->entry = $stale;
         $controller = (new \ReflectionClass(\App\Http\Controllers\Admin\TicketCrudController::class))->newInstanceWithoutConstructor();
         $controller->crud = $crud;
-        $method = new \ReflectionMethod($controller, 'runReassignmentAction');
-        $method->setAccessible(true);
+        $method = new \ReflectionMethod($controller, 'runTicketAction');
         $request = \Illuminate\Http\Request::create('/employee-care/ticket/' . $ticket->id, 'PUT', [
             'id' => $ticket->id, 'to_department_id' => $toDept->id, 'to_division_id' => $toDiv->id,
         ]);
@@ -728,6 +727,9 @@ class TicketReassignmentTest extends TestCase
     // markers those fixes rely on, rather than JS execution itself.
     public function test_show_page_html_has_tom_select_assets_and_modal_body_move_fix()
     {
+        \Illuminate\Support\Facades\Http::fake([
+            'cdn.jsdelivr.net/npm/tom-select@*' => \Illuminate\Support\Facades\Http::response('/* isolated asset */'),
+        ]);
         [$dept, $div] = $this->makeDeptDiv('HtmlCheck');
         $admin = $this->makeUser('admin');
         $ticket = $this->makeTicket($admin, $dept, $div);
@@ -747,6 +749,9 @@ class TicketReassignmentTest extends TestCase
 
     public function test_create_page_html_has_tom_select_init_with_placeholders()
     {
+        \Illuminate\Support\Facades\Http::fake([
+            'cdn.jsdelivr.net/npm/tom-select@*' => \Illuminate\Support\Facades\Http::response('/* isolated asset */'),
+        ]);
         $admin = $this->makeUser('admin');
 
         $response = $this->actingAs($admin, 'web')->get('/employee-care/ticket/create');

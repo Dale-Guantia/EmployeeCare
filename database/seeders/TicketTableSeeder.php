@@ -20,12 +20,12 @@ class TicketTableSeeder extends Seeder
      */
     public function run(): void
     {
-        $department = Department::where('department_name', 'City Human Resource Development Office')->first();
-        $division = Division::where('division_name', 'Administrative')->first();
+        $department = Department::where('department_code', Department::HRDO)->first();
+        $division = Division::where('division_code', Division::ADMINISTRATIVE)->first();
         $issue = Issue::where('division_id', optional($division)->id)->first();
-        $priorityHigh = Priority::where('priority_name', 'High')->first();
-        $priorityMedium = Priority::where('priority_name', 'Medium')->first();
-        $status = Status::where('status_name', 'Unassigned')->first();
+        $priorityHigh = Priority::where('priority_code', Priority::HIGH)->first();
+        $priorityMedium = Priority::where('priority_code', Priority::MEDIUM)->first();
+        $status = Status::where('status_code', Status::UNASSIGNED)->first();
         $admin = User::where('username', 'admin')->first();
         $employee = User::where('username', 'employee')->first();
 

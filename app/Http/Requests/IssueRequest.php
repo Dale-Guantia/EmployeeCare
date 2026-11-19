@@ -6,6 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class IssueRequest extends FormRequest
 {
+    use \App\Http\Requests\Concerns\AuthorizesMasterDataLifecycle;
     /**
      * Determine if the user is authorized to make this request.
      *
@@ -14,7 +15,7 @@ class IssueRequest extends FormRequest
     public function authorize()
     {
         // only allow updates if the user is logged in
-        return backpack_auth()->check();
+        return $this->authorizeMasterData('issue', \App\Models\Issue::class);
     }
 
     /**
@@ -24,12 +25,23 @@ class IssueRequest extends FormRequest
      */
     public function rules()
     {
+        $issue = null;
+        if ($this->isMethod('PUT') || $this->isMethod('PATCH')) {
+            $issue = \App\Models\Issue::findOrFail($this->route('id'));
+        }
+
         return [
-            'department_id' => 'required|integer|exists:departments,id',
-            'division_id' => ['required', 'integer', \Illuminate\Validation\Rule::exists('divisions', 'id')->where('department_id', is_scalar($this->input('department_id')) ? $this->input('department_id') : null)],
-            'priority_id' => 'required|integer|exists:priorities,id',
-            'issue_description' => 'required|string|max:255',
+            'reason' => 'nullable|string|max:1000',
+            'department_id' => ['required', 'integer', \App\Services\OfficeSelectionRules::departmentRule($issue?->department_id)],
+            'division_id' => [\Illuminate\Validation\Rule::requiredIf(fn () => \App\Services\OfficeSelectionRules::issueDivisionRequired($this->input('department_id'), $issue)),
+                'nullable', 'integer', \App\Services\OfficeSelectionRules::divisionRule($this->input('department_id'), $issue?->division_id)],
+            'priority_id' => \App\Services\PrioritySelectionRules::validation($issue?->priority_id),
+            'id' => $issue ? ['sometimes', 'integer', \Illuminate\Validation\Rule::in([$issue->id])] : ['prohibited'],
+            'issue_description' => ['required', 'string', 'max:255', \Illuminate\Validation\Rule::unique('issues', 'issue_description')
+                ->where('department_id', filter_var($this->input('department_id'), FILTER_VALIDATE_INT) !== false ? $this->input('department_id') : null)
+                ->where('division_id', filter_var($this->input('division_id'), FILTER_VALIDATE_INT) !== false ? $this->input('division_id') : null)->ignore($issue?->id)],
             'icon' => 'nullable|string|max:255',
+            'is_active' => 'sometimes|boolean',
         ];
     }
 
@@ -53,7 +65,7 @@ class IssueRequest extends FormRequest
     public function messages()
     {
         return [
-            //
+            'priority_id.exists' => 'Please choose an active priority or leave the priority empty. You may retain the archived priority already assigned to this issue.',
         ];
     }
 }

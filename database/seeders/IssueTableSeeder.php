@@ -11,9 +11,7 @@ class IssueTableSeeder extends Seeder
 {
     public function run(): void
     {
-        $department = Department::firstOrCreate([
-            'department_name' => 'City Human Resource Development Office',
-        ]);
+        $department = Department::where('department_code', Department::HRDO)->firstOrFail();
 
         $admin_issues = [
             ['name' => 'Administrative Case/Complaint', 'icon' => 'fas fa-balance-scale'],
@@ -134,27 +132,18 @@ class IssueTableSeeder extends Seeder
         ];
 
         $divisionMapping = [
-            'Information Technology' => $it_issues,
-            'Administrative' => $admin_issues,
-            'Payroll' => $payroll_issues,
-            'Records' => $records_issues,
-            'Claims and Benefits' => $claims_issues,
-            'RSP' => $rsp_issues,
-            'Learning and Development' => $lnd_issues,
-            'Performance Management' => $pm_issues,
+            Division::INFORMATION_TECHNOLOGY => $it_issues,
+            Division::ADMINISTRATIVE => $admin_issues,
+            Division::PAYROLL => $payroll_issues,
+            Division::RECORDS => $records_issues,
+            Division::CLAIMS => $claims_issues,
+            Division::RSP => $rsp_issues,
+            Division::LEARNING_AND_DEVELOPMENT => $lnd_issues,
+            Division::PERFORMANCE_MANAGEMENT => $pm_issues,
         ];
 
-        foreach ($divisionMapping as $divisionName => $issues) {
-            $division = Division::firstOrCreate(
-                [
-                    'division_name' => $divisionName,
-                    'department_id' => $department->id,
-                ],
-                [
-                    'division_name' => $divisionName,
-                    'department_id' => $department->id,
-                ]
-            );
+        foreach ($divisionMapping as $code => $issues) {
+            $division = Division::where('division_code', $code)->where('department_id', $department->id)->firstOrFail();
 
             foreach ($issues as $issue) {
                 Issue::updateOrCreate(

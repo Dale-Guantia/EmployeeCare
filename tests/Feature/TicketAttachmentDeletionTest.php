@@ -33,7 +33,7 @@ class TicketAttachmentDeletionTest extends TestCase
         $ticket = Ticket::withoutEvents(function () use ($suffix) {
             return Ticket::create([
                 'reference_id' => 'DELETE-' . $suffix, 'user_id' => $this->owner->id,
-                'status_id' => Status::idByName('Unassigned'), 'message' => 'Fixture',
+                'status_id' => Status::idByCode(Status::UNASSIGNED), 'message' => 'Fixture',
                 'attachments' => ['attachments/ticket-' . $suffix . '.txt'],
             ]);
         });

@@ -34,7 +34,7 @@ Route::group([
 
 // API route
 Route::get('api/department/{id}/divisions', function ($id) {
-    return \App\Models\Division::where('department_id', $id)->get(['id', 'division_name']);
+    return \App\Services\OfficeSelectionRules::divisions(\App\Models\Division::query(), $id)->get(['id', 'division_name']);
 });
 
 // Protected Backpack admin routes
@@ -95,6 +95,7 @@ Route::group([
 
     // Keep the page accessible when either chat request budget is exhausted.
     Route::get('hr-assistant', [HrChatController::class, 'index'])->name('hr.chat.index');
+    Route::get('hr-assistant/policies/{document}/file', [HrChatController::class, 'policyFile'])->name('hr.chat.policy.file');
     Route::post('hr-assistant/ask', [HrChatController::class, 'ask'])
         ->middleware('throttle:hr-chat')->name('hr.chat.ask');
 
@@ -113,6 +114,7 @@ Route::group([
     });
 
     // Policy document manager
+    Route::get('hr-policy-documents/ingestion-status', [HrPolicyDocumentCrudController::class, 'ingestionStatus'])->name('hr.policy.ingestion_status');
     // Custom routes for upload and update (not standard CRUD)
     Route::get('hr-policy-documents/upload', [HrPolicyDocumentCrudController::class, 'uploadForm'])->name('hr.policy.upload.form');
     Route::post('hr-policy-documents/upload', [HrPolicyDocumentCrudController::class, 'uploadStore'])->name('hr.policy.upload.store');

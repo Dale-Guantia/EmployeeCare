@@ -201,7 +201,18 @@
         if (!isError && sources.length) {
             sourcesHtml = '<div class="' + c.sourcesWrap + '">' +
                 sources.map(function (src) {
-                    return '<span class="' + c.sourcePill + '"><i class="la la-file-alt"></i> ' + esc(src) + '</span>';
+                    var label = typeof src === 'string' ? src : String(src.label || 'Policy source');
+                    var excerpt = typeof src === 'object' && src ? String(src.excerpt || '') : '';
+                    var url = typeof src === 'object' && src ? String(src.url || '') : '';
+                    var safeUrl = '';
+                    try {
+                        var parsed = new URL(url, window.location.href);
+                        if (url && parsed.origin === window.location.origin && parsed.pathname.indexOf('/hr-assistant/policies/') !== -1) safeUrl = parsed.href;
+                    } catch (e) { /* A missing historical PDF has no link. */ }
+                    var contents = '<i class="la la-file-alt"></i> ' + esc(label);
+                    var title = excerpt ? ' title="' + esc(excerpt) + '"' : '';
+                    return safeUrl ? '<a class="' + c.sourcePill + '" href="' + esc(safeUrl) + '" target="_blank" rel="noopener"' + title + '>' + contents + '</a>'
+                        : '<span class="' + c.sourcePill + '"' + title + '>' + contents + '</span>';
                 }).join('') +
                 '</div>';
         } else if (!isError && logId) {
@@ -327,7 +338,7 @@
                 if (version !== self.viewVersion) return;
                 if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('Invalid answer');
                 typing.remove();
-                self._appendAi(data.answer, data.sources || [], data.log_id);
+                self._appendAi(data.answer, data.source_details || data.sources || [], data.log_id);
                 self._setLoading(false);
                 // The greet-back path returns no conversation_id (it's never
                 // logged), so the current conversation — if any — is left as-is.
@@ -408,7 +419,7 @@
             var messages = data.messages || [];
             messages.forEach(function (log) {
                 self._appendUser(log.question);
-                self._appendAi(log.answer, log.sources || [], log.id, false);
+                self._appendAi(log.answer, log.source_details || log.sources || [], log.id, false);
             });
 
             self.currentConversationId = id;
@@ -454,7 +465,7 @@
             var aiDiv = document.createElement('div');
             aiDiv.className = c.wrapBot;
             aiDiv.setAttribute('data-hrchat-msg', '1');
-            aiDiv.innerHTML = self._buildAiHtml(log.answer, log.sources || [], log.id, false);
+            aiDiv.innerHTML = self._buildAiHtml(log.answer, log.source_details || log.sources || [], log.id, false);
             fragment.appendChild(aiDiv);
         });
 

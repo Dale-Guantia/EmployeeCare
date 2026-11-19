@@ -16,7 +16,7 @@ class SyncUserAvatarsTest extends TestCase
         parent::setUp();
         $this->sourceRoot = storage_path('framework/testing/avatar-source-' . uniqid());
         File::makeDirectory($this->sourceRoot . '/assets/avatars', 0755, true);
-        $this->app->instance('path.public', $this->sourceRoot);
+        $this->app->usePublicPath($this->sourceRoot);
     }
 
     protected function tearDown(): void

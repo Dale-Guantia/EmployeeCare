@@ -18,9 +18,15 @@ class EngineDatabase
             }
         }
         $name = $values['DATABASE'];
+        $integrated = ($values['INTEGRATED_AUTH'] ?? '') === '1';
+        if ($integrated && ($values['DRIVER'] !== 'sqlsrv'
+            || !in_array($values['HOST'], ['localhost', '127.0.0.1'], true)
+            || $values['USERNAME'] !== '' || $values['PASSWORD'] !== '')) {
+            throw new \LogicException('Integrated engine tests require explicit empty credentials and local SQL Server.');
+        }
         if (!in_array($values['DRIVER'], ['sqlsrv', 'mysql'], true)
             || !preg_match('/\Aec_engine_test_[a-z0-9]{8,32}\z/D', $name)
-            || $values['CONFIRM'] !== $name || $values['HOST'] === '' || $values['USERNAME'] === ''
+            || $values['CONFIRM'] !== $name || $values['HOST'] === '' || (!$integrated && $values['USERNAME'] === '')
             || !ctype_digit((string) $values['PORT'])) {
             throw new \LogicException('Engine tests require an explicitly confirmed isolated database named ec_engine_test_<8-32 lowercase letters/digits>.');
         }
@@ -37,8 +43,14 @@ class EngineDatabase
     public static function boot()
     {
         $values = [];
-        foreach (['DRIVER', 'HOST', 'PORT', 'DATABASE', 'USERNAME', 'PASSWORD', 'CONFIRM', 'TRUST_CERTIFICATE'] as $key) {
+        foreach (['DRIVER', 'HOST', 'PORT', 'DATABASE', 'USERNAME', 'PASSWORD', 'CONFIRM', 'TRUST_CERTIFICATE', 'INTEGRATED_AUTH'] as $key) {
             $values[$key] = getenv('ENGINE_TEST_' . $key);
+        }
+        if ($values['INTEGRATED_AUTH'] === '1') {
+            // Windows removes empty environment variables; explicit integrated mode supplies no SQL credentials.
+            foreach (['USERNAME', 'PASSWORD'] as $key) {
+                if ($values[$key] === false) { $values[$key] = ''; }
+            }
         }
         // Compare against local and cached database names without displaying any configuration.
         $base = dirname(__DIR__, 2);

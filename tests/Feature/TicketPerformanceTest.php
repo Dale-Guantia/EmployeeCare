@@ -81,9 +81,10 @@ class TicketPerformanceTest extends TestCase
         $showQueryCount = $queryCount;
         fwrite(STDERR, "SHOW PAGE QUERY COUNT: {$showQueryCount}\n");
 
-        // Regression guards, well below the pre-fix N+1 baseline (43 for the
-        // list search with 15 rows, 10 for a single-entry show page).
+        // Include cold lookup caches and Livewire 3's independently authorized entry query.
+        // Explicit relationship columns must avoid Backpack's extra schema-inference queries.
         $this->assertLessThan(25, $listQueryCount);
-        $this->assertLessThanOrEqual(9, $showQueryCount);
+        $this->assertLessThanOrEqual(16, $showQueryCount);
+        $this->assertStringNotContainsString('pragma_table_xinfo', implode("\n", $queries));
     }
 }

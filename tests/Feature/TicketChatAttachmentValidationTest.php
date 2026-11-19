@@ -89,7 +89,7 @@ class TicketChatAttachmentValidationTest extends TestCase
         $this->actingAs($admin, 'web');
 
         Livewire::test(TicketChat::class, ['ticketId' => $ticket->id])
-            ->call('uploadErrored', 'attachments', null, true)
+            ->call('_uploadErrored', 'attachments', null, true)
             ->assertHasErrors('attachments')
             ->assertSee('The attachments failed to upload.');
     }
@@ -101,10 +101,10 @@ class TicketChatAttachmentValidationTest extends TestCase
         $this->actingAs($admin, 'web');
         $component = Livewire::test(TicketChat::class, ['ticketId' => $ticket->id])
             ->set('attachments', [UploadedFile::fake()->create('remove.txt', 1, 'text/plain')]);
-        $files = \Livewire\TemporaryUploadedFile::unserializeFromLivewireRequest($component->get('attachments'));
+        $files = \Livewire\Features\SupportFileUploads\TemporaryUploadedFile::unserializeFromLivewireRequest($component->get('attachments'));
         $file = $files[0];
 
-        $component->call('removeUpload', 'attachments', $file->getFilename())
+        $component->call('_removeUpload', 'attachments', $file->getFilename())
             ->assertSet('attachments', []);
         $this->assertFalse($file->exists());
     }
@@ -152,24 +152,24 @@ class TicketChatAttachmentValidationTest extends TestCase
 
     public function test_temporary_upload_accepts_a_file_between_twelve_and_twenty_megabytes()
     {
-        Storage::fake(\Livewire\FileUploadConfiguration::disk());
-        $paths = (new \Livewire\Controllers\FileUploadHandler)->validateAndStore(
+        Storage::fake(\Livewire\Features\SupportFileUploads\FileUploadConfiguration::disk());
+        $paths = (new \Livewire\Features\SupportFileUploads\FileUploadController)->validateAndStore(
             [File::create('document.pdf', 16 * 1024, 'application/pdf')],
-            \Livewire\FileUploadConfiguration::disk()
+            \Livewire\Features\SupportFileUploads\FileUploadConfiguration::disk()
         );
 
         $this->assertCount(1, $paths);
-        Storage::disk(\Livewire\FileUploadConfiguration::disk())->assertExists(
-            \Livewire\FileUploadConfiguration::path($paths->first())
+        Storage::disk(\Livewire\Features\SupportFileUploads\FileUploadConfiguration::disk())->assertExists(
+            \Livewire\Features\SupportFileUploads\FileUploadConfiguration::path(\Livewire\Features\SupportFileUploads\TemporaryUploadedFile::extractPathFromSignedPath($paths->first()))
         );
     }
 
     public function test_temporary_upload_rejects_files_over_twenty_megabytes()
     {
         $this->expectException(\Illuminate\Validation\ValidationException::class);
-        (new \Livewire\Controllers\FileUploadHandler)->validateAndStore(
+        (new \Livewire\Features\SupportFileUploads\FileUploadController)->validateAndStore(
             [File::create('large.pdf', 20 * 1024 + 1, 'application/pdf')],
-            \Livewire\FileUploadConfiguration::disk()
+            \Livewire\Features\SupportFileUploads\FileUploadConfiguration::disk()
         );
     }
 }

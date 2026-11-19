@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-/** @group policy-samples */
+#[\PHPUnit\Framework\Attributes\Group('policy-samples')]
 class PolicyUploadSamplesTest extends TestCase
 {
-    /** @dataProvider samples */
+    #[\PHPUnit\Framework\Attributes\DataProvider('samples')]
     public function test_supplied_pdfs_upload_queue_and_ingest_with_real_extraction($filename, $pageCount, $scanned)
     {
         if (getenv('POLICY_SAMPLE_TESTS') !== '1') { $this->markTestSkipped('Opt in with POLICY_SAMPLE_TESTS=1; uses supplied PDFs and installed OCR tools.'); }

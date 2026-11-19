@@ -51,18 +51,23 @@ class SurveyPwaTest extends TestCase
             require_once database_path('migrations/' . $file);
             (new $class)->up();
         }
+        (require database_path('migrations/2026_11_03_100000_add_issue_archiving.php'))->up();
+        (require database_path('migrations/2026_11_03_110000_add_office_archiving.php'))->up();
         (require database_path('migrations/2026_03_05_074049_surveys_table.php'))->up();
+        (require database_path('migrations/2026_11_04_090000_enforce_master_data_lifecycle.php'))->createAuditTable();
+        (require database_path('migrations/2026_11_04_100000_add_permanent_master_data_codes.php'))
+            ->addCodeColumns(['departments', 'divisions', 'priorities']);
         // This suite uses a smaller fresh schema than the shared isolated database.
         \Illuminate\Support\Facades\Schema::table('surveys', function ($table) {
             $table->uuid('submission_id')->nullable()->unique();
         });
 
-        $department = Department::create(['department_name' => 'City Human Resource Development Office']);
+        $department = Department::create(['department_name' => 'City Human Resource Development Office', 'department_code' => Department::HRDO]);
         $this->assertSame(1, $department->id);
         $this->otherDepartment = Department::create(['department_name' => 'Other department']);
         // Deliberately use different IDs from the old hard-coded buttons.
-        $this->division = Division::create(['department_id' => 1, 'division_name' => 'Records']);
-        $this->otherDivision = Division::create(['department_id' => 1, 'division_name' => 'Payroll']);
+        $this->division = Division::create(['department_id' => 1, 'division_name' => 'Records', 'division_code' => Division::RECORDS]);
+        $this->otherDivision = Division::create(['department_id' => 1, 'division_name' => 'Payroll', 'division_code' => Division::PAYROLL]);
         Role::findOrCreate('hr_staff', 'web');
         Role::findOrCreate('div_head', 'web');
         Role::findOrCreate('employee', 'web');
@@ -79,26 +84,25 @@ class SurveyPwaTest extends TestCase
 
     private function makeStaff($departmentId, $divisionId, $role = 'hr_staff')
     {
-        $user = User::create([
-            'name' => 'Survey staff',
-            'username' => 'survey_' . uniqid(),
-            'email' => uniqid() . '@example.test',
-            'password' => bcrypt('password'),
-            'department_id' => $departmentId,
-            'division_id' => $divisionId,
+        // Raw fixtures deliberately allow inconsistent legacy offices for request-validation tests.
+        $id = DB::table('users')->insertGetId([
+            'name' => 'Survey staff', 'username' => 'survey_' . uniqid(),
+            'email' => uniqid() . '@example.test', 'password' => bcrypt('password'),
+            'department_id' => $departmentId, 'division_id' => $divisionId, 'is_active' => true,
         ]);
+        $user = User::findOrFail($id);
         $user->assignRole($role);
         return $user;
     }
 
     private function makeService($departmentId, $divisionId)
     {
-        return Issue::create([
-            'department_id' => $departmentId,
-            'division_id' => $divisionId,
-            'issue_description' => 'Survey service',
-            'icon' => 'fas fa-file',
+        // Invalid office combinations here represent existing/imported data, not permitted new writes.
+        $id = DB::table('issues')->insertGetId([
+            'department_id' => $departmentId, 'division_id' => $divisionId,
+            'issue_description' => 'Survey service', 'icon' => 'fas fa-file',
         ]);
+        return Issue::findOrFail($id);
     }
 
     private function payload()
@@ -114,7 +118,7 @@ class SurveyPwaTest extends TestCase
         ];
     }
 
-    /** @dataProvider invalidCombinations */
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidCombinations')]
     public function test_crafted_submissions_are_rejected($scenario, $errorKey)
     {
         $payload = $this->payload();
@@ -163,7 +167,7 @@ class SurveyPwaTest extends TestCase
         $this->assertSame(0, Survey::count());
     }
 
-    public function invalidCombinations()
+    public static function invalidCombinations()
     {
         return [
             ['different_division', 'issue_id'],

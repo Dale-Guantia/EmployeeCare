@@ -60,6 +60,7 @@ class Ticket extends Model
             for ($attempt = 0; $attempt < 5; $attempt++) {
                 try {
                     $saved = $this->getConnection()->transaction(function () use ($options) {
+                        \App\Services\MasterDataLocks::acquire($this);
                         return parent::save($options);
                     });
                     if (!$saved) {
@@ -144,13 +145,28 @@ class Ticket extends Model
                 $model->user_id = backpack_user()->id;
             }
 
-            // 3. Default status = Unassigned (ID 3 in your current setup)
+            // Resolve the permanent workflow identity independently of labels and seed order.
             if (empty($model->status_id)) {
-                $model->status_id = 3;
+                $model->status_id = Status::idByCode(Status::UNASSIGNED);
+                if (!$model->status_id) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['status_id' => 'The required Unassigned workflow status is missing. Restore the workflow configuration first.']);
+                }
             }
         });
 
         static::saving(function ($model) {
+            if ($model->status_id && (!$model->exists || $model->isDirty('status_id'))) {
+                $status = Status::find($model->status_id);
+                if (!$status || !$status->is_active || !\App\Services\MasterDataRules::isCoreStatus($status)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'status_id' => 'Choose an active status with a supported workflow.',
+                    ]);
+                }
+            }
+            if ($model->priority_id && (!$model->exists || $model->isDirty('priority_id'))
+                && !Priority::whereKey($model->priority_id)->where('is_active', true)->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['priority_id' => 'Choose an active priority.']);
+            }
             // Auto-fill ticket fields from selected issue.
             // Only run this on create, or when issue_id itself changed — otherwise this
             // clobbers manual department/division changes made via reassignment on every save.
@@ -158,22 +174,28 @@ class Ticket extends Model
                 $issue = Issue::find($model->issue_id);
 
                 if ($issue) {
+                    if (!$issue->is_active) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'issue_id' => 'The selected issue has been archived. Please choose an active issue.',
+                        ]);
+                    }
                     $model->department_id = $issue->department_id;
                     $model->division_id   = $issue->division_id;
-                    $model->priority_id   = $issue->priority_id;
+                    // An archived issue priority remains historical; new assignments omit it.
+                    $model->priority_id   = $issue->priority?->is_active ? $issue->priority_id : null;
                 }
             }
 
             // Auto-set status when assignee changes
             if ($model->isDirty('assigned_to')) {
                 if (!empty($model->assigned_to)) {
-                    $assignedStatusId = Status::idByName('Pending');
+                    $assignedStatusId = Status::idByCode(Status::PENDING);
 
                     if ($assignedStatusId && !$model->isDirty('status_id')) {
                         $model->status_id = $assignedStatusId;
                     }
                 } else {
-                    $unassignedStatusId = Status::idByName('Unassigned');
+                    $unassignedStatusId = Status::idByCode(Status::UNASSIGNED);
 
                     if ($unassignedStatusId && !$model->isDirty('status_id')) {
                         $model->status_id = $unassignedStatusId;
@@ -181,10 +203,16 @@ class Ticket extends Model
                 }
             }
 
+            $resolvedStatus = Status::idByCode(Status::RESOLVED);
+            if (!$model->exists || $model->isDirty(['department_id', 'division_id'])
+                || ($model->isDirty('status_id') && (int) $model->status_id !== (int) $resolvedStatus)) {
+                \App\Services\OfficeSelectionRules::assertAvailable($model->department_id, $model->division_id);
+            }
+
             // Handle resolved / reopened timestamps
             if ($model->isDirty('status_id')) {
-                $resolvedStatusId = Status::idByName('Resolved');
-                $reopenedStatusId = Status::idByName('Reopened');
+                $resolvedStatusId = Status::idByCode(Status::RESOLVED);
+                $reopenedStatusId = Status::idByCode(Status::REOPENED);
 
                 // When resolved
                 if ($resolvedStatusId && (int) $model->status_id === (int) $resolvedStatusId) {
@@ -258,7 +286,7 @@ class Ticket extends Model
             $actor = backpack_auth()->check() ? backpack_user() : null;
 
             if ($ticket->wasChanged('assigned_to')) {
-                app(TicketNotificationService::class)->notifyTicketAssigned($ticket, $actor);
+                app(TicketNotificationService::class)->notifyTicketAssigned($ticket, $actor, $ticket->initialCreationInProgress);
             }
 
             if ($ticket->wasChanged('status_id')) {
@@ -269,7 +297,7 @@ class Ticket extends Model
                     app(TicketNotificationService::class)->notifyTicketStatusChanged($ticket, $actor);
                 }
 
-                $resolvedStatusId = Status::idByName('Resolved');
+                $resolvedStatusId = Status::idByCode(Status::RESOLVED);
 
                 if ($resolvedStatusId && (int) $ticket->status_id === (int) $resolvedStatusId) {
                     $pending = $ticket->reassignmentRequests()
@@ -346,12 +374,12 @@ class Ticket extends Model
         if (!$this->created_at) {
             return [
                 'text'  => '-',
-                'class' => 'badge badge-secondary',
+                'class' => 'badge bg-secondary',
                 'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
             ];
         }
 
-        $resolvedStatusId = Status::idByName('Resolved');
+        $resolvedStatusId = Status::idByCode(Status::RESOLVED);
         $createdAt = Carbon::parse($this->created_at);
 
         // CASE A: Resolved ticket
@@ -359,16 +387,16 @@ class Ticket extends Model
             if (!$this->resolved_at) {
                 return [
                     'text'  => 'Resolved',
-                    'class' => 'badge badge-success',
+                    'class' => 'badge bg-success',
                     'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
                 ];
             }
 
             $resolvedAt = Carbon::parse($this->resolved_at);
-            $hoursTaken = $createdAt->diffInHours($resolvedAt);
+            $hoursTaken = (int) $createdAt->diffInHours($resolvedAt, true);
 
             if ($hoursTaken > 72) {
-                $overdueMinutes = $createdAt->copy()->addHours(72)->diffInMinutes($resolvedAt);
+                $overdueMinutes = (int) $createdAt->copy()->addHours(72)->diffInMinutes($resolvedAt, true);
 
                 $days = intdiv($overdueMinutes, 1440);
                 $hours = intdiv($overdueMinutes % 1440, 60);
@@ -376,15 +404,15 @@ class Ticket extends Model
 
                 return [
                     'text'  => "Resolved overdue",
-                    'class' => 'badge badge-danger',
-                    'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                    'class' => 'badge',
+                    'style' => 'background-color:#FE7C7C; color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
                 ];
             }
 
             return [
                 'text'  => 'Resolved on time',
-                'class' => 'badge badge-success',
-                'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                'class' => 'badge',
+                'style' => 'background-color:#42ffc6; color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
             ];
         }
 
@@ -393,7 +421,7 @@ class Ticket extends Model
         $now = now();
 
         if ($createdAt->lt($now->copy()->subDays(3))) {
-            $overdueMinutes = $deadline->diffInMinutes($now);
+            $overdueMinutes = (int) $deadline->diffInMinutes($now, true);
 
             $days = intdiv($overdueMinutes, 1440);
             $hours = intdiv($overdueMinutes % 1440, 60);
@@ -401,12 +429,12 @@ class Ticket extends Model
 
             return [
                 'text'  => "{$days}d {$hours}h {$minutes}m overdue",
-                'class' => 'badge badge-danger',
-                'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
+                'class' => 'badge',
+                'style' => 'background-color:#FE7C7C; color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
             ];
         }
 
-        $remainingMinutes = $now->diffInMinutes($deadline);
+        $remainingMinutes = (int) $now->diffInMinutes($deadline, true);
 
         $days = intdiv($remainingMinutes, 1440);
         $hours = intdiv($remainingMinutes % 1440, 60);
@@ -414,8 +442,8 @@ class Ticket extends Model
 
         return [
             'text'  => "{$days}d {$hours}h {$minutes}m left",
-            'class' => 'badge badge-warning',
-            'style' => 'color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
+            'class' => 'badge',
+            'style' => 'background-color:#fed971; color:#000000; padding:5px 10px; border-radius:4px; font-weight:bold;',
         ];
     }
 

@@ -12,8 +12,8 @@
         <button
             class="btn btn-danger btn-sm"
             type="button"
-            data-toggle="modal"
-            data-target="#clearAllNotificationsPageModal"
+            data-bs-toggle="modal"
+            data-bs-target="#clearAllNotificationsPageModal"
         >
             <i class="la la-trash"></i> Clear all notifications
         </button>
@@ -47,18 +47,16 @@
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title">Clear Notifications</h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <div class="modal-body text-left">
+            <div class="modal-body text-start">
                 <p>Are you sure you want to clear all notifications?</p>
                 <p class="text-muted small mb-0">This will permanently remove all notifications from your account.</p>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" id="confirmClearAllNotificationsPage">
                     Yes, Clear all
                 </button>
@@ -92,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 credentials: 'same-origin'
             })
             .then(() => {
-                $('#clearAllNotificationsPageModal').modal('hide');
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('clearAllNotificationsPageModal')).hide();
                 window.location.reload();
             })
             .catch(err => console.error(err));

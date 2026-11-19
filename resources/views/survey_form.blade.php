@@ -103,7 +103,7 @@
 
                             <div class="division-buttons-grid">
                                 @foreach($divisions as $division)
-                                    <button type="button" class="btn {{ $divisionStyles[$division->division_name] ?? 'btn-admin' }} division-btn" data-division-id="{{ $division->id }}">{{ strtoupper($division->division_name) }}</button>
+                                    <button type="button" class="btn {{ $divisionStyles[$division->division_code] ?? 'btn-admin' }} division-btn" data-division-id="{{ $division->id }}">{{ strtoupper($division->division_name) }}</button>
                                 @endforeach
                                 <button type="button" class="btn btn-all division-btn active" data-division-id="all">ALL DIVISIONS</button>
                             </div>

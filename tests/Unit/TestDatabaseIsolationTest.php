@@ -13,14 +13,14 @@ class TestDatabaseIsolationTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    /** @dataProvider unsafeConnections */
+    #[\PHPUnit\Framework\Attributes\DataProvider('unsafeConnections')]
     public function test_application_connections_are_rejected($connection, $sqlite)
     {
         $this->expectException(\LogicException::class);
         IsolatedDatabase::assertSafeConfiguration($connection, $sqlite);
     }
 
-    public function unsafeConnections(): array
+    public static function unsafeConnections(): array
     {
         return [
             ['mysql', ['database' => ':memory:']],

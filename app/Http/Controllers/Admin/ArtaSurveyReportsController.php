@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\ArtaSurvey;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use App\Services\SurveyReportFilters;
 
 class ArtaSurveyReportsController extends Controller
 {
@@ -21,9 +22,12 @@ class ArtaSurveyReportsController extends Controller
         });
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $data = $this->getReportData();
+        $period = SurveyReportFilters::dates($request);
+        $data = $this->getReportData($period[1], $period[2]);
+        $exportStart = $period[1] ?? ArtaSurvey::min('created_at');
+        $data['exportStartDate'] = $exportStart ? Carbon::parse($exportStart)->toDateString() : now()->startOfYear()->toDateString();
 
         return view('admin.arta_survey_reports', array_merge([
             'title' => 'ARTA Survey Reports',
@@ -31,7 +35,7 @@ class ArtaSurveyReportsController extends Controller
                 trans('backpack::crud.admin') => backpack_url('dashboard'),
                 'ARTA Survey Reports' => false,
             ],
-        ], $data));
+        ], SurveyReportFilters::viewData($period), $data));
     }
 
     public function responses(Request $request)
@@ -86,8 +90,8 @@ class ArtaSurveyReportsController extends Controller
 
         $responses = $query->latest()->orderByDesc('id')->limit(10)->get();
 
-        return [
+        return array_merge(\App\Services\SurveyReportQueries::artaSummary($startDate, $endDate), [
             'responses' => $responses,
-        ];
+        ]);
     }
 }

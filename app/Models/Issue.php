@@ -10,14 +10,20 @@ class Issue extends Model
 {
     use CrudTrait;
     use HasFactory;
+    use \App\Models\Concerns\HasMasterDataLifecycle;
 
     protected $fillable = [
         'department_id',
         'division_id',
         'priority_id',
         'issue_description',
-        'icon'
+        'icon',
+        'is_active',
     ];
+
+    protected $attributes = ['is_active' => true];
+
+    protected $casts = ['is_active' => 'boolean'];
 
     public function department()
     {

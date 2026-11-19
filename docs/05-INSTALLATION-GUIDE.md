@@ -4,11 +4,11 @@
 
 Use these steps in a **new, isolated development installation**. They are instructions, not commands executed against your application database during documentation. Existing-system deployment is covered [separately](09-DEPLOYMENT-AND-MAINTENANCE.md).
 
-- Project standard PHP 7.4/Laravel 8; inspected CLI PHP 7.4.14. Do not treat `^7.3|^8.0` in Composer as proof of compatibility with every PHP 8 release.
+- Current checkout: PHP 8.5 and Laravel 13. Install the exact lockfile dependencies; see [runtime upgrade notes](PHP85_UPGRADE.md) and [theme migration](COREUI4_MIGRATION.md).
 - Composer with access to locked dependencies; `composer.lock` must be retained. PHP extensions must satisfy the lockfile; run `composer check-platform-reqs` after installation.
 - MySQL with a separate empty database and restricted development account, or SQL Server with matching PHP SQLSRV/PDO_SQLSRV and ODBC drivers. Exact supported server release is **Not Verified**.
 - PHP database extension for the selected engine; mbstring, fileinfo, XML/DOM and the extensions required by the installed packages. GD/image support is needed where rendering/conversion code uses it. Inspect `php -m`; do not assume Apache uses the CLI's php.ini.
-- Node/npm for Mix compilation. No Node engine range is declared in package.json; a supported version for the existing lock must be validated. Node v26.3.1 ran the current JavaScript tests, not an installation/build certification.
+- Node/npm for Mix compilation. No Node engine range is declared in package.json; a supported version for the existing lock must be validated. Use the recorded JavaScript and production-build checks in the current upgrade notes when validating the build environment.
 - Writable `storage` and `bootstrap/cache`; web server document root at `public`.
 - Tesseract/Poppler plus selected language files for OCR and a worker for browser-uploaded PDFs.
 
@@ -67,7 +67,7 @@ php artisan serve
 
 Generate a key only for a new installation. Rotating an existing key can invalidate encrypted data and sessions. Use `composer install`, not an unreviewed composer update. Root Composer scripts run package discovery; review errors rather than bypassing requirements.
 
-The supplied migration chain includes column changes. If an engine reports a missing DBAL requirement for change(), inspect the installed packages and Laravel 8 engine support before approving any dependency addition. **Not Verified:** a clean full migration run on MySQL/SQL Server for this documentation package.
+The supplied migration chain includes column changes. If an engine reports a missing DBAL requirement for change(), inspect the installed packages and current Laravel engine support before approving any dependency addition. **Not Verified:** a clean full migration run on MySQL/SQL Server for this documentation package.
 
 ## Seeding and first administrator
 

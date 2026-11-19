@@ -38,7 +38,7 @@ class StatusIdsByNameTest extends TestCase
         Cache::forget('ref:statuses.by_name');
         Status::idsByName(); // warm the cache
 
-        $newStatus = Status::create(['status_name' => 'TestCacheInvalidation_' . uniqid(), 'status_color' => '#ccc']);
+        $newStatus = Status::create(['status_name' => 'TestCacheInvalidation_' . uniqid(), 'status_color' => '#ccc', 'is_active' => false]);
 
         $map = Status::idsByName();
 

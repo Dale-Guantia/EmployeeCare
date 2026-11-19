@@ -29,6 +29,7 @@ class DepartmentDivisionCacheTest extends TestCase
 
         $this->assertTrue(Department::allCached()->pluck('id')->contains($newDept->id));
 
+        $newDept->update(['is_active' => false]);
         $newDept->delete();
     }
 

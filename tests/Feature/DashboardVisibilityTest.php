@@ -24,7 +24,7 @@ class DashboardVisibilityTest extends TestCase
         \Carbon\Carbon::setTestNow();
         parent::tearDown();
     }
-    /** @dataProvider roles */
+    #[\PHPUnit\Framework\Attributes\DataProvider('roles')]
     public function test_every_analytics_query_uses_ticket_visibility($role)
     {
         $department = Department::create(['department_name' => 'Scoped dashboard']);
@@ -36,7 +36,7 @@ class DashboardVisibilityTest extends TestCase
             'department_id' => $department->id, 'division_id' => $division->id]);
         $actor->assignRole($role);
         $owner = User::role('employee')->first();
-        $resolved = Status::idByName('Resolved'); $pending = Status::idByName('Pending');
+        $resolved = Status::idByCode(Status::RESOLVED); $pending = Status::idByCode(Status::PENDING);
         $rows = [
             [$actor->id, $foreign->id, $foreignDivision->id, null, $resolved, '2026-10-01 09:00:00'],
             [$owner->id, $foreign->id, $foreignDivision->id, $actor->id, $pending, '2026-10-02 09:00:00'],
@@ -58,20 +58,34 @@ class DashboardVisibilityTest extends TestCase
         }
         $visible = Ticket::visibleTo($actor)->get();
         $this->assertSame(['admin' => 7, 'dept_head' => 4, 'div_head' => 3, 'hr_staff' => 2][$role], $visible->count());
+        if ($role === 'dept_head') $visible = $visible->where('department_id', $department->id);
         foreach ([['period' => 'all'], ['period' => 'custom', 'start' => '2026-10-02', 'end' => '2026-10-06']] as $filter) {
             $response = $this->actingAs($actor, 'web')->get(route('backpack.dashboard', $filter))->assertOk();
             $start = $response->viewData('dashWidgetStart'); $end = $response->viewData('dashWidgetEnd');
             $scoped = $visible->filter(function ($ticket) use ($start, $end) { return $ticket->created_at->betweenIncluded($start, $end); });
             $this->assertSame($scoped->count(), $response->viewData('dashKpis')['total']);
+            $metrics = $response->viewData('dashboardMetrics');
+            $open = $scoped->reject(fn ($ticket) => (int) $ticket->status_id === (int) $resolved);
+            $this->assertSame($scoped->count(), $metrics['total']);
+            $this->assertSame($open->count(), $metrics['open']);
+            $this->assertSame($metrics['total'], $metrics['open'] + $metrics['resolved']);
+            $this->assertSame($open->sortBy('created_at')->take(10)->pluck('id')->values()->all(),
+                $response->viewData('attentionTickets')->pluck('ticket.id')->all());
             $this->assertSame($scoped->count(), (int) $response->viewData('statusData')->sum());
-            $this->assertSame($scoped->count(), (int) array_sum($response->viewData('divisionCounts')));
+            $chartDepartment = $response->viewData('divisionChartDepartmentId');
+            $chartTickets = Ticket::visibleTo($actor)->where('department_id', $chartDepartment)->get()
+                ->filter(fn ($ticket) => $filter['period'] === 'all' || $ticket->created_at->betweenIncluded($start, $end));
+            $this->assertSame($chartTickets->count(), (int) array_sum($response->viewData('divisionCounts')));
             $this->assertSame($scoped->count(), array_sum($response->viewData('volumeTrendCounts')));
             $this->assertSame($scoped->count(), $response->viewData('reassignmentTotal'));
             $reassigned = DB::table('ticket_reassignment_requests')->whereIn('ticket_id', $scoped->pluck('id'))->distinct()->count('ticket_id');
             $this->assertSame($reassigned, $response->viewData('reassignedCount'));
-            $divisionReassignment = TicketReportWidgets::buildReassignmentWidget($scoped, $start, $end);
-            $this->assertEquals($divisionReassignment['division_rates'], $response->viewData('reassignDivisionRates'));
-            $this->assertEquals(TicketReportWidgets::buildKpiWidget($scoped, $resolved, $pending, Status::idByName('Reopened')), $response->viewData('dashKpis'));
+            $rates = array_combine($response->viewData('reassignDivisionLabels'), $response->viewData('reassignDivisionRates'));
+            foreach ($scoped->groupBy('division_id') as $divisionId => $tickets) {
+                $count = DB::table('ticket_reassignment_requests')->whereIn('ticket_id', $tickets->pluck('id'))->distinct()->count('ticket_id');
+                $this->assertEquals(round($count / $tickets->count() * 100, 1), $rates[Division::findOrFail($divisionId)->division_name]);
+            }
+            $this->assertEquals(TicketReportWidgets::buildKpiWidget($scoped, $resolved, $pending, Status::idByCode(Status::REOPENED)), $response->viewData('dashKpis'));
             $this->assertEquals(TicketReportWidgets::buildSlaBreakdownWidget($scoped, $resolved)['by_issue'], $response->viewData('overdueByIssue'));
             $distribution = TicketReportWidgets::buildResolutionDistributionWidget($scoped, $resolved);
             $this->assertEquals($distribution['counts'], $response->viewData('resolutionCounts'));
@@ -80,7 +94,7 @@ class DashboardVisibilityTest extends TestCase
         }
     }
 
-    public function roles(): array { return [['admin'], ['dept_head'], ['div_head'], ['hr_staff']]; }
+    public static function roles(): array { return [['admin'], ['dept_head'], ['div_head'], ['hr_staff']]; }
 
     public function test_ticket_view_is_required_and_employee_redirect_is_preserved()
     {
@@ -94,7 +108,7 @@ class DashboardVisibilityTest extends TestCase
     {
         $owner = User::role('employee')->first(); $staff = User::role('hr_staff')->first();
         $ticket = DB::table('tickets')->insertGetId(['reference_id' => 'DASH-HIDDEN-ONLY', 'user_id' => $owner->id,
-            'status_id' => Status::idByName('Pending'), 'message' => 'Hidden fixture', 'created_at' => '2010-01-01 00:00:00']);
+            'status_id' => Status::idByCode(Status::PENDING), 'message' => 'Hidden fixture', 'created_at' => '2010-01-01 00:00:00']);
         DB::table('ticket_reassignment_requests')->insert(['ticket_id' => $ticket, 'requested_by' => $owner->id,
             'to_department_id' => Department::first()->id, 'status' => 'approved']);
         $response = $this->actingAs($staff, 'web')->get(route('backpack.dashboard', ['period' => 'all']))->assertOk();

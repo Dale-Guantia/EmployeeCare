@@ -2,7 +2,7 @@
 
 ## Evidence and limits
 
-This is a source-based control review, not a penetration test, dependency-advisory refresh or production security certification. Controls described here require correct deployment. Earlier [AUDIT_REPORT.md](../AUDIT_REPORT.md) is a dated historical report; several findings were subsequently changed. Its original vulnerability/pass counts are not current findings.
+This is a source-based control review, not a penetration test or production security certification. Dependency advisory results were refreshed on 2026-10-29 as described below. Controls described here require correct deployment. Earlier [AUDIT_REPORT.md](../AUDIT_REPORT.md) is a dated historical report; several findings were subsequently changed. Its original vulnerability/pass counts are not current findings.
 
 ## Authentication, roles and permissions
 
@@ -87,7 +87,7 @@ Configured channels include stack/single/daily and optional remote handlers. Def
 
 The following are observations/recommendations, not fixes made by documentation:
 
-1. Legacy runtime/dependency stack and development framework lock require a separately authorized maintenance/security review. PHP 7.4 is outside the PHP project's supported branches; see [PHP support policy](https://www.php.net/supported-versions.php). No current composer/npm advisory counts were obtained here.
+1. The runtime/dependency upgrade is implemented. The 2026-10-29 refresh found no locked Composer advisories; compatible npm fixes reduced the development-tooling advisories to 12, including two high-severity entries in the development-server chain. See [browser fixes and verification](BROWSER_FIXES.md) for scope and remaining risks.
 2. Fix ticket.assign omission in the grouped role editor before relying on that UI to preserve assignment grants.
 3. Review server-side field authorization and custom action validation/state guards, plus broader report scope when granting permissions to heads.
 4. Review public divisions lookup, static public policy files, wildcard proxy trust, certificate trust and hardcoded deployment redirects/connections.

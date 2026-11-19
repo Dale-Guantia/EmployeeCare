@@ -16,7 +16,8 @@ class DepartmentCrudController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as protected traitDestroy; }
+    use \App\Http\Controllers\Admin\Operations\OfficeArchivingOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 
     /**
@@ -55,7 +56,12 @@ class DepartmentCrudController extends CrudController
      */
     protected function setupListOperation()
     {
+        $this->crud->removeButton('delete');
+        $this->crud->addButtonFromView('line', 'master_data_delete', 'master_data_delete', 'end');
+        $this->setupOfficeArchivingButtons();
+        CRUD::addColumn(['name' => 'is_active', 'label' => 'State', 'type' => 'boolean', 'options' => [0 => 'Archived', 1 => 'Active']]);
         CRUD::column('department_name');
+        // CRUD::column('department_code')->label('Code');
 
         /**
          * Columns can be defined using the fluent syntax or array syntax:
@@ -73,8 +79,18 @@ class DepartmentCrudController extends CrudController
     protected function setupCreateOperation()
     {
         CRUD::setValidation(DepartmentRequest::class);
+        $codeAttributes = ['maxlength' => 64];
+        if ($this->crud->getCurrentOperation() === 'update') $codeAttributes['readonly'] = 'readonly';
+        CRUD::addField(['name' => 'department_code', 'label' => 'Permanent code', 'type' => 'text',
+            'attributes' => $codeAttributes, 'hint' => 'Assigned once. Leave empty on creation to generate a code automatically.']);
+        if ($this->crud->getCurrentOperation() === 'update') {
+            CRUD::addField(['name' => 'reason', 'label' => 'Reason for change (optional)', 'type' => 'textarea',
+                'attributes' => ['maxlength' => 1000, 'rows' => 2], 'hint' => 'Stored in the audit history.']);
+        }
 
         CRUD::field('department_name');
+        CRUD::addField(['name' => 'is_active', 'label' => 'Active', 'type' => 'checkbox', 'default' => 1,
+            'hint' => 'Retirement requires moving active users, resolving or transferring open tickets, and completing pending transfers.']);
 
         /**
          * Fields can be defined using the fluent syntax or array syntax:
@@ -92,5 +108,15 @@ class DepartmentCrudController extends CrudController
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();
+    }
+
+    protected function setupShowOperation()
+    {
+        $this->setupListOperation();
+    }
+
+    public function destroy($id)
+    {
+        return $this->destroyOffice($id);
     }
 }

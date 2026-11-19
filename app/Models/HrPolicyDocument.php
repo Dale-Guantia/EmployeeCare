@@ -66,7 +66,7 @@ class HrPolicyDocument extends Model
         ];
         $class  = $map[$this->status] ?? 'secondary';
         $label  = e(ucwords(str_replace('_', ' ', $this->status)));
-        return '<span class="badge badge-' . $class . '">' . $label . '</span>';
+        return '<span data-policy-status="' . e($this->status) . '" class="badge bg-' . $class . ($class === 'warning' ? ' text-dark' : '') . '">' . $label . '</span>';
     }
 
     // NEW: OCR badge for the list view
@@ -74,10 +74,10 @@ class HrPolicyDocument extends Model
     public function getOcrBadgeAttribute(): string
     {
         if ($this->ocr_used) {
-            return '<span class="badge badge-info" title="This was a scanned PDF — OCR was used to extract text. Accuracy may vary.">'
+            return '<span class="badge bg-info" title="This was a scanned PDF — OCR was used to extract text. Accuracy may vary.">'
                  . '<i class="la la-eye"></i> OCR</span>';
         }
-        return '<span class="badge badge-light text-muted">Text PDF</span>';
+        return '<span class="badge bg-light text-muted">Text PDF</span>';
     }
 
     // FIX: Added scope for active documents — used in PolicyRetriever and

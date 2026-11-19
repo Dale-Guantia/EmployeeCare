@@ -6,6 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StatusRequest extends FormRequest
 {
+    use \App\Http\Requests\Concerns\AuthorizesMasterDataLifecycle;
     /**
      * Determine if the user is authorized to make this request.
      *
@@ -14,7 +15,7 @@ class StatusRequest extends FormRequest
     public function authorize()
     {
         // only allow updates if the user is logged in
-        return backpack_auth()->check();
+        return $this->authorizeMasterData('status', \App\Models\Status::class);
     }
 
     /**
@@ -25,8 +26,12 @@ class StatusRequest extends FormRequest
     public function rules()
     {
         return [
+            'reason' => 'nullable|string|max:1000',
+            'status_code' => \App\Services\PermanentCodeRules::validation(\App\Models\Status::class, $this->route('id'))['status_code'],
+            'id' => ['sometimes', 'integer', \Illuminate\Validation\Rule::in([$this->route('id')])],
             'status_name' => 'required|string|max:255|unique:statuses,status_name,' . $this->route('id'),
-            'status_color' => 'required|string|max:20',
+            'is_active' => 'sometimes|boolean',
+            'status_color' => ['required', 'string', 'regex:/^#(?:[a-f0-9]{3}|[a-f0-9]{6})$/i'],
         ];
     }
 

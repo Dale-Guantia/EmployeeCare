@@ -54,7 +54,7 @@ class MediumFindingsRegressionTest extends TestCase
             return Ticket::create(array_merge(['reference_id' => uniqid('MED-'), 'user_id' => $owner->id,
                 'department_id' => $owner->department_id, 'division_id' => $owner->division_id,
                 'is_custom_issue' => true, 'custom_issue' => 'Medium issue', 'message' => 'Private message',
-                'status_id' => Status::idByName('Unassigned')], $data));
+                'status_id' => Status::idByCode(Status::UNASSIGNED)], $data));
         });
     }
 
@@ -128,8 +128,11 @@ class MediumFindingsRegressionTest extends TestCase
         $eligible = $this->actor('hr_staff', true, $foreign->id, $foreignDivision->id);
         $this->quickAssign($admin, $ticket, $eligible->id)->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame($eligible->id, (int) $ticket->fresh()->assigned_to);
+        $incoherent = $this->actor('hr_staff');
+        // Imported inconsistency must remain ineligible; normal model writes now reject it.
+        DB::table('users')->where('id', $incoherent->id)->update(['department_id' => $foreign->id]);
         foreach ([$this->actor()->id, $this->actor('hr_staff', false)->id,
-            $this->actor('hr_staff', true, $foreign->id, $this->division->id)->id, 999999] as $invalid) {
+            $incoherent->id, 999999] as $invalid) {
             $this->quickAssign($admin, $ticket, $invalid)->assertSessionHasErrors('assigned_to');
             $this->assertSame($eligible->id, (int) $ticket->fresh()->assigned_to);
         }
@@ -201,13 +204,13 @@ class MediumFindingsRegressionTest extends TestCase
     {
         $owner = $this->actor(); $ticket = $this->ticket($owner);
         $this->dispatch($owner, 'PUT', '/employee-care/ticket/' . $ticket->id, ['id' => $ticket->id, '_ticket_action' => 'reopen', 'reopen_ticket' => 1])->assertStatus(409);
-        $this->assertSame((int) Status::idByName('Unassigned'), (int) $ticket->fresh()->status_id);
-        $ticket->update(['status_id' => Status::idByName('Resolved')]);
+        $this->assertSame((int) Status::idByCode(Status::UNASSIGNED), (int) $ticket->fresh()->status_id);
+        $ticket->update(['status_id' => Status::idByCode(Status::RESOLVED)]);
         $this->assertNotNull($ticket->fresh()->resolved_at);
         $this->dispatch($owner, 'PUT', '/employee-care/ticket/' . $ticket->id, ['id' => $ticket->id, '_ticket_action' => 'reopen', 'reopen_ticket' => 1])->assertRedirect();
         $this->assertNull($ticket->fresh()->resolved_at);
-        $ticket->refresh()->update(['status_id' => Status::idByName('Resolved')]);
-        $ticket->update(['status_id' => Status::idByName('Pending')]);
+        $ticket->refresh()->update(['status_id' => Status::idByCode(Status::RESOLVED)]);
+        $ticket->update(['status_id' => Status::idByCode(Status::PENDING)]);
         $this->assertNull($ticket->fresh()->resolved_at); $this->assertNull($ticket->fresh()->resolved_by);
     }
 
@@ -233,7 +236,7 @@ class MediumFindingsRegressionTest extends TestCase
     {
         $owner = $this->actor(); $existing = $this->ticket($owner);
         CollisionTicket::$references = [$existing->reference_id, 'TKT-ABCDEF']; CollisionTicket::$calls = 0;
-        $ticket = new CollisionTicket(['user_id' => $owner->id, 'status_id' => Status::idByName('Unassigned'), 'message' => 'Collision retry']);
+        $ticket = new CollisionTicket(['user_id' => $owner->id, 'status_id' => Status::idByCode(Status::UNASSIGNED), 'message' => 'Collision retry']);
         $ticket->save();
         $this->assertSame('TKT-ABCDEF', $ticket->reference_id); $this->assertSame(2, CollisionTicket::$calls);
         CollisionTicket::$references = ['TKT-ABCDEF']; CollisionTicket::$calls = 0;
@@ -353,11 +356,11 @@ class MediumFindingsRegressionTest extends TestCase
         $nullHead = $this->actor('dept_head'); $nullHead->update(['department_id' => null, 'division_id' => null]);
         $multi = $this->actor('dept_head'); $multi->assignRole('admin');
         $service = new TicketNotificationService;
-        $candidateMethod = new \ReflectionMethod($service, 'candidates'); $candidateMethod->setAccessible(true);
+        $candidateMethod = new \ReflectionMethod($service, 'candidates');
         foreach ([[$owner->department_id, $owner->division_id], [null, null]] as $location) {
             $ticket = $this->ticket($owner, ['department_id' => $location[0], 'division_id' => $location[1], 'assigned_to' => $staff->id]);
             foreach (['Created', 'Assigned', 'StatusChanged'] as $event) {
-                $filter = new \ReflectionMethod($service, 'shouldReceiveTicket' . $event); $filter->setAccessible(true);
+                $filter = new \ReflectionMethod($service, 'shouldReceiveTicket' . $event);
                 $eligible = function ($user) use ($filter, $service, $ticket) { return $filter->invoke($service, $user, $ticket); };
                 $original = User::where('is_active', true)->with('roles')->get()->filter($eligible)->pluck('id')->map(function ($id) { return (int) $id; })->sort()->values()->all();
                 $optimized = $candidateMethod->invoke($service, $ticket, $event === 'Created')->filter($eligible)->pluck('id')->map(function ($id) { return (int) $id; })->sort()->values()->all();
@@ -505,6 +508,6 @@ class RacingArtaSurvey extends ArtaSurvey
     {
         $previous = new \PDOException(self::$uniqueCollision ? 'UNIQUE constraint failed: arta_surveys.submission_id' : 'Injected unrelated SQL failure');
         $previous->errorInfo = ['HY000', self::$uniqueCollision ? 19 : 1];
-        throw new \Illuminate\Database\QueryException('insert into arta_surveys', [], $previous);
+        throw new \Illuminate\Database\QueryException('sqlite', 'insert into arta_surveys', [], $previous);
     }
 }

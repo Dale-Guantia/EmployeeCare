@@ -13,28 +13,23 @@ class DivisionTableSeeder extends Seeder
      */
     public function run(): void
     {
-        $department = Department::firstOrCreate([
-            'department_name' => 'City Human Resource Development Office',
-        ]);
+        $department = Department::where('department_code', Department::HRDO)->firstOrFail();
 
         $divisions = [
-            'Department Head',
-            'Information Technology',
-            'Administrative',
-            'Payroll',
-            'Records',
-            'Claims and Benefits',
-            'RSP',
-            'Learning and Development',
-            'Performance Management',
+            Division::DEPARTMENT_HEAD => 'Department Head',
+            Division::INFORMATION_TECHNOLOGY => 'Information Technology',
+            Division::ADMINISTRATIVE => 'Administrative',
+            Division::PAYROLL => 'Payroll',
+            Division::RECORDS => 'Records',
+            Division::CLAIMS => 'Claims and Benefits',
+            Division::RSP => 'RSP',
+            Division::LEARNING_AND_DEVELOPMENT => 'Learning and Development',
+            Division::PERFORMANCE_MANAGEMENT => 'Performance Management',
         ];
 
-        foreach ($divisions as $divisionName) {
-            Division::updateOrCreate(
-                [
-                    'division_name' => $divisionName,
-                    'department_id' => $department->id,
-                ],
+        foreach ($divisions as $code => $divisionName) {
+            Division::firstOrCreate(
+                ['division_code' => $code],
                 [
                     'division_name' => $divisionName,
                     'department_id' => $department->id,

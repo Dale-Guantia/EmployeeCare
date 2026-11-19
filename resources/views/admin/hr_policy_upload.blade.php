@@ -14,8 +14,13 @@
                 <form action="{{ route('hr.policy.upload.store') }}"
                       method="POST" enctype="multipart/form-data">
                     @csrf
+                    @if($errors->any())
+                        <div class="alert alert-danger" role="alert">
+                            <ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                        </div>
+                    @endif
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>Document title <span class="text-danger">*</span></label>
                         <input type="text" name="title" class="form-control"
                                value="{{ old('title') }}"
@@ -25,7 +30,7 @@
                         @enderror
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>Category <span class="text-danger">*</span></label>
                         <select name="category" class="form-control">
                             @foreach($categories as $cat)
@@ -36,13 +41,13 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>Effective date</label>
                         <input type="date" name="effective_date" class="form-control"
                                value="{{ old('effective_date') }}">
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label>PDF file <span class="text-danger">*</span></label>
                         <div id="drop-zone" class="border rounded p-4 text-center"
                              style="border-style:dashed !important;cursor:pointer;background:#f8f9fa;">
@@ -55,9 +60,9 @@
                         <div id="file-preview" class="mt-2 d-none">
                             <div class="alert alert-secondary d-flex align-items-center gap-2 mb-0">
                                 <i class="la la-paperclip text-primary" style="font-size:1.2rem;"></i>
-                                <span id="file-name" class="font-weight-bold text-dark"></span>
-                                <span id="file-size" class="text-dark ml-2"></span>
-                                <button type="button" class="close ml-auto p-0 text-danger remove-existing-btn" style="font-size: 1.4rem; line-height: 1;" onclick="clearFile()">
+                                <span id="file-name" class="fw-bold text-dark"></span>
+                                <span id="file-size" class="text-dark ms-2"></span>
+                                <button type="button" class="btn btn-link ms-auto p-0 text-danger remove-existing-btn" style="font-size: 1.4rem; line-height: 1;" onclick="clearFile()">
                                     <span aria-hidden="true">&times;</span>
                                 </button>
                             </div>

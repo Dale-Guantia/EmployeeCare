@@ -20,14 +20,14 @@ class EngineDatabaseSafetyTest extends TestCase
         $this->assertSame('ec_engine_test_abcdefgh', $config['database']);
     }
 
-    /** @dataProvider unsafeConfigurations */
+    #[\PHPUnit\Framework\Attributes\DataProvider('unsafeConfigurations')]
     public function test_unsafe_configuration_is_rejected_before_connecting($overrides, $protected)
     {
         $this->expectException(\LogicException::class);
         EngineDatabase::configuration(array_merge($this->values(), $overrides), $protected);
     }
 
-    public function unsafeConfigurations(): array
+    public static function unsafeConfigurations(): array
     {
         return [[['DATABASE' => 'EmployeeCare', 'CONFIRM' => 'EmployeeCare'], []],
             [['CONFIRM' => 'wrong'], []], [['DRIVER' => 'sqlite'], []], [['PASSWORD' => false], []],
@@ -44,5 +44,13 @@ class EngineDatabaseSafetyTest extends TestCase
         } finally {
             putenv($previous === false ? 'ENGINE_DATA_TEST_CONFIRM' : 'ENGINE_DATA_TEST_CONFIRM=' . $previous);
         }
+    }
+
+    public function test_integrated_authentication_is_explicit_and_local_only(): void
+    {
+        $values = array_merge($this->values(), ['USERNAME' => '', 'PASSWORD' => '', 'INTEGRATED_AUTH' => '1', 'HOST' => 'localhost']);
+        $this->assertSame('', EngineDatabase::configuration($values)['username']);
+        $this->expectException(\LogicException::class);
+        EngineDatabase::configuration(array_merge($values, ['HOST' => 'remote-server']));
     }
 }

@@ -15,11 +15,13 @@ class HrChatLog extends Model
         'question',
         'answer',
         'matched_chunk_ids',
+        'source_snapshot',
         'feedback',
     ];
 
     protected $casts = [
         'matched_chunk_ids' => 'array',
+        'source_snapshot' => 'array',
         'feedback'          => 'integer',
         'user_id'           => 'integer',
         'conversation_id'   => 'integer',

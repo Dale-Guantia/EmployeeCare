@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use App\Models\Ticket;
+use App\Models\Issue;
+use App\Services\ReportOfficeScope;
 use App\Models\User;
 use App\Models\Division;
 use App\Models\Status;
@@ -34,7 +36,14 @@ class ReportsController extends Controller
     {
         [$period, $startDate, $endDate, $half, $year, $periodError] = ReportPeriodResolver::resolve($request);
 
-        $data = $this->getReportData($startDate, $endDate);
+        $scope = ReportOfficeScope::fromRequest($request);
+        $data = $this->getReportData($startDate, $endDate, false, $scope);
+        $data['reportVisitors'] = $scope->apply(User::activeToday(), 'users')->where('last_login_at', '<=', now())->count();
+        $ticketIds = $scope->apply(Ticket::visibleTo(backpack_user()))
+            ->whereBetween('tickets.created_at', [$data['reportWidgetStart'], $data['reportWidgetEnd']])->select('tickets.id');
+        $statuses = Status::withCount(['tickets' => fn ($query) => $query->whereIn('tickets.id', $ticketIds)])->get();
+        $data['reportTicketsOverview'] = ['labels' => $statuses->pluck('status_name')->all(),
+            'counts' => $statuses->pluck('tickets_count')->all(), 'colors' => $statuses->pluck('status_color')->all()];
 
         return view('admin.reports', array_merge([
             'title' => 'Reports',
@@ -48,7 +57,7 @@ class ReportsController extends Controller
             'activeHalf' => $half,
             'activeYear' => $year,
             'periodError' => $periodError,
-        ], $data));
+        ], $scope->viewData(), $data));
     }
 
     public function downloadPdf(Request $request)
@@ -63,7 +72,8 @@ class ReportsController extends Controller
         $endDate = Carbon::parse($request->end_date)->endOfDay();
         $includeZeroActivity = $request->boolean('include_zero_activity');
 
-        $data = $this->getReportData($startDate, $endDate, $includeZeroActivity);
+        $scope = ReportOfficeScope::fromRequest($request);
+        $data = $this->getReportData($startDate, $endDate, $includeZeroActivity, $scope);
 
         try {
             $pdf = Pdf::loadView('admin.pdf.reports_pdf', array_merge($data, [
@@ -81,45 +91,34 @@ class ReportsController extends Controller
         }
     }
 
-    protected function getReportData($startDate = null, $endDate = null, $includeZeroActivity = false)
+    protected function getReportData($startDate = null, $endDate = null, $includeZeroActivity = false, ?ReportOfficeScope $scope = null)
     {
-        $users = User::with('division')
-            ->where('department_id', 1)
+        $scope ??= ReportOfficeScope::fromRequest(request());
+        $baseTickets = $scope->apply(Ticket::visibleTo(backpack_user()));
+        $periodTickets = (clone $baseTickets)->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('tickets.created_at', [$startDate, $endDate]);
+        });
+        $visibleIds = (clone $periodTickets)->reorder()->select('tickets.id');
+        $users = $scope->apply(User::with('division'), 'users')
             ->withCount([
-                'resolvedTickets as resolved_tickets_count' => function ($query) use ($startDate, $endDate) {
-                    if ($startDate && $endDate) {
-                        $query->whereBetween('tickets.created_at', [$startDate, $endDate]);
-                    }
-                },
-                'overdueTickets as overdue_tickets_count' => function ($query) use ($startDate, $endDate) {
-                    if ($startDate && $endDate) {
-                        $query->whereBetween('tickets.created_at', [$startDate, $endDate]);
-                    }
-                },
-                'assignedTickets as assigned_count' => function ($query) use ($startDate, $endDate) {
-                    if ($startDate && $endDate) {
-                        $query->whereBetween('tickets.created_at', [$startDate, $endDate]);
-                    }
-                },
-            ])
-            ->get();
+                'resolvedTickets as resolved_tickets_count' => fn ($query) => $query->whereIn('tickets.id', clone $visibleIds),
+                'overdueTickets as overdue_tickets_count' => fn ($query) => $query->whereIn('tickets.id', clone $visibleIds),
+                'assignedTickets as assigned_count' => fn ($query) => $query->whereIn('tickets.id', clone $visibleIds),
+            ])->get();
 
-        $staffResolvedStatusId = (int) \App\Models\Status::idByName('Resolved');
+        $staffResolvedStatusId = (int) \App\Models\Status::idByCode(\App\Models\Status::RESOLVED);
 
-        $staffResolutionQuery = Ticket::where('status_id', $staffResolvedStatusId)
+        $staffResolutionQuery = (clone $periodTickets)->where('status_id', $staffResolvedStatusId)
             ->whereNotNull('resolved_by')
             ->whereNotNull('resolved_at')
-            ->whereIn('resolved_by', $users->pluck('id'))
-            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
-                $query->whereBetween('created_at', [$startDate, $endDate]);
-            });
+            ->whereIn('resolved_by', $users->pluck('id'));
 
         $avgResolutionByStaff = \App\Services\TicketReportQueries::staffResolutionAverages($staffResolutionQuery);
 
         $users->each(function ($user) use ($avgResolutionByStaff) {
-            $avgMinutes = (int) ($avgResolutionByStaff[$user->id] ?? 0);
+            $avgMinutes = $avgResolutionByStaff->has($user->id) ? (int) $avgResolutionByStaff[$user->id] : null;
             $user->avg_resolution_minutes = $avgMinutes;
-            $user->avg_resolution_formatted = TicketReportWidgets::formatMinutes($avgMinutes);
+            $user->avg_resolution_formatted = TicketReportWidgets::formatAverageMinutes($avgMinutes);
         });
 
         if (!$includeZeroActivity) {
@@ -128,54 +127,41 @@ class ReportsController extends Controller
             })->values();
         }
 
-        $latestTickets = Ticket::with(['user', 'issue', 'status', 'priority'])
-            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
-                $query->whereBetween('created_at', [$startDate, $endDate]);
-            })
+        $latestTickets = (clone $periodTickets)->with(['user', 'issue', 'status', 'priority'])
             ->latest()
             ->limit(10)
             ->get();
 
         $diffMinutesSql = SqlDialectHelper::diffMinutesSql('tickets.created_at', 'tickets.resolved_at');
 
-        $ticketOverview = DB::table('issues')
-            ->join('divisions', 'issues.division_id', '=', 'divisions.id')
-            ->leftJoin('tickets', function ($join) use ($startDate, $endDate) {
-                $join->on('issues.id', '=', 'tickets.issue_id');
-
-                if ($startDate && $endDate) {
-                    $join->whereBetween('tickets.created_at', [$startDate, $endDate]);
+        $category = "CASE WHEN tickets.is_custom_issue = 1 THEN COALESCE(NULLIF(tickets.custom_issue, ''), 'Custom request')
+            ELSE COALESCE(issues.issue_description, NULLIF(tickets.custom_issue, ''), 'Issue unavailable') END";
+        $ticketOverview = DB::table('tickets')
+            ->leftJoin('issues', 'tickets.issue_id', '=', 'issues.id')
+            ->leftJoin('divisions', 'tickets.division_id', '=', 'divisions.id')
+            ->whereIn('tickets.id', clone $visibleIds)
+            ->select('issues.id as issue_id', 'divisions.id as division_id', 'divisions.division_name',
+                DB::raw($category . ' as issue_description'), DB::raw('COUNT(tickets.id) as total_tickets'))
+            ->selectRaw("AVG(CASE WHEN tickets.status_id = ? AND tickets.resolved_at IS NOT NULL THEN {$diffMinutesSql} ELSE NULL END) as avg_resolve_minutes", [$staffResolvedStatusId])
+            ->groupBy('issues.id', 'issues.issue_description', 'tickets.custom_issue', 'tickets.is_custom_issue', 'divisions.id', 'divisions.division_name')->get();
+        if ($includeZeroActivity) {
+            foreach ($scope->apply(Issue::with('division'), 'issues')->get() as $issue) {
+                if (!$ticketOverview->contains(fn ($row) => (int) $row->issue_id === (int) $issue->id
+                    && (string) $row->division_id === (string) $issue->division_id)) {
+                    $ticketOverview->push((object) ['issue_id' => $issue->id, 'issue_description' => $issue->issue_description,
+                        'division_id' => $issue->division_id, 'division_name' => $issue->division?->division_name,
+                        'total_tickets' => 0, 'avg_resolve_minutes' => null]);
                 }
-            })
-            ->select(
-                'issues.issue_description',
-                'divisions.id as division_id',
-                'divisions.division_name',
-                DB::raw('COUNT(tickets.id) as total_tickets'),
-                DB::raw("
-                    AVG(
-                        CASE
-                            WHEN tickets.resolved_at IS NOT NULL
-                            THEN {$diffMinutesSql}
-                            ELSE NULL
-                        END
-                    ) as avg_resolve_minutes
-                ")
-            )
-            ->groupBy('issues.id', 'divisions.id', 'issues.issue_description', 'divisions.division_name')
-            ->get();
+            }
+        }
 
         $ticketOverview->transform(function ($row) {
-            $row->formatted_time = TicketReportWidgets::formatMinutes((int) ($row->avg_resolve_minutes ?? 0));
+            $row->formatted_time = TicketReportWidgets::formatAverageMinutes($row->avg_resolve_minutes === null ? null : (int) $row->avg_resolve_minutes);
             return $row;
         });
 
-        $divisions = Division::query()
-            ->withCount(['tickets as tickets_count' => function ($query) use ($startDate, $endDate) {
-                if ($startDate && $endDate) {
-                    $query->whereBetween('created_at', [$startDate, $endDate]);
-                }
-            }])
+        $divisions = $scope->divisions(Division::query())
+            ->withCount(['tickets as tickets_count' => fn ($query) => $query->whereIn('tickets.id', clone $visibleIds)])
             ->get()
             ->map(function ($division) use ($ticketOverview, $includeZeroActivity) {
                 $division->problemCategories = $ticketOverview
@@ -200,10 +186,21 @@ class ReportsController extends Controller
                 return $division->tickets_count > 0 || $division->problemCategories->count() > 0;
             })->values();
         }
+        $departmentCategories = $ticketOverview->whereNull('division_id');
+        if ($departmentCategories->isNotEmpty()) {
+            $divisions->push((object) [
+                'id' => null, 'division_name' => 'Department-level (no division)',
+                'tickets_count' => $departmentCategories->sum('total_tickets'),
+                'problemCategories' => $departmentCategories->map(fn ($row) => (object) [
+                    'category_name' => $row->issue_description, 'tickets_count' => $row->total_tickets,
+                    'average_resolve_time' => $row->formatted_time,
+                ])->values(),
+            ]);
+        }
 
-        $resolvedStatusId = (int) Status::idByName('Resolved');
-        $pendingStatusId = (int) Status::idByName('Pending');
-        $reopenedStatusId = (int) Status::idByName('Reopened');
+        $resolvedStatusId = (int) Status::idByCode(Status::RESOLVED);
+        $pendingStatusId = (int) Status::idByCode(Status::PENDING);
+        $reopenedStatusId = (int) Status::idByCode(Status::REOPENED);
 
         // $startDate/$endDate now mean exactly what they say: null on both
         // means genuinely all-time (no filter), matching the same semantics
@@ -218,14 +215,14 @@ class ReportsController extends Controller
         } else {
             // All-time: derive real bounds from the data so bucketing has an
             // actual range to work with, instead of an arbitrary epoch anchor.
-            $earliestCreatedAt = Ticket::min('created_at');
+            $earliestCreatedAt = (clone $baseTickets)->min('created_at');
             $widgetStart = $earliestCreatedAt ? Carbon::parse($earliestCreatedAt)->startOfDay() : now()->startOfDay();
             $widgetEnd = now()->endOfDay();
         }
 
         $forceBucketUnit = (!$startDate && !$endDate) ? 'month' : null;
-        $widgets = \App\Services\TicketReportQueries::widgets(Ticket::whereBetween('created_at', [$widgetStart, $widgetEnd])
-            ->select(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']), $widgetStart, $widgetEnd, $forceBucketUnit);
+        $widgets = \App\Services\TicketReportQueries::widgets((clone $baseTickets)->whereBetween('created_at', [$widgetStart, $widgetEnd])
+            ->select(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']), $widgetStart, $widgetEnd, $forceBucketUnit, $scope);
         $reportKpis = $widgets['kpis'];
         $reportVolumeTrend = $widgets['volume'];
         $reportResolutionDistribution = $widgets['resolution'];

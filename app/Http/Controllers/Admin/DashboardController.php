@@ -6,6 +6,9 @@ use App\Models\Division;
 use App\Models\Status;
 use App\Models\Ticket;
 use App\Services\ReportPeriodResolver;
+use App\Services\ReportOfficeScope;
+use App\Services\DivisionChartQueries;
+use App\Services\DashboardTicketMetrics;
 use App\Services\TicketReportWidgets;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -13,26 +16,15 @@ use Illuminate\Routing\Controller;
 
 class DashboardController extends Controller
 {
-    private const ABBREVIATION_MAP = [
-        'Administrative'           => 'Admin',
-        'Claims and Benefits'      => 'Claims',
-        'Information Technology'   => 'IT',
-        'Learning and Development' => 'L&D',
-        'Performance Management'   => 'PM',
-        'Payroll'                  => 'Payroll',
-        'Records'                  => 'Records',
-        'RSP'                      => 'RSP',
-    ];
-
     private const COLOR_PALETTE = [
-        'Admin'     => '#FF6384',
-        'Claims'    => '#36A2EB',
-        'IT'        => '#4BC0C0',
-        'L&D'       => '#FFCE56',
-        'PM'        => '#9966FF',
-        'Payroll'   => '#FF9F40',
-        'Records'   => '#C9CBCF',
-        'RSP'       => '#4D5360',
+        Division::ADMINISTRATIVE => '#FF6384',
+        Division::CLAIMS => '#36A2EB',
+        Division::INFORMATION_TECHNOLOGY => '#4BC0C0',
+        Division::LEARNING_AND_DEVELOPMENT => '#FFCE56',
+        Division::PERFORMANCE_MANAGEMENT => '#9966FF',
+        Division::PAYROLL => '#FF9F40',
+        Division::RECORDS => '#C9CBCF',
+        Division::RSP => '#4D5360',
     ];
 
     public function dashboard(Request $request)
@@ -55,37 +47,36 @@ class DashboardController extends Controller
         $this->data['activeYear'] = $year;
         $this->data['periodError'] = $periodError;
 
-        return view(backpack_view('dashboard'), array_merge($this->data, $this->getDashboardData($startDate, $endDate)));
+        $scope = ReportOfficeScope::fromRequest($request);
+        return view(backpack_view('dashboard'), array_merge($this->data, $scope->viewData(), $this->getDashboardData($startDate, $endDate, $scope, ReportOfficeScope::forDivisionChart($request))));
     }
 
-    protected function getDashboardData($startDate = null, $endDate = null)
+    protected function getDashboardData($startDate = null, $endDate = null, ?ReportOfficeScope $scope = null, ?ReportOfficeScope $chartScope = null)
     {
-        $visibleTickets = Ticket::visibleTo(backpack_user());
-        $periodTickets = (clone $visibleTickets)->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
-            $query->whereBetween('created_at', [$startDate, $endDate]);
-        });
+        $scope ??= ReportOfficeScope::fromRequest(request());
+        $chartScope ??= ReportOfficeScope::forDivisionChart(request());
+        $visibleTickets = $scope->apply(Ticket::visibleTo(backpack_user()));
+        $at = now();
+        $widgetStart = $startDate ? $startDate->copy() : (($earliest = (clone $visibleTickets)->min('created_at'))
+            ? Carbon::parse($earliest)->startOfDay() : $at->copy()->startOfDay());
+        $widgetEnd = $endDate ? $endDate->copy() : $at->copy()->endOfDay();
+        $periodTickets = (clone $visibleTickets)->whereBetween('created_at', [$widgetStart, $widgetEnd]);
+        $dashboard = DashboardTicketMetrics::summary(clone $periodTickets, $at);
+        $olderOpenCount = (clone $visibleTickets)->where('status_id', '<>', Status::idByCode(Status::RESOLVED))
+            ->where('created_at', '<', $widgetStart)->count();
         $visibleIds = (clone $periodTickets)->select('tickets.id');
-        $ticketsPerDivisionRaw = Division::leftJoin('tickets', function ($join) use ($visibleIds) {
-            $join->on('tickets.division_id', '=', 'divisions.id')->whereIn('tickets.id', $visibleIds);
-        })
-            ->join('departments', 'divisions.department_id', '=', 'departments.id')
-            ->where('divisions.division_name', '!=', 'Department Head')
-            ->selectRaw('divisions.division_name, COUNT(tickets.id) as total')
-            ->groupBy('divisions.division_name')
-            ->orderBy('divisions.division_name')
-            ->get();
+        $ticketsPerDivisionRaw = DivisionChartQueries::data($chartScope, $startDate, $endDate, true)
+            ->sortBy([['total', 'desc'], ['division_name', 'asc']])->values();
 
         $divisionLabels = [];
         $divisionCounts = [];
         $divisionColors = [];
 
         foreach ($ticketsPerDivisionRaw as $item) {
-            $shortName = self::ABBREVIATION_MAP[$item->division_name] ?? $item->division_name;
-            $divisionLabels[] = $shortName;
+            $divisionLabels[] = $item->division_name;
             $divisionCounts[] = $item->total;
-            $divisionColors[] = self::COLOR_PALETTE[$shortName] ?? '#36A2EB';
+            $divisionColors[] = $item->id === null ? '#6c757d' : (self::COLOR_PALETTE[$item->division_code] ?? '#36A2EB');
         }
-
         $statusData = Status::withCount(['tickets' => function ($query) use ($visibleIds) {
             $query->whereIn('tickets.id', $visibleIds);
         }])->get();
@@ -99,31 +90,22 @@ class DashboardController extends Controller
             ->take(10)
             ->get();
 
-        $resolvedStatusId = (int) Status::idByName('Resolved');
-        $pendingStatusId = (int) Status::idByName('Pending');
-        $reopenedStatusId = (int) Status::idByName('Reopened');
-
-        if ($startDate && $endDate) {
-            $widgetStart = $startDate->copy();
-            $widgetEnd = $endDate->copy();
-        } else {
-            // All-time: derive real bounds from the data so bucketing has an
-            // actual range to work with, instead of an arbitrary epoch anchor.
-            $earliestCreatedAt = (clone $visibleTickets)->min('created_at');
-            $widgetStart = $earliestCreatedAt ? Carbon::parse($earliestCreatedAt)->startOfDay() : now()->startOfDay();
-            $widgetEnd = now()->endOfDay();
-        }
+        $resolvedStatusId = (int) Status::idByCode(Status::RESOLVED);
+        $pendingStatusId = (int) Status::idByCode(Status::PENDING);
+        $reopenedStatusId = (int) Status::idByCode(Status::REOPENED);
 
         $forceBucketUnit = (!$startDate && !$endDate) ? 'month' : null;
         $widgets = \App\Services\TicketReportQueries::widgets((clone $visibleTickets)->whereBetween('created_at', [$widgetStart, $widgetEnd])
-            ->select(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']), $widgetStart, $widgetEnd, $forceBucketUnit);
+            ->select(['id', 'status_id', 'department_id', 'division_id', 'issue_id', 'custom_issue', 'created_at', 'resolved_at', 'reopened_at']), $widgetStart, $widgetEnd, $forceBucketUnit, $scope);
         $dashKpis = $widgets['kpis'];
+        $dashKpis['avg_resolution_minutes'] = $dashboard['metrics']['avg_resolution_minutes'];
+        $dashKpis['avg_resolution_formatted'] = $dashboard['metrics']['avg_resolution_formatted'];
         $dashVolumeTrend = $widgets['volume'];
         $dashResolutionDistribution = $widgets['resolution'];
         $dashSlaBreakdown = $widgets['sla'];
         $dashReassignment = $widgets['reassignment'];
 
-        return [
+        return array_merge([
             'latestTickets' => $latestTickets,
             'divisionLabels' => $divisionLabels,
             'divisionCounts' => $divisionCounts,
@@ -132,6 +114,13 @@ class DashboardController extends Controller
             'statusData' => $statusCounts,
             'statusColors' => $statusColors,
             'dashKpis' => $dashKpis,
+            'dashboardMetrics' => $dashboard['metrics'],
+            'dashboardIssues' => $dashboard['issues'],
+            'attentionTickets' => DashboardTicketMetrics::attention(clone $periodTickets, $at),
+            'olderOpenCount' => $olderOpenCount,
+            'dashboardAsOf' => $at,
+            'staffLeaderboard' => \App\Services\TicketReportQueries::staffLeaderboard((clone $visibleTickets)
+                ->whereBetween('created_at', [$widgetStart, $widgetEnd])),
             'volumeTrendLabels' => $dashVolumeTrend['labels'],
             'volumeTrendCounts' => $dashVolumeTrend['counts'],
             'resolutionLabels' => $dashResolutionDistribution['labels'],
@@ -144,6 +133,6 @@ class DashboardController extends Controller
             'reassignDivisionRates' => $dashReassignment['division_rates'],
             'dashWidgetStart' => $widgetStart,
             'dashWidgetEnd' => $widgetEnd,
-        ];
+        ], $chartScope->divisionChartViewData());
     }
 }

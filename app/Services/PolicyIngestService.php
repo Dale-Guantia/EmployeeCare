@@ -153,6 +153,7 @@ class PolicyIngestService
                         'document_id'   => $document->id,
                         'chunk_index'   => $index,
                         'page_number'   => $chunk['page_number'],
+                        'end_page_number' => $chunk['end_page_number'],
                         'section_title' => $this->detectSection($chunk['text']),
                         'content'       => $chunk['text'],
                         'search_vector' => $this->buildVector($chunk['text']),
@@ -421,6 +422,7 @@ class PolicyIngestService
                 $chunks[] = [
                     'text'        => $chunkText,
                     'page_number' => $pageOfWord[$i] ?? null,
+                    'end_page_number' => $pageOfWord[min($total - 1, $i + $wordsPerChunk - 1)] ?? null,
                 ];
             }
         }
