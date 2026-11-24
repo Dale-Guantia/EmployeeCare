@@ -18,8 +18,9 @@
     padding: .9rem .75rem;
     vertical-align: middle;
     border-bottom: 1px solid rgba(128, 140, 155, .16);
+    overflow-wrap: anywhere;
 }
-.ec-ticket-reference { font-weight: 600; white-space: nowrap; text-decoration: none; }
+.ec-ticket-reference { font-weight: 600; overflow-wrap: anywhere; text-decoration: none; }
 .ec-ticket-reference:hover { text-decoration: underline; }
 .ec-ticket-subject { min-width: 9rem; max-width: 29rem; overflow-wrap: anywhere; }
 .ec-ticket-subject-label { font-weight: 600; }
@@ -48,6 +49,13 @@
 .ec-report-table .dtr-data { flex: 1; min-width: 0; }
 .ec-report-table + .dataTables_info { font-size: .8rem; }
 .dataTables_wrapper:has(.ec-report-table) .dataTables_filter input { border-radius: .4rem; }
+/* Keep a horizontal fallback for wide tables and expanded responsive details.
+   Do not clip the surrounding DataTables search, length, or paging controls. */
+.ec-report-table-scroll,
+.table-responsive:has(> .ec-report-table) { min-width: 0; max-width: 100%; overflow: auto !important; }
+.dataTables_wrapper:has(.ec-report-table) .row > * { min-width: 0; }
+.dataTables_wrapper:has(.ec-report-table) .pagination { flex-wrap: wrap; }
+.dataTables_wrapper:has(.ec-report-table) .dataTables_info { white-space: normal; }
 @media (max-width: 575.98px) {
     .ec-report-table > tbody > tr > td, .ec-report-table > thead > tr > th { padding: .7rem .4rem; }
     .ec-ticket-message { -webkit-line-clamp: 1; }

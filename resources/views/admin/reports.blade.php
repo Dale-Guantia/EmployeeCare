@@ -142,7 +142,8 @@
         <div class="col-12">
             <div class="card mb-0" data-report-sla>
                 <div class="card-header"><div><strong>SLA by Issue Type</strong><div class="ec-chart-subtitle">Includes open and resolved tickets</div></div></div>
-                <div class="card-body ec-sla-table-scroll">
+                <div class="card-body">
+                    <div class="ec-sla-table-scroll" tabindex="0" role="region" aria-label="SLA by issue type">
                     <table class="table table-hover ec-report-table ec-sla-table">
                         <caption class="visually-hidden">Overdue ticket counts and percentages by issue type for the global filters.</caption>
                         <thead><tr><th scope="col">Issue</th><th scope="col">Total</th><th scope="col">Overdue</th><th scope="col">Overdue %</th></tr></thead>
@@ -159,6 +160,7 @@
                         @endforelse
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
         </div>

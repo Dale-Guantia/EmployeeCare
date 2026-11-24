@@ -217,7 +217,14 @@ select option,
 
 #hr-assistant-page .text-muted { color: #586477 !important; }
 #hr-assistant-page .hrchat-bubble.bg-primary .text-muted { color: #fff !important; }
-#hrc-conversations-card .card-body { max-height: 60dvh; overflow-y: auto; }
+#hrc-conversations-card .card-body { max-height: 60dvh; overflow-y: auto !important; }
+
+/* Preserve bounded discussion scrolling despite Backpack's visible overflow rule. */
+.ec-ticket-chat { min-width: 0; overflow: hidden !important; }
+.ec-ticket-chat > .card-header, .ec-ticket-chat > .card-footer { flex-shrink: 0; }
+.ec-ticket-chat > #chat-box { flex: 1; min-height: 0; overflow: auto !important; overscroll-behavior: contain; }
+.ec-ticket-chat > .card-footer { max-height: 50%; overflow: auto !important; }
+.ec-ticket-chat #chat-box > div, .ec-ticket-chat .card-footer { overflow-wrap: anywhere; }
 
 .icon-library-grid {
     display: grid;

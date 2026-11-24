@@ -3,7 +3,8 @@
         <div><strong>Tickets Needing Attention</strong><div class="ec-chart-subtitle">Open tickets created in the selected period · Oldest first</div></div>
         <span class="ec-chart-total">{{ $attentionTickets->count() }} of {{ $dashboardMetrics['open'] }} open</span>
     </div>
-    <div class="card-body ec-dashboard-attention-scroll" tabindex="0" aria-label="Open ticket worklist">
+    <div class="card-body">
+        <div class="ec-dashboard-attention-scroll" tabindex="0" role="region" aria-label="Open ticket worklist">
         <table class="table table-hover ec-report-table">
             <thead><tr><th scope="col">Ticket</th><th scope="col">Assigned to</th><th scope="col">Priority</th><th scope="col">Age</th><th scope="col">Due</th><th scope="col">Deadline state</th></tr></thead>
             <tbody>
@@ -22,5 +23,6 @@
             @endforelse
             </tbody>
         </table>
+        </div>
     </div>
 </section>

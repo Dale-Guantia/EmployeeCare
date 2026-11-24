@@ -9,6 +9,9 @@ const source = fs.readFileSync(path.join(__dirname, '../../public/js/report-tabl
 function harness(info = { pages: 1, recordsTotal: 2 }, existing = false, ajax = false) {
     const document = dom('<div id="wrapper"><div class="report-table-title"></div><table data-report-table ' + (ajax ? 'data-report-ajax="/survey/responses"' : '') + ' data-report-order-column="6" aria-label="Latest Tickets"><thead><tr><th>Details</th><th>Name</th><th data-report-rating="true">Rating</th><th>Date</th></tr></thead><tbody><tr><td><button class="report-details-toggle" aria-expanded="false">+</button></td></tr></tbody></table><div class="dataTables_paginate"></div><div class="dataTables_length"></div></div>');
     const wrapper = document.getElementById('wrapper');
+    const scrollArea = document.createElement('div');
+    scrollArea.className = 'ec-report-table-scroll';
+    wrapper.appendChild(scrollArea);
     const table = document.querySelector('table');
     const events = {};
     let options, initializations = 0;
@@ -71,6 +74,17 @@ test('latest tickets sort by the timestamp column and heading is inserted as tex
     const h = harness();
     assert.equal(JSON.stringify(h.options().order), '[[6,"desc"]]');
     assert.equal(h.wrapper.querySelector('h5').textContent, 'Latest Tickets');
+});
+
+test('wide table scrolling is keyboard accessible and keeps paging controls outside the scroll area', () => {
+    const h = harness({ pages: 12, recordsTotal: 120 });
+    assert.match(h.options().dom, /ec-report-table-scroll/);
+    const scrollArea = h.wrapper.querySelector('.ec-report-table-scroll');
+    assert.equal(scrollArea.getAttribute('tabindex'), '0');
+    assert.equal(scrollArea.getAttribute('role'), 'region');
+    assert.equal(scrollArea.getAttribute('aria-label'), 'Latest Tickets table');
+    assert.equal(h.wrapper.querySelector('.dataTables_paginate').closest('.ec-report-table-scroll'), null);
+    assert.equal(h.wrapper.querySelector('.dataTables_length').closest('.ec-report-table-scroll'), null);
 });
 
 test('an initialized table is not initialized a second time', () => {

@@ -21,7 +21,7 @@
 .ec-dashboard-overview-grid .card-header {
     display: flex;
     align-items: center;
-    height: 80px;
+    min-height: 80px;
     flex-shrink: 0;
 }
 .ec-dashboard-overview-grid .card-header label { max-width: 100%; }
@@ -40,8 +40,16 @@
 .ec-dashboard-action-row .card { display: flex; flex-direction: column; height: 440px; margin-bottom: 0; }
 .ec-dashboard-action-row .card-header { flex-shrink: 0; }
 .ec-dashboard-action-row .card-body { flex: 1; min-height: 0; }
+.ec-dashboard-attention > .card-body { display: flex; flex-direction: column; }
+.ec-dashboard .ec-dashboard-action-row .card,
+.ec-dashboard .ec-dashboard-overview-grid .card,
+.ec-dashboard .ec-dashboard-secondary-row .card,
+.ec-dashboard .ec-dashboard-action-row .card-body,
+.ec-dashboard .ec-dashboard-overview-grid .card-body,
+.ec-dashboard .ec-dashboard-secondary-row .card-body { overflow: hidden !important; }
 .ec-dashboard-action-row .card:not(.ec-dashboard-attention) .card-body { display: flex; flex-direction: column; }
-.ec-dashboard-attention-scroll { overflow: auto; }
+.ec-dashboard-attention-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.ec-dashboard-attention-scroll > .table { margin-bottom: 0; }
 .ec-dashboard-attention th { position: sticky; top: 0; z-index: 1; }
 .ec-attention-subject { margin-top: 0.35rem; min-width: 9rem; max-width: 20rem; overflow-wrap: anywhere; color: #40536f; font-size: 0.8125rem; }
 .ec-attention-deadline { font-size: 0.75rem; white-space: nowrap; color: #53647d; }
@@ -70,7 +78,7 @@
 .ec-leaderboard-on-time { background: #e1f5ec; color: #166044; }
 .ec-leaderboard-overdue { background: #fff0e6; color: #9b4616; }
 .ec-leaderboard-average { color: #40536f; font-weight: 600; font-variant-numeric: tabular-nums; }
-.ec-leaderboard-footnote { padding-top: 0.75rem; }
+.ec-leaderboard-footnote { flex-shrink: 0; padding-top: 0.75rem; }
 .ec-leaderboard-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; text-align: center; color: #53647d; font-size: 0.8125rem; }
 .ec-leaderboard-empty i { color: #b38a26; font-size: 2rem; }
 @media (max-width: 1199.98px) {

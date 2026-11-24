@@ -1,4 +1,4 @@
-<div class="card" wire:poll.5s style="height: calc(100vh - 250px); min-height: 500px;">
+<div class="card ec-ticket-chat" wire:poll.5s style="height: calc(100vh - 250px); min-height: 500px;">
     <div class="card-header bg-primary text-white fw-bold">
         <i class="la la-comments"></i> Ticket Discussion
     </div>

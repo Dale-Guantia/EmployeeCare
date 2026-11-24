@@ -21,7 +21,7 @@
                 responsive: { details: { type: 'column', target: 'button.report-details-toggle' } },
                 columnDefs: [{ targets: 0, className: 'control report-details-cell', orderable: false, searchable: false }],
                 dom: "<'row align-items-center mb-2'<'col-md-6 report-table-title'><'col-md-6'f>>" +
-                    "<'row'<'col-12'tr>>" +
+                    "<'row'<'col-12 ec-report-table-scroll'tr>>" +
                     "<'row align-items-center mt-2'<'col-md-6'li><'col-md-6'p>>",
                 language: { search: 'Search:', info: 'Showing _START_–_END_ of _TOTAL_ records', infoEmpty: '0 records',
                     emptyTable: table.getAttribute('data-report-empty') || 'No records for the selected date range and office.' },
@@ -50,7 +50,14 @@
                 });
             }
             const api = $(table).DataTable(options);
-            const heading = api.table().container().querySelector('.report-table-title');
+            const wrapper = api.table().container();
+            const scrollArea = wrapper.querySelector('.ec-report-table-scroll');
+            if (scrollArea) {
+                scrollArea.setAttribute('tabindex', '0');
+                scrollArea.setAttribute('role', 'region');
+                scrollArea.setAttribute('aria-label', table.getAttribute('aria-label') + ' table');
+            }
+            const heading = wrapper.querySelector('.report-table-title');
             const title = document.createElement('h5');
             title.className = 'mb-2 fw-bold';
             title.textContent = table.getAttribute('aria-label');

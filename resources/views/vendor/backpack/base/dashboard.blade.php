@@ -113,7 +113,8 @@
             <div class="col-12">
                 <section class="card mb-0" data-dashboard-sla>
                     <div class="card-header"><div><strong>Issue Types and Delays</strong><div class="ec-chart-subtitle">Largest delay counts first; open overdue and late resolutions shown separately</div></div></div>
-                    <div class="card-body ec-sla-table-scroll">
+                    <div class="card-body">
+                        <div class="ec-sla-table-scroll" tabindex="0" role="region" aria-label="Issue types and delays">
                         <table class="table table-hover ec-report-table ec-sla-table">
                             <thead><tr><th scope="col">Issue</th><th scope="col">Open overdue</th><th scope="col">Resolved late</th><th scope="col">On-time resolution</th></tr></thead>
                             <tbody>
@@ -129,6 +130,7 @@
                             @endforelse
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </section>
             </div>
