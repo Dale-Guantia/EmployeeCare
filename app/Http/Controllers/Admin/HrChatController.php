@@ -6,13 +6,12 @@ use App\Models\HrChatLog;
 use App\Models\HrConversation;
 use App\Models\HrPolicyChunk;
 use App\Models\HrPolicyDocument;
+use App\Services\AnthropicService;
+use App\Services\GeminiService;
 use App\Services\PolicyRetriever;
 use App\Services\PolicySourceSnapshot;
-use App\Services\AnthropicService;
 use App\Exceptions\PolicyChatException;
 use Illuminate\Support\Facades\DB;
-// use App\Services\GeminiService;
-// use App\Services\GPTService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +23,7 @@ class HrChatController extends Controller
     protected $ai;
 
     public function __construct(PolicyRetriever $retriever, AnthropicService $ai)
+    //public function __construct(PolicyRetriever $retriever, GeminiService $ai)
     {
         $this->retriever = $retriever;
         $this->ai        = $ai;

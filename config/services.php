@@ -21,7 +21,7 @@ return [
 
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
-        'model' => env('GEMINI_MODEL', 'gemini-3-flash-preview'),
+        'model' => env('GEMINI_MODEL', 'gemini-4-hydrogen'),
     ],
 
     'anthropic' => [

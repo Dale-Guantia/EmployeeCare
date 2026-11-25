@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\HrChatLog;
 use App\Models\HrConversation;
 use App\Models\User;
+use App\Services\PolicyChatPrompt;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -16,7 +17,7 @@ class HrChatConversationMemoryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['services.anthropic.key' => 'mock-anthropic-key']);
+        config(['services.gemini.key' => 'mock-gemini-key']);
         // Retrieval tests own their corpus instead of depending on the application's policy records.
         foreach ([
             'Wellness Leave' => 'Wellness leave allows five days each year for eligible employees. Apply through HR for wellness leave.',
@@ -54,11 +55,8 @@ class HrChatConversationMemoryTest extends TestCase
         return $user;
     }
 
-    // Fakes the Anthropic endpoint and records every request payload sent to
-    // it, so assertions can inspect exactly what was sent (message shape,
-    // cache_control block, history length) without real network/API calls.
-    // Returns an object (not array) so the closure can append to it by handle.
-    private function fakeAnthropic(): \stdClass
+    // Records Gemini payloads so assertions can inspect history and instructions.
+    private function fakeGemini(): \stdClass
     {
         $store = new \stdClass();
         $store->requests = [];
@@ -68,14 +66,10 @@ class HrChatConversationMemoryTest extends TestCase
             $turn = count($store->requests);
 
             return Http::response([
-                'stop_reason' => 'end_turn',
-                'content' => [['type' => 'text', 'text' => 'Fake answer #' . $turn]],
-                'usage'   => [
-                    'input_tokens'                => 10,
-                    'output_tokens'               => 5,
-                    'cache_creation_input_tokens' => $turn === 1 ? 50 : 0,
-                    'cache_read_input_tokens'     => $turn > 1 ? 50 : 0,
-                ],
+                'candidates' => [[
+                    'finishReason' => 'STOP',
+                    'content' => ['parts' => [['text' => 'Fake answer #' . $turn]]],
+                ]],
             ], 200);
         });
 
@@ -97,25 +91,25 @@ class HrChatConversationMemoryTest extends TestCase
     // T9 — first message of a conversation: empty history, request still succeeds.
     public function test_first_message_of_session_has_empty_history_and_succeeds()
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $user = $this->makeUser();
 
         $resp = $this->ask($user, 'Ilang araw pwede mag apply ng wellness leave?');
 
         $resp->assertOk();
         $this->assertCount(1, $store->requests);
-        $this->assertCount(1, $store->requests[0]['messages']);
-        $this->assertSame('user', $store->requests[0]['messages'][0]['role']);
+        $this->assertCount(1, $store->requests[0]['contents']);
+        $this->assertSame('user', $store->requests[0]['contents'][0]['role']);
         $this->assertNotNull($resp['conversation_id']);
     }
 
     // T1 (core assertion) — a bare follow-up must still resolve to Wellness
     // Leave once the subject was established earlier in the same conversation.
-    // This exercises real DB retrieval (Root Cause B), only the Anthropic
+    // This exercises real DB retrieval (Root Cause B), only the Gemini
     // call itself is faked.
     public function test_bare_followup_retrieves_wellness_leave_not_omnibus()
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $user = $this->makeUser();
 
         $r1 = $this->ask($user, 'Ilang araw pwede mag apply ng wellness leave?');
@@ -140,7 +134,7 @@ class HrChatConversationMemoryTest extends TestCase
     // keep dragging retrieval back to the wrong (previous) document.
     public function test_topic_switch_does_not_stick_to_previous_topic()
     {
-        $this->fakeAnthropic();
+        $this->fakeGemini();
         $user = $this->makeUser();
 
         $r1 = $this->ask($user, 'Ilang araw pwede mag apply ng wellness leave?');
@@ -168,7 +162,7 @@ class HrChatConversationMemoryTest extends TestCase
     // real API call (see the original memory-fix final report).
     public function test_grounding_not_bypassed_on_first_turn()
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $user = $this->makeUser();
 
         $resp = $this->ask($user, 'zzqxjklw ploible unicornify frobnitz');
@@ -183,7 +177,7 @@ class HrChatConversationMemoryTest extends TestCase
     // real conversation turn even though the AI was never called).
     public function test_retrieval_miss_path_logs_conversation_id()
     {
-        $this->fakeAnthropic();
+        $this->fakeGemini();
         $user = $this->makeUser();
 
         $resp = $this->ask($user, 'asdfghjkl');
@@ -198,7 +192,7 @@ class HrChatConversationMemoryTest extends TestCase
     // question the employee typed, never the expanded retrieval query.
     public function test_audit_log_stores_raw_question_not_expanded_query()
     {
-        $this->fakeAnthropic();
+        $this->fakeGemini();
         $user = $this->makeUser();
 
         $r1 = $this->ask($user, 'Ilang araw pwede mag apply ng wellness leave?');
@@ -229,11 +223,11 @@ class HrChatConversationMemoryTest extends TestCase
             ]);
         }
 
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $resp = $this->ask($user, 'Ilang araw pwede mag apply ng wellness leave?', $conversation->id);
         $resp->assertOk();
 
-        $messages = $store->requests[0]['messages'];
+        $messages = $store->requests[0]['contents'];
         $this->assertLessThanOrEqual(7, count($messages));
         $this->assertSame('user', $messages[0]['role']);
     }
@@ -245,7 +239,7 @@ class HrChatConversationMemoryTest extends TestCase
     // that guarantee holds even with A's conversation active in the DB.
     public function test_no_cross_user_history_leakage()
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
 
         $userA = $this->makeUser('A');
         $rA1 = $this->ask($userA, 'Ilang araw pwede mag apply ng wellness leave?');
@@ -264,31 +258,27 @@ class HrChatConversationMemoryTest extends TestCase
 
         $lastRequest = end($store->requests);
         // Only the current question — no user A content should appear.
-        $this->assertCount(1, $lastRequest['messages']);
-        $this->assertSame('Ilang araw pwede mag apply?', $lastRequest['messages'][0]['content']);
+        $this->assertCount(1, $lastRequest['contents']);
+        $this->assertSame('Ilang araw pwede mag apply?', $lastRequest['contents'][0]['parts'][0]['text']);
     }
 
-    // T11 — prompt caching survives history: the cached system block (index 0,
-    // with cache_control) must be byte-identical across turns. If history ever
-    // leaked into that block, this would fail (and so would real cache hits).
-    public function test_cached_system_block_is_unaffected_by_history()
+    public function test_system_instructions_are_separate_from_conversation_history()
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $user = $this->makeUser();
 
         $r1 = $this->ask($user, 'Ilang araw pwede mag apply ng wellness leave?');
         $r1->assertOk();
         $this->ask($user, 'Sino sino ang pwede mag apply?', $r1['conversation_id'])->assertOk();
 
-        $turn1System = $store->requests[0]['system'][0];
-        $turn2System = $store->requests[1]['system'][0];
-
-        $this->assertSame($turn1System, $turn2System);
-        $this->assertSame('ephemeral', $turn1System['cache_control']['type']);
-
-        // History must live in `messages`, never merged into `system`.
-        $this->assertCount(1, $store->requests[0]['messages']);
-        $this->assertGreaterThan(1, count($store->requests[1]['messages']));
+        foreach ($store->requests as $request) {
+            $instructions = $request['systemInstruction']['parts'][0]['text'];
+            $this->assertStringStartsWith(PolicyChatPrompt::instructions(), $instructions);
+            $this->assertStringNotContainsString('Fake answer #1', $instructions);
+        }
+        $this->assertCount(1, $store->requests[0]['contents']);
+        $this->assertCount(3, $store->requests[1]['contents']);
+        $this->assertSame('Fake answer #1', $store->requests[1]['contents'][1]['parts'][0]['text']);
     }
 
     private function titlesOnly(array $sources): array
@@ -301,7 +291,7 @@ class HrChatConversationMemoryTest extends TestCase
 
     public function test_multiple_natural_followups_keep_grounded_context_after_the_original_question_leaves_history(): void
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $user = $this->makeUser();
         $first = $this->ask($user, 'Tell me about wellness leave.')->assertOk();
         foreach (['Can you explain it further?', 'Is it paid?', 'Which documents should I submit?', 'Could you give an example?', 'Please continue.', 'Paki explain ulit?', 'Who is eligible?'] as $question) {
@@ -311,14 +301,14 @@ class HrChatConversationMemoryTest extends TestCase
             $this->assertStringNotContainsString("couldn't find this", $response['answer'], $question);
         }
         $this->assertCount(8, $store->requests);
-        $this->assertCount(7, end($store->requests)['messages']);
+        $this->assertCount(7, end($store->requests)['contents']);
         $this->ask($user, 'Tell me about maternity leave.', $first['conversation_id'])->assertOk()
             ->assertJsonMissing(['sources' => ['Wellness Leave']]);
     }
 
     public function test_followup_does_not_reuse_a_policy_that_was_deactivated(): void
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $user = $this->makeUser();
         $first = $this->ask($user, 'Wellness leave?')->assertOk();
         \App\Models\HrPolicyDocument::query()->update(['is_active' => false]);
@@ -328,7 +318,7 @@ class HrChatConversationMemoryTest extends TestCase
 
     public function test_english_filing_followup_and_tagalog_request_keep_the_wellness_policy(): void
     {
-        $store = $this->fakeAnthropic();
+        $store = $this->fakeGemini();
         $user = $this->makeUser();
         $first = $this->ask($user, 'What is wellness leave?')->assertOk();
         $conversationId = $first['conversation_id'];
@@ -337,13 +327,14 @@ class HrChatConversationMemoryTest extends TestCase
             'Paano ko ito ia-apply?', 'Paano ang proseso ng pag-file?'] as $question) {
             $response = $this->ask($user, $question, $conversationId)->assertOk();
             $this->assertSame(['Wellness Leave'], $this->titlesOnly($response['sources']), $question);
-            $this->assertSame($question, end($store->requests)['messages'][count(end($store->requests)['messages']) - 1]['content']);
+            $contents = end($store->requests)['contents'];
+            $this->assertSame($question, end($contents)['parts'][0]['text']);
         }
 
         $this->assertCount(5, $store->requests);
-        $this->assertStringContainsString('latest language explicitly requested', $store->requests[2]['system'][0]['text']);
-        $this->assertSame('How to file it?', $store->requests[2]['messages'][2]['content']);
-        $this->assertSame('Pwede bang tagalog ang pagsagot mo sakin?', $store->requests[3]['messages'][4]['content']);
+        $this->assertStringContainsString('latest language explicitly requested', $store->requests[2]['systemInstruction']['parts'][0]['text']);
+        $this->assertSame('How to file it?', $store->requests[2]['contents'][2]['parts'][0]['text']);
+        $this->assertSame('Pwede bang tagalog ang pagsagot mo sakin?', $store->requests[3]['contents'][4]['parts'][0]['text']);
 
         $changedTopic = $this->ask($user, 'How does this maternity leave work?', $conversationId)->assertOk();
         $this->assertSame(['Maternity Leave'], $this->titlesOnly($changedTopic['sources']));

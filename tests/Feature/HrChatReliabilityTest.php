@@ -6,7 +6,7 @@ use App\Models\HrChatLog;
 use App\Models\HrConversation;
 use App\Models\HrPolicyDocument;
 use App\Models\User;
-use App\Services\AnthropicService;
+use App\Services\GeminiService;
 use App\Services\PolicyRetriever;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -29,7 +29,7 @@ class HrChatReliabilityTest extends TestCase
     public function test_failed_provider_is_not_persisted_as_a_successful_answer()
     {
         $this->document('Leave rules', 'Wellness leave applications are permitted.');
-        config(['services.anthropic.key' => 'mock-key']);
+        config(['services.gemini.key' => 'mock-key']);
         Http::fake(['*' => Http::response(['error' => ['message' => 'SECRET provider prompt']], 429)]);
         $this->actingAs($this->user())->postJson(route('hr.chat.ask'), ['question' => 'Wellness leave?'])
             ->assertStatus(503)->assertJson(['sources' => [], 'log_id' => null])->assertDontSee('SECRET');
@@ -37,25 +37,26 @@ class HrChatReliabilityTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_gemini_runs_the_unchanged_controller_flow_when_only_its_dependency_is_substituted()
+    public function test_chat_route_uses_gemini_and_sends_followup_history()
     {
         $this->document('Leave rules', 'Wellness leave applications are permitted.');
-        config(['services.gemini.key' => 'mock-gemini']);
+        config(['services.gemini.key' => 'mock-gemini', 'services.gemini.model' => 'gemini-4-hydrogen']);
         Http::fake(['*' => Http::response(['candidates' => [['finishReason' => 'STOP', 'content' => ['parts' => [['text' => 'Synthetic Gemini answer']]]]]])]);
-        $this->app->instance(\App\Http\Controllers\Admin\HrChatController::class,
-            new class(new PolicyRetriever, new \App\Services\GeminiService) extends \App\Http\Controllers\Admin\HrChatController {
-                public function __construct(PolicyRetriever $retriever, \App\Services\GeminiService $ai)
-                {
-                    $this->retriever = $retriever; $this->ai = $ai;
-                }
-            });
         $response = $this->actingAs($this->user())->postJson(route('hr.chat.ask'), ['question' => 'Wellness leave?']);
         $response->assertOk()->assertJson(['sources' => ['Leave rules']]);
         $this->assertSame('Synthetic Gemini answer', $response['answer']);
         $this->postJson(route('hr.chat.ask'), ['question' => 'How many days?', 'conversation_id' => $response['conversation_id']])->assertOk();
         Http::assertSent(function ($request) {
-            return count($request->data()['contents']) === 3 && $request->data()['contents'][1]['role'] === 'model';
+            $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-4-hydrogen:generateContent';
+            $payload = $request->data();
+            $contents = $payload['contents'] ?? [];
+
+            return $request->url() === $url && $request->hasHeader('x-goog-api-key', 'mock-gemini')
+                && $payload['generationConfig'] === ['maxOutputTokens' => 16384, 'thinkingConfig' => ['thinkingLevel' => 'medium']]
+                && array_column($contents, 'role') === ['user', 'model', 'user']
+                && $contents[1]['parts'][0]['text'] === 'Synthetic Gemini answer';
         });
+        Http::assertSentCount(2);
         $this->assertSame(2, HrChatLog::count());
     }
 
@@ -112,7 +113,7 @@ class HrChatReliabilityTest extends TestCase
     public function test_deleting_a_conversation_during_provider_call_does_not_create_orphan_logs()
     {
         $this->document('Leave', 'Wellness leave application.');
-        $this->app->instance(AnthropicService::class, new class extends AnthropicService {
+        $this->app->instance(GeminiService::class, new class extends GeminiService {
             public function ask(string $question, string $policyContext, array $history = []): string
             {
                 HrConversation::query()->delete();

@@ -86,7 +86,7 @@
                 </picture>
             </div>
 
-            <h5 class="survey-subtitle">CITY HUMAN RESOURCE DEVELOPMENT OFFICE</h5>
+            <!-- <h5 class="survey-subtitle">CITY HUMAN RESOURCE DEVELOPMENT OFFICE</h5> -->
             <h1 class="survey-title">Customer Satisfaction Survey</h1>
         </header>
 

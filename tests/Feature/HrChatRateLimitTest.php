@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\HrPolicyChunk;
 use App\Models\HrPolicyDocument;
 use App\Models\User;
-use App\Services\AnthropicService;
+use App\Services\GeminiService;
 use App\Services\PolicyRetriever;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
@@ -39,14 +39,14 @@ class HrChatRateLimitTest extends TestCase
 
     private function fakeAi(): void
     {
-        $fake = new class extends AnthropicService {
+        $fake = new class extends GeminiService {
             public function __construct() {}
             public function ask(string $question, string $policyContext, array $history = []): string
             {
                 return 'Wellness Leave allows up to 5 days. [Source: Wellness Leave]';
             }
         };
-        $this->app->instance(AnthropicService::class, $fake);
+        $this->app->instance(GeminiService::class, $fake);
     }
 
     public function test_ask_endpoint_is_throttled_after_configured_limit()

@@ -7,7 +7,7 @@ use App\Models\HrConversation;
 use App\Models\HrPolicyChunk;
 use App\Models\HrPolicyDocument;
 use App\Models\User;
-use App\Services\AnthropicService;
+use App\Services\GeminiService;
 use App\Services\PolicyRetriever;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
@@ -58,7 +58,7 @@ class HrConversationTest extends TestCase
 
     private function fakeAi()
     {
-        $fake = new class extends AnthropicService {
+        $fake = new class extends GeminiService {
             public array $lastHistory = [];
             public function __construct() {}
             public function ask(string $question, string $policyContext, array $history = []): string
@@ -67,7 +67,7 @@ class HrConversationTest extends TestCase
                 return 'Wellness Leave allows up to 5 days. [Source: Wellness Leave]';
             }
         };
-        $this->app->instance(AnthropicService::class, $fake);
+        $this->app->instance(GeminiService::class, $fake);
         return $fake;
     }
 

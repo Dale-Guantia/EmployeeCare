@@ -6,7 +6,7 @@ use App\Models\HrChatLog;
 use App\Models\HrConversation;
 use App\Models\HrPolicyDocument;
 use App\Models\User;
-use App\Services\AnthropicService;
+use App\Services\GeminiService;
 use App\Services\PolicyRetriever;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -37,7 +37,7 @@ class HrPolicyGuidanceTest extends TestCase
 
     public function test_ambiguous_process_question_clarifies_without_calling_provider(): void
     {
-        $this->app->instance(AnthropicService::class, new class extends AnthropicService {
+        $this->app->instance(GeminiService::class, new class extends GeminiService {
             public function ask(string $question, string $policyContext, array $history = []): string
             {
                 throw new \LogicException('Provider must not be called.');
@@ -51,7 +51,7 @@ class HrPolicyGuidanceTest extends TestCase
 
     public function test_no_document_match_refers_the_user_to_hrdo_without_calling_provider(): void
     {
-        $this->app->instance(AnthropicService::class, new class extends AnthropicService {
+        $this->app->instance(GeminiService::class, new class extends GeminiService {
             public function ask(string $question, string $policyContext, array $history = []): string
             {
                 throw new \LogicException('Provider must not be called.');
@@ -106,7 +106,7 @@ class HrPolicyGuidanceTest extends TestCase
     public function test_start_over_creates_a_fresh_topic_scope(): void
     {
         $this->document('Wellness Leave', 'Wellness leave application guidance.');
-        $this->app->instance(AnthropicService::class, new class extends AnthropicService {
+        $this->app->instance(GeminiService::class, new class extends GeminiService {
             public function ask(string $question, string $policyContext, array $history = []): string
             {
                 return 'Synthetic policy guidance.';
@@ -126,7 +126,7 @@ class HrPolicyGuidanceTest extends TestCase
     public function test_latest_employee_statement_replaces_old_unverified_context(): void
     {
         $this->document('Wellness Leave', 'Wellness leave guidance for employees.');
-        $provider = new class extends AnthropicService {
+        $provider = new class extends GeminiService {
             public array $questions = [];
             public function ask(string $question, string $policyContext, array $history = []): string
             {
@@ -134,7 +134,7 @@ class HrPolicyGuidanceTest extends TestCase
                 return 'Synthetic policy guidance.';
             }
         };
-        $this->app->instance(AnthropicService::class, $provider);
+        $this->app->instance(GeminiService::class, $provider);
         $this->actingAs(User::role('employee')->first());
         $first = $this->postJson(route('hr.chat.ask'), ['question' => 'I am contractual. What is wellness leave?'])->assertOk();
         $this->postJson(route('hr.chat.ask'), ['question' => 'Actually I am regular. What about this leave?',
@@ -148,7 +148,7 @@ class HrPolicyGuidanceTest extends TestCase
         Storage::fake(config('filesystems.default'));
         Storage::put('policies/guide.pdf', '%PDF-1.4 synthetic');
         $document = $this->document('Wellness Leave', 'Wellness leave application instructions.');
-        $this->app->instance(AnthropicService::class, new class extends AnthropicService {
+        $this->app->instance(GeminiService::class, new class extends GeminiService {
             public function ask(string $question, string $policyContext, array $history = []): string
             {
                 return 'Synthetic answer citing the supplied excerpt.';

@@ -11,18 +11,26 @@ class GeminiService
     public function ask(string $question, string $policyContext, array $history = []): string
     {
         $key = config('services.gemini.key', '');
-        $model = config('services.gemini.model', 'gemini-3-flash-preview');
+        $model = config('services.gemini.model');
         if (!$key || !is_string($model) || !preg_match('/^[a-zA-Z0-9.-]+$/D', $model)) { throw new PolicyChatException; }
         $contents = array_map(function ($message) {
             return ['role' => $message['role'] === 'assistant' ? 'model' : 'user', 'parts' => [['text' => $message['content']]]];
         }, PolicyChatPrompt::messages($question, $history));
+
+        $generationConfig = ['maxOutputTokens' => 4096];
+        if ($model === 'gemini-4-hydrogen') {
+            // Thinking tokens count toward the output limit.
+            $generationConfig['maxOutputTokens'] = 16384;
+            $generationConfig['thinkingConfig'] = ['thinkingLevel' => 'medium'];
+        }
+
         try {
             $response = Http::timeout(60)->withOptions(['connect_timeout' => 10])->withHeaders([
                 'x-goog-api-key' => $key,
             ])->post('https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent', [
                 'systemInstruction' => ['parts' => [['text' => PolicyChatPrompt::instructions() . "\n\n" . PolicyChatPrompt::context($policyContext)]]],
                 'contents' => $contents,
-                'generationConfig' => ['maxOutputTokens' => 4096],
+                'generationConfig' => $generationConfig,
             ]);
             if (!$response->successful()) {
                 Log::warning('[GeminiService] Request rejected.', ['status' => $response->status()]);
